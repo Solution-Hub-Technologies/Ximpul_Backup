@@ -8,9 +8,20 @@ const corsHeaders = {
 // Sanitize data for logging to prevent log injection
 const sanitizeForLog = (data: any): string => {
   if (typeof data === 'string') {
-    return data.replace(/[\r\n\t]/g, ' ').substring(0, 100);
+    return data.replace(/[\r\n\t\x00-\x1f\x7f-\x9f]/g, ' ').replace(/[<>"'&]/g, '').substring(0, 100);
   }
-  return String(data).replace(/[\r\n\t]/g, ' ').substring(0, 100);
+  return String(data).replace(/[\r\n\t\x00-\x1f\x7f-\x9f]/g, ' ').replace(/[<>"'&]/g, '').substring(0, 100);
+};
+
+// Sanitize HTML content to prevent XSS
+const sanitizeHtml = (text: string): string => {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
 };
 
 // Send emails via the email server
@@ -82,7 +93,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Email content for customer
     const customerEmailContent = `
       <h2>Thank you for your order!</h2>
-      <p>Dear ${orderData.customerName},</p>
+      <p>Dear ${sanitizeHtml(orderData.customerName)},</p>
       
       <p>Thank you for choosing Ximpul Flow — a product built with care, purpose, and the belief that water should be free.</p>
       
@@ -102,17 +113,17 @@ const handler = async (req: Request): Promise<Response> => {
       
       <h3>Order Details:</h3>
       <ul>
-        <li><strong>Order ID:</strong> ${orderData.orderId}</li>
-        <li><strong>Edition:</strong> ${orderData.selectedEdition}</li>
-        <li><strong>Color:</strong> ${orderData.selectedColor}</li>
-        <li><strong>Total Amount:</strong> ${orderData.totalAmount} BDT</li>
-        <li><strong>Payment Method:</strong> ${orderData.paymentMethod}</li>
+        <li><strong>Order ID:</strong> ${sanitizeHtml(orderData.orderId)}</li>
+        <li><strong>Edition:</strong> ${sanitizeHtml(orderData.selectedEdition)}</li>
+        <li><strong>Color:</strong> ${sanitizeHtml(orderData.selectedColor)}</li>
+        <li><strong>Total Amount:</strong> ${sanitizeHtml(String(orderData.totalAmount))} BDT</li>
+        <li><strong>Payment Method:</strong> ${sanitizeHtml(orderData.paymentMethod)}</li>
       </ul>
       
       <div style="background-color: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
         <h3 style="color: #0369a1; margin-bottom: 10px;">📦 Track Your Order</h3>
         <p style="margin-bottom: 15px;"><strong>You can track your order status anytime using your Order ID:</strong></p>
-        <a href="https://ximpul.com/track-order" style="display: inline-block; background-color: #0ea5e9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-bottom: 10px;">Track Order: ${orderData.orderId}</a>
+        <a href="https://ximpul.com/track-order" style="display: inline-block; background-color: #0ea5e9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-bottom: 10px;">Track Order: ${sanitizeHtml(orderData.orderId)}</a>
         <p style="font-size: 14px; color: #64748b;">Or visit: <strong>https://ximpul.com/track-order</strong> and enter your Order ID</p>
       </div>
     `;
@@ -123,18 +134,18 @@ const handler = async (req: Request): Promise<Response> => {
       
       <h3>Customer Details:</h3>
       <ul>
-        <li><strong>Name:</strong> ${orderData.customerName}</li>
-        <li><strong>Email:</strong> ${orderData.customerEmail}</li>
-        <li><strong>Phone:</strong> ${orderData.customerPhone}</li>
+        <li><strong>Name:</strong> ${sanitizeHtml(orderData.customerName)}</li>
+        <li><strong>Email:</strong> ${sanitizeHtml(orderData.customerEmail)}</li>
+        <li><strong>Phone:</strong> ${sanitizeHtml(orderData.customerPhone)}</li>
       </ul>
       
       <h3>Order Details:</h3>
       <ul>
-        <li><strong>Order ID:</strong> ${orderData.orderId}</li>
-        <li><strong>Edition:</strong> ${orderData.selectedEdition}</li>
-        <li><strong>Color:</strong> ${orderData.selectedColor}</li>
-        <li><strong>Total Amount:</strong> ${orderData.totalAmount} BDT</li>
-        <li><strong>Payment Method:</strong> ${orderData.paymentMethod}</li>
+        <li><strong>Order ID:</strong> ${sanitizeHtml(orderData.orderId)}</li>
+        <li><strong>Edition:</strong> ${sanitizeHtml(orderData.selectedEdition)}</li>
+        <li><strong>Color:</strong> ${sanitizeHtml(orderData.selectedColor)}</li>
+        <li><strong>Total Amount:</strong> ${sanitizeHtml(String(orderData.totalAmount))} BDT</li>
+        <li><strong>Payment Method:</strong> ${sanitizeHtml(orderData.paymentMethod)}</li>
         <li><strong>Order Time:</strong> ${new Date().toISOString()}</li>
       </ul>
     `;

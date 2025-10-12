@@ -5,13 +5,7 @@ import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 import { toast } from 'sonner';
 import { useNotifications } from '@/contexts/NotificationContext';
 
-// Sanitize data for logging to prevent log injection
-const sanitizeForLog = (data: any): string => {
-  if (typeof data === 'string') {
-    return data.replace(/[\r\n\t]/g, ' ').substring(0, 100);
-  }
-  return String(data).replace(/[\r\n\t]/g, ' ').substring(0, 100);
-};
+import { sanitizeForLog } from '@/utils/security';
 
 export interface Order {
   id: string;
@@ -59,11 +53,11 @@ export const useOrders = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching orders:', error);
+        console.error('Error fetching orders:', sanitizeForLog(error?.message || 'Unknown error'));
         throw error;
       }
       
-      console.log('Orders fetched successfully:', sanitizeForLog(data?.length || 0), 'orders');
+      console.log('Orders fetched successfully:', sanitizeForLog(String(data?.length || 0)), 'orders');
       
       const transformedOrders: Order[] = (data || []).map(order => ({
         ...order,
@@ -76,7 +70,7 @@ export const useOrders = () => {
       
       setOrders(transformedOrders);
     } catch (err: any) {
-      console.error('Error fetching orders:', sanitizeForLog(err));
+      console.error('Error fetching orders:', sanitizeForLog(err?.message || 'Unknown error'));
       setError(err.message);
       toast.error('Failed to fetch orders');
     } finally {
@@ -94,7 +88,7 @@ export const useOrders = () => {
         .single();
 
       if (error) {
-        console.error('Error fetching order:', error);
+        console.error('Error fetching order:', sanitizeForLog(error?.message || 'Unknown error'));
         return null;
       }
 
@@ -110,14 +104,14 @@ export const useOrders = () => {
       console.log('Order transformed successfully');
       return transformedOrder;
     } catch (err: any) {
-      console.error('Error fetching order:', err);
+      console.error('Error fetching order:', sanitizeForLog(err?.message || 'Unknown error'));
       return null;
     }
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string, adminId: string, notes?: string) => {
     try {
-      console.log('Updating order:', { orderId, newStatus, adminId });
+      console.log('Updating order:', { orderId: sanitizeForLog(orderId), newStatus: sanitizeForLog(newStatus), adminId: sanitizeForLog(adminId) });
       
       // Get current order data to check if stock should be deducted or restored
       const currentOrder = orders.find(order => order.id === orderId);
@@ -144,10 +138,10 @@ export const useOrders = () => {
                                 );
       
       console.log('Stock restoration check:', {
-        newStatus,
-        paymentMethod: currentOrder.payment_method,
-        currentOrderStatus: currentOrder.order_status,
-        paymentStatus: currentOrder.payment_status,
+        newStatus: sanitizeForLog(newStatus),
+        paymentMethod: sanitizeForLog(currentOrder.payment_method),
+        currentOrderStatus: sanitizeForLog(currentOrder.order_status),
+        paymentStatus: sanitizeForLog(currentOrder.payment_status),
         shouldRestoreStock
       });
       
@@ -162,7 +156,7 @@ export const useOrders = () => {
         .eq('id', orderId)
         .select();
 
-      console.log('Update result:', { data, error });
+      console.log('Update result:', { data: sanitizeForLog(JSON.stringify(data)), error: sanitizeForLog(error?.message || 'No error') });
       
       if (error) throw error;
 
@@ -190,14 +184,14 @@ export const useOrders = () => {
       toast.success('Order status updated successfully');
       
     } catch (err: any) {
-      console.error('Error updating order:', err);
+      console.error('Error updating order:', sanitizeForLog(err?.message || 'Unknown error'));
       toast.error(`Failed to update order status: ${err.message}`);
     }
   };
 
   const updatePaymentStatus = async (orderId: string, newPaymentStatus: string, adminId: string, notes?: string) => {
     try {
-      console.log('Updating payment status:', { orderId, newPaymentStatus, adminId, notes });
+      console.log('Updating payment status:', { orderId: sanitizeForLog(orderId), newPaymentStatus: sanitizeForLog(newPaymentStatus), adminId: sanitizeForLog(adminId), notes: sanitizeForLog(notes || '') });
       
       // Get current order data to check if stock should be deducted
       const currentOrder = orders.find(order => order.id === orderId);
@@ -218,11 +212,11 @@ export const useOrders = () => {
         .select();
 
       if (error) {
-        console.error('Error updating payment status:', error);
+        console.error('Error updating payment status:', sanitizeForLog(error?.message || 'Unknown error'));
         throw error;
       }
 
-      console.log('Payment status updated successfully:', data);
+      console.log('Payment status updated successfully:', sanitizeForLog(JSON.stringify(data)));
       
       // Deduct stock for online orders when payment is confirmed
       if (shouldDeductStock) {
@@ -241,14 +235,14 @@ export const useOrders = () => {
       toast.success('Payment status updated successfully');
       
     } catch (err: any) {
-      console.error('Error updating payment status:', err);
+      console.error('Error updating payment status:', sanitizeForLog(err?.message || 'Unknown error'));
       toast.error(`Failed to update payment status: ${err.message}`);
     }
   };
 
   const updateTrackingInfo = async (orderId: string, trackingNumber: string, estimatedDelivery: string) => {
     try {
-      console.log('Updating tracking info:', { orderId, trackingNumber, estimatedDelivery });
+      console.log('Updating tracking info:', { orderId: sanitizeForLog(orderId), trackingNumber: sanitizeForLog(trackingNumber), estimatedDelivery: sanitizeForLog(estimatedDelivery) });
       
       const { error } = await supabase
         .from('orders')
@@ -259,7 +253,7 @@ export const useOrders = () => {
         .eq('id', orderId);
 
       if (error) {
-        console.error('Error updating tracking:', error);
+        console.error('Error updating tracking:', sanitizeForLog(error?.message || 'Unknown error'));
         throw error;
       }
       
@@ -280,14 +274,14 @@ export const useOrders = () => {
       }, 100);
       
     } catch (err: any) {
-      console.error('Error updating tracking:', err);
+      console.error('Error updating tracking:', sanitizeForLog(err?.message || 'Unknown error'));
       toast.error(`Failed to update tracking information: ${err.message}`);
     }
   };
 
   const deleteOrder = async (orderId: string) => {
     try {
-      console.log('Deleting order:', orderId);
+      console.log('Deleting order:', sanitizeForLog(orderId));
       
       const { error } = await supabaseAdmin
         .from('orders')
@@ -295,7 +289,7 @@ export const useOrders = () => {
         .eq('id', orderId);
 
       if (error) {
-        console.error('Error deleting order:', error);
+        console.error('Error deleting order:', sanitizeForLog(error?.message || 'Unknown error'));
         throw error;
       }
 
@@ -307,14 +301,14 @@ export const useOrders = () => {
       toast.success('Order deleted successfully');
       
     } catch (err: any) {
-      console.error('Error deleting order:', err);
+      console.error('Error deleting order:', sanitizeForLog(err?.message || 'Unknown error'));
       toast.error(`Failed to delete order: ${err.message}`);
     }
   };
 
   const deductStockForOrder = async (order: Order, reason?: string) => {
     try {
-      console.log('Deducting stock for order:', order.order_id);
+      console.log('Deducting stock for order:', sanitizeForLog(String(order.order_id)));
       
       const defaultReason = reason || `Online payment confirmed - Order ID: ${order.order_id}`;
       
@@ -326,7 +320,7 @@ export const useOrders = () => {
         .single();
 
       if (productError) {
-        console.error('Error fetching product:', productError);
+        console.error('Error fetching product:', sanitizeForLog(productError?.message || 'Unknown error'));
         throw productError;
       }
 
@@ -357,7 +351,7 @@ export const useOrders = () => {
               new_stock: currentStock - 1
             });
 
-          console.log(`Product stock deducted: ${order.selected_edition} ${order.selected_color}`);
+          console.log(`Product stock deducted: ${sanitizeForLog(order.selected_edition)} ${sanitizeForLog(order.selected_color)}`);
         }
       }
 
@@ -408,7 +402,7 @@ export const useOrders = () => {
                   new_stock: currentStock - 1
                 });
 
-              console.log(`Accessory stock deducted: ${accessoryName}`);
+              console.log(`Accessory stock deducted: ${sanitizeForLog(accessoryName)}`);
             }
           }
         }
@@ -417,14 +411,14 @@ export const useOrders = () => {
       toast.success('Stock deducted successfully');
       
     } catch (err: any) {
-      console.error('Error deducting stock:', err);
+      console.error('Error deducting stock:', sanitizeForLog(err?.message || 'Unknown error'));
       toast.error(`Failed to deduct stock: ${err.message}`);
     }
   };
 
   const restoreStockForOrder = async (order: Order) => {
     try {
-      console.log('Restoring stock for cancelled order:', order.order_id);
+      console.log('Restoring stock for cancelled order:', sanitizeForLog(String(order.order_id)));
       
       // Restore product stock
       const { data: productData, error: productError } = await supabaseAdmin
@@ -434,7 +428,7 @@ export const useOrders = () => {
         .single();
 
       if (productError) {
-        console.error('Error fetching product:', productError);
+        console.error('Error fetching product:', sanitizeForLog(productError?.message || 'Unknown error'));
         throw productError;
       }
 
@@ -464,7 +458,7 @@ export const useOrders = () => {
             new_stock: currentStock + 1
           });
 
-        console.log(`Product stock restored: ${order.selected_edition} ${order.selected_color}`);
+        console.log(`Product stock restored: ${sanitizeForLog(order.selected_edition)} ${sanitizeForLog(order.selected_color)}`);
       }
 
       // Restore accessory stock if any accessories were selected
@@ -513,7 +507,7 @@ export const useOrders = () => {
                 new_stock: currentStock + 1
               });
 
-            console.log(`Accessory stock restored: ${accessoryName}`);
+            console.log(`Accessory stock restored: ${sanitizeForLog(accessoryName)}`);
           }
         }
       }
@@ -521,7 +515,7 @@ export const useOrders = () => {
       toast.success('Stock restored successfully for cancelled order');
       
     } catch (err: any) {
-      console.error('Error restoring stock:', err);
+      console.error('Error restoring stock:', sanitizeForLog(err?.message || 'Unknown error'));
       toast.error(`Failed to restore stock: ${err.message}`);
     }
   };

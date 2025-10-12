@@ -5,7 +5,8 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^api/(.*)$ api/$1 [L]
 
-# Handle React Router
+# Handle React Router - exclude PHP files
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !\.(php|json)$
 RewriteRule . /index.html [L]

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { RainbowButton } from '@/components/ui/rainbow-button';
+import { sanitizeForLog } from '@/utils/security';
 
 
 export const Navigation = () => {
@@ -32,7 +33,7 @@ export const Navigation = () => {
             if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
               setActiveSection(sectionId);
               foundActive = true;
-              console.log('Setting active section to:', sectionId);
+              console.log('Setting active section to:', sanitizeForLog(sectionId));
               break;
             }
           }
@@ -137,8 +138,8 @@ export const Navigation = () => {
   }];
 
   // Debug active section
-  console.log('Active Section:', activeSection);
-  console.log('Current Path:', location.pathname);
+  console.log('Active Section:', sanitizeForLog(activeSection));
+  console.log('Current Path:', sanitizeForLog(location.pathname));
   
   return (
     <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${isScrolled ? 'bg-background/95 backdrop-blur-sm border-b shadow-sm' : 'bg-white border-b border-white/10'}`}>
@@ -165,7 +166,7 @@ export const Navigation = () => {
               
               // Debug which items are active
               if (isActive) {
-                console.log('Active nav item:', item.name);
+                console.log('Active nav item:', sanitizeForLog(item.name));
               }
               
               return (

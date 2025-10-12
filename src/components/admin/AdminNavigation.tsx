@@ -310,9 +310,9 @@ export const AdminNavigation = () => {
                     <span>User Management</span>
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => navigate('/admin/tests')}>
+                <DropdownMenuItem onClick={() => navigate('/admin/smtp-config')}>
                   <TestTube className="mr-2 h-4 w-4" />
-                  <span>SMTP Tests</span>
+                  <span>Email Configuration</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout} className="text-red-600 focus:text-red-600">

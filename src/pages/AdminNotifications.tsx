@@ -55,15 +55,20 @@ export const AdminNotifications = () => {
     
     setIsSubmitting(true);
     try {
-      // Send email notification
-      const emailResponse = await fetch('https://ximpul.com/smtp-test.php', {
+      // Send email notification using template
+      const defaultMessage = `Your requested ${selectedNotification.color_requested} is now available for immediate purchase. Don't wait - limited stock available!`;
+      
+      await fetch('https://ximpul.com/send-template-email.php', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          to: selectedNotification.customer_email || '',
-          subject: `Stock Available - ${selectedNotification.color_requested} | Ximpul Flow`,
-          message: `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stock Available</title></head><body style="font-family: Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;"><div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"><div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;"><h1 style="color: #ffffff; font-size: 28px; font-weight: 300; margin: 0 0 10px 0; letter-spacing: 1px;">XIMPUL FLOW</h1><p style="color: #d1fae5; font-size: 16px; margin: 0;">Stock Available!</p></div><div style="padding: 40px 30px; text-align: center;"><div style="width: 60px; height: 60px; background-color: #10b981; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 24px;">✓</span></div><h2 style="color: #1f2937; font-size: 24px; font-weight: 400; margin: 0 0 10px 0;">Great News, ${selectedNotification.customer_name}!</h2><p style="color: #6b7280; font-size: 16px; margin: 0 0 30px 0;">The <strong>${selectedNotification.color_requested}</strong> you requested is now back in stock!</p><div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; margin-bottom: 30px; text-align: left;"><h4 style="color: #065f46; font-size: 16px; font-weight: 600; margin: 0 0 10px 0;">Ready to Order?</h4><p style="color: #047857; margin: 0 0 15px 0; line-height: 1.6;">${notifyMessage || `Your requested ${selectedNotification.color_requested} is now available for immediate purchase. Don't wait - limited stock available!`}</p><div style="text-align: center; margin-top: 20px;"><a href="https://ximpul.com/#buy" style="display: inline-block; background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Order Now</a></div></div><div style="text-align: center; padding: 20px 0;"><p style="color: #6b7280; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">Thank you for your patience. We're excited to get your Ximpul Flow to you!</p><p style="color: #1f2937; font-weight: 600; font-size: 18px; margin: 0;">Your Water. Your Freedom.</p></div></div><div style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb; border-radius: 0 0 12px 12px;"><p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0;">Need help? Contact us:</p><p style="color: #1f2937; font-weight: 600; margin: 0;">Email: ximpulshop@gmail.com | Phone: 01881408611</p><p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0 0;">Copyright 2024 Ximpul. All rights reserved.</p></div></div></body></html>`,
-          from_name: 'Ximpul Shop'
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template_name: 'stock_available_customer',
+          to: selectedNotification.customer_email,
+          variables: {
+            customerName: selectedNotification.customer_name,
+            color: selectedNotification.color_requested,
+            customMessage: notifyMessage || defaultMessage
+          }
         })
       });
 

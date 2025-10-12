@@ -1,11 +1,22 @@
 <?php
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $input = json_decode(file_get_contents('php://input'), true);
+    $raw_input = file_get_contents('php://input');
+    if (strlen($raw_input) > 4096) {
+        http_response_code(413);
+        echo json_encode(['success' => false, 'error' => 'Request too large']);
+        exit;
+    }
+    $input = json_decode($raw_input, true);
     
     if (!$input || !isset($input['orderId'])) {
         http_response_code(400);
@@ -13,19 +24,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     
-    // Call the local email server
+    // Sanitize and validate input data
     $data = [
-        'order_id' => $input['orderId'],
-        'customer_name' => $input['customerName'],
-        'customer_email' => $input['customerEmail'],
-        'customer_phone' => $input['customerPhone'],
-        'customer_address' => $input['customerAddress'],
-        'selected_edition' => $input['selectedEdition'],
-        'selected_color' => $input['selectedColor'],
-        'engraving_text' => $input['engravingText'],
-        'total_amount' => $input['totalAmount'],
-        'payment_method' => $input['paymentMethod']
+        'order_id' => preg_replace('/[^a-zA-Z0-9\-_]/', '', $input['orderId'] ?? ''),
+        'customer_name' => htmlspecialchars($input['customerName'] ?? '', ENT_QUOTES, 'UTF-8'),
+        'customer_email' => filter_var($input['customerEmail'] ?? '', FILTER_VALIDATE_EMAIL),
+        'customer_phone' => preg_replace('/[^0-9+\-\s]/', '', $input['customerPhone'] ?? ''),
+        'customer_address' => htmlspecialchars($input['customerAddress'] ?? '', ENT_QUOTES, 'UTF-8'),
+        'selected_edition' => htmlspecialchars($input['selectedEdition'] ?? '', ENT_QUOTES, 'UTF-8'),
+        'selected_color' => htmlspecialchars($input['selectedColor'] ?? '', ENT_QUOTES, 'UTF-8'),
+        'engraving_text' => htmlspecialchars($input['engravingText'] ?? '', ENT_QUOTES, 'UTF-8'),
+        'total_amount' => filter_var($input['totalAmount'] ?? 0, FILTER_VALIDATE_FLOAT),
+        'payment_method' => htmlspecialchars($input['paymentMethod'] ?? '', ENT_QUOTES, 'UTF-8')
     ];
+    
+    if (!$data['customer_email'] || !$data['total_amount']) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid input data']);
+        exit;
+    }
     
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, 'http://localhost:3001/send-order-emails');

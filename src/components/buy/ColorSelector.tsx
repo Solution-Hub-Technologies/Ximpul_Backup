@@ -9,6 +9,7 @@ import { Check, Lock, Bell } from 'lucide-react';
 import { Color } from '@/types/buySection';
 import { toast } from 'sonner';
 import { createAdminEmailTemplate, createCustomerEmailTemplate } from '@/utils/email-templates';
+import { sanitizeForLog, sanitizeHtml } from '@/utils/security';
 
 interface ColorSelectorProps {
   colors: Color[];
@@ -196,39 +197,45 @@ export const ColorSelector = ({ colors, selectedColor, selectedEdition, onColorC
                     });
                     
                     if (error) {
-                      console.error('Database error:', error);
+                      console.error('Database error:', sanitizeForLog(error?.message || 'Unknown error'));
                       toast.error('Failed to save notification. Please try again.');
                       return;
                     }
                     
-                    // Send email to admin
-                    await fetch('https://ximpul.com/smtp-test.php', {
+                    // Send email to admin using template
+                    await fetch('https://ximpul.com/send-template-email.php', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                      body: new URLSearchParams({
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        template_name: 'stock_notification_admin',
                         to: 'ximpulshop@gmail.com',
-                        subject: `Stock Notification Request - ${notifyData.color}`,
-                        message: createAdminEmailTemplate(notifyData.name, notifyData.phone, notifyData.email || 'Not provided', notifyData.color),
-                        from_name: 'Ximpul Shop'
+                        variables: {
+                          customerName: notifyData.name,
+                          customerPhone: notifyData.phone,
+                          customerEmail: notifyData.email || 'Not provided',
+                          color: notifyData.color
+                        }
                       })
                     });
                     
                     // Send confirmation email to customer if email provided
                     if (notifyData.email) {
-                      await fetch('https://ximpul.com/smtp-test.php', {
+                      await fetch('https://ximpul.com/send-template-email.php', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          template_name: 'stock_notification_customer',
                           to: notifyData.email,
-                          subject: `Stock Alert Registered - ${notifyData.color} | Ximpul Flow`,
-                          message: createCustomerEmailTemplate(notifyData.name, notifyData.color),
-                          from_name: 'Ximpul Shop'
+                          variables: {
+                            customerName: notifyData.name,
+                            color: notifyData.color
+                          }
                         })
                       });
                     }
                     toast.success(`We'll notify you when ${notifyData.color} is back in stock!`);
-                  } catch (error) {
-                    console.error('Error:', error);
+                  } catch (error: any) {
+                    console.error('Error:', sanitizeForLog(error?.message || 'Unknown error'));
                     toast.error('Failed to save notification. Please try again.');
                   }
                   setIsSubmitting(false);

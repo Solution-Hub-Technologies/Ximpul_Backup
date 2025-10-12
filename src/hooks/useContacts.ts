@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { sendEmail } from '@/utils/emailjs-service';
 
 export interface Contact {
   id: string;
@@ -46,10 +45,14 @@ export const useContacts = () => {
     message: string;
   }) => {
     try {
-      // Save to database
+      // Save to database (excluding subject as it's not in the table)
       const { error } = await supabase
         .from('contacts')
-        .insert([contactData]);
+        .insert([{
+          name: contactData.name,
+          email: contactData.email,
+          message: `Subject: ${contactData.subject}\n\n${contactData.message}`
+        }]);
 
       if (error) throw error;
       
@@ -90,11 +93,41 @@ ${contactData.message}
 Please respond to the customer within 24 hours.`
       };
       
-      // Send both emails
-      await Promise.all([
-        sendEmail(customerEmail),
-        sendEmail(adminEmail)
-      ]);
+      // Send emails using templates
+      try {
+        // Send customer confirmation email
+        await fetch('https://ximpul.com/send-template-email.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            template_name: 'contact_customer',
+            to: contactData.email,
+            variables: {
+              customerName: contactData.name,
+              subject: contactData.subject,
+              message: contactData.message
+            }
+          })
+        });
+        
+        // Send admin notification email
+        await fetch('https://ximpul.com/send-template-email.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            template_name: 'contact_admin',
+            to: 'ximpulshop@gmail.com',
+            variables: {
+              customerName: contactData.name,
+              customerEmail: contactData.email,
+              subject: contactData.subject,
+              message: contactData.message
+            }
+          })
+        });
+      } catch (emailError) {
+        console.warn('SMTP email failed, but contact was saved');
+      }
       
       return { success: true };
     } catch (err: any) {

@@ -3,16 +3,20 @@
 // Sanitize data for logging to prevent log injection
 export const sanitizeForLog = (data: any): string => {
   if (typeof data === 'string') {
-    return data.replace(/[\r\n\t]/g, ' ').substring(0, 100);
+    return data.replace(/[\r\n\t\x00-\x1f\x7f-\x9f]/g, ' ').replace(/[<>"'&]/g, '').substring(0, 100);
   }
-  return String(data).replace(/[\r\n\t]/g, ' ').substring(0, 100);
+  return String(data).replace(/[\r\n\t\x00-\x1f\x7f-\x9f]/g, ' ').replace(/[<>"'&]/g, '').substring(0, 100);
 };
 
 // Sanitize HTML content to prevent XSS
 export const sanitizeHtml = (text: string): string => {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
 };
 
 // Validate email format
@@ -60,5 +64,14 @@ export const generateCSRFToken = (): string => {
 };
 
 export const validateCSRFToken = (token: string, expectedToken: string): boolean => {
-  return token === expectedToken && token.length === 64;
+  if (!token || !expectedToken || token.length !== 64 || expectedToken.length !== 64) {
+    return false;
+  }
+  
+  // Constant-time comparison to prevent timing attacks
+  let result = 0;
+  for (let i = 0; i < token.length; i++) {
+    result |= token.charCodeAt(i) ^ expectedToken.charCodeAt(i);
+  }
+  return result === 0;
 };

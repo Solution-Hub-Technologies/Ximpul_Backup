@@ -3,19 +3,14 @@
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/../smtp_test/vendor/autoload.php';
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
-
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Methods: POST, OPTIONS, GET');
 header('Access-Control-Allow-Headers: Content-Type');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
+    http_response_code(200);
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -49,48 +44,36 @@ if (empty($to)) {
     exit;
 }
 
-$mail = new PHPMailer(true);
-
 try {
-    $mail->isSMTP();
-    $mail->Host = 'smtp.gmail.com';
-    $mail->SMTPAuth = true;
-    $mail->Username = $_ENV['SMTP_USER'] ?? 'ximpulshop@gmail.com';
-    $mail->Password = $_ENV['SMTP_PASS'] ?? 'grnj yivy gcmd dknp';
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port = 587;
-    $mail->SMTPDebug = 0;
-
-    $mail->setFrom('ximpulshop@gmail.com', $from_name);
-    $mail->addAddress($to);
+    // Use PHP's built-in mail function with proper headers
+    $headers = "From: $from_name <ximpulshop@gmail.com>\r\n";
+    $headers .= "Reply-To: ximpulshop@gmail.com\r\n";
+    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= "X-Mailer: PHP/" . phpversion();
     
-    // Add CC recipients if provided
+    // Add CC if provided
     if (!empty($cc)) {
         $ccEmails = explode(',', $cc);
+        $validCCs = [];
         foreach ($ccEmails as $ccEmail) {
             $ccEmail = trim($ccEmail);
             if (!empty($ccEmail) && filter_var($ccEmail, FILTER_VALIDATE_EMAIL)) {
-                $mail->addCC($ccEmail);
+                $validCCs[] = $ccEmail;
             }
         }
+        if (!empty($validCCs)) {
+            $headers .= "\r\nCc: " . implode(', ', $validCCs);
+        }
     }
-
-    $mail->isHTML(true);
-    $mail->Subject = $subject;
     
-    // Determine if message contains HTML content
-    $isHtmlContent = (strpos($message, '<!DOCTYPE html>') !== false || strpos($message, '<html>') !== false);
+    // Format message
+    $formattedMessage = nl2br(htmlspecialchars($message, ENT_QUOTES, 'UTF-8'));
     
-    if ($isHtmlContent) {
-        $mail->Body = $message;
-        $mail->AltBody = strip_tags($message);
-    } else {
-        $sanitizedMessage = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
-        $mail->Body = nl2br($sanitizedMessage);
-        $mail->AltBody = $sanitizedMessage;
+    $success = mail($to, $subject, $formattedMessage, $headers);
+    
+    if (!$success) {
+        throw new Exception('Mail function failed');
     }
-
-    $mail->send();
     
     echo json_encode([
         'success' => true,
@@ -104,7 +87,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Failed to send email: ' . htmlspecialchars($mail->ErrorInfo, ENT_QUOTES, 'UTF-8'),
+        'error' => 'Failed to send email: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'),
         'timestamp' => date('Y-m-d H:i:s')
     ]);
 }

@@ -76,6 +76,7 @@ export const sendOrderEmails = async (order) => {
      const emailServerUrl = `http://localhost:3001/send-order-emails`;
 
       console.log('Using email server URL:', emailServerUrl);
+      
       const response = await fetch(emailServerUrl, {
         method: 'POST',
         headers: {

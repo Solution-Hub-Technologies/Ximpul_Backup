@@ -12,6 +12,7 @@ import { AdminProducts } from "./pages/AdminProducts";
 import { AdminUserManagement } from "./pages/AdminUserManagement";
 import { AdminLoginHistory } from "./pages/AdminLoginHistory";
 import { AdminSMTPTests } from "./pages/AdminSMTPTests";
+import { AdminSMTPConfig } from "./pages/AdminSMTPConfig";
 import { AdminNotifications } from "./pages/AdminNotifications";
 import { AdminLayout } from "./components/admin/AdminLayout";
 import NotFound from "./pages/NotFound";
@@ -42,7 +43,7 @@ const App = () => (
             <Route path="login-history" element={<AdminLoginHistory />} />
             <Route path="notifications" element={<AdminNotifications />} />
 
-            <Route path="tests" element={<AdminSMTPTests />} />
+            <Route path="smtp-config" element={<AdminSMTPConfig />} />
           </Route>
           
           {/* Catch-all route for 404 */}

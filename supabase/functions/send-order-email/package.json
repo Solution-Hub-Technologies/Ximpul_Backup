@@ -1,5 +1,5 @@
 {
-  "name": "send-order-email",
+  "name": "@ximpul/send-order-email",
   "version": "1.0.0",
   "description": "Send order confirmation emails",
   "main": "index.ts",

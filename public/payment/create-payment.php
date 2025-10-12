@@ -5,7 +5,8 @@ header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
+    http_response_code(200);
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -14,7 +15,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$input = json_decode(file_get_contents('php://input'), true);
+$raw_input = file_get_contents('php://input');
+if (strlen($raw_input) > 4096) {
+    http_response_code(413);
+    echo json_encode(['success' => false, 'error' => 'Request too large']);
+    exit;
+}
+$input = json_decode($raw_input, true);
 
 if (!$input) {
     http_response_code(400);
@@ -22,12 +29,25 @@ if (!$input) {
     exit;
 }
 
-$customerName = $input['customerName'] ?? '';
-$customerPhone = $input['customerPhone'] ?? '';
-$customerEmail = $input['customerEmail'] ?? '';
-$customerAddress = $input['customerAddress'] ?? '';
-$totalAmount = $input['totalAmount'] ?? 0;
-$orderId = $input['orderId'] ?? '';
+$customerName = htmlspecialchars($input['customerName'] ?? '', ENT_QUOTES, 'UTF-8');
+$customerPhone = preg_replace('/[^0-9+\-\s]/', '', $input['customerPhone'] ?? '');
+$customerEmail = filter_var($input['customerEmail'] ?? '', FILTER_VALIDATE_EMAIL);
+$customerAddress = htmlspecialchars($input['customerAddress'] ?? '', ENT_QUOTES, 'UTF-8');
+$totalAmount = filter_var($input['totalAmount'] ?? 0, FILTER_VALIDATE_FLOAT, ['options' => ['min_range' => 0.01]]);
+$orderId = preg_replace('/[^a-zA-Z0-9\-_]/', '', $input['orderId'] ?? '');
+
+// Additional validation
+if (!$customerEmail) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Invalid email address']);
+    exit;
+}
+
+if (!$totalAmount || $totalAmount <= 0) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Invalid amount']);
+    exit;
+}
 
 if (empty($customerName) || empty($totalAmount) || empty($orderId)) {
     http_response_code(400);
@@ -73,7 +93,8 @@ curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, 30);
 curl_setopt($handle, CURLOPT_POST, 1);
 curl_setopt($handle, CURLOPT_POSTFIELDS, $post_data);
 curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($handle, CURLOPT_SSL_VERIFYPEER, FALSE); # KEEP IT FALSE IF YOU RUN FROM LOCAL PC
+curl_setopt($handle, CURLOPT_SSL_VERIFYPEER, TRUE);
+curl_setopt($handle, CURLOPT_SSL_VERIFYHOST, 2);
 
 $content = curl_exec($handle);
 $code = curl_getinfo($handle, CURLINFO_HTTP_CODE);
