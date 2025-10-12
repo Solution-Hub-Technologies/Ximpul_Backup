@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 import { toast } from 'sonner';
-import { useNotifications } from '@/contexts/NotificationContext';
+
 
 import { sanitizeForLog } from '@/utils/security';
 
@@ -39,8 +39,7 @@ export const useOrders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Use optional chaining to handle the case when notifications are not available
-  const { addNotification = () => {} } = useNotifications() || {};
+
 
   const fetchOrders = async () => {
     try {

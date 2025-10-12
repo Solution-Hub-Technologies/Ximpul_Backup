@@ -20,31 +20,6 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   useEffect(() => {
     fetchNotifications();
     
-    // Set up real-time subscription for new orders
-    const subscription = supabase
-      .channel('public:orders')
-      .on('INSERT', payload => {
-        const newOrder = payload.new;
-        addNotification({
-          id: newOrder.id,
-          title: 'New Order',
-          message: `New order from ${newOrder.customer_name}`,
-          type: 'order',
-          data: newOrder,
-          read: false,
-          createdAt: new Date().toISOString()
-        });
-        
-        // Show toast notification
-        toast.success(`New order received from ${newOrder.customer_name}!`, {
-          action: {
-            label: 'View',
-            onClick: () => window.location.href = '/admin/orders'
-          }
-        });
-      })
-      .subscribe();
-    
     // Listen for custom notification events
     const handleCustomNotification = (event: any) => {
       console.log('Custom notification event received:', event.detail);
@@ -65,18 +40,8 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     window.addEventListener('adminNotificationAdded', handleCustomNotification);
       
     return () => {
-      subscription.unsubscribe();
       window.removeEventListener('adminNotificationAdded', handleCustomNotification);
     };
-  }, []);
-  
-  // Force refresh notifications from localStorage periodically
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      fetchNotifications();
-    }, 5000); // Check every 5 seconds
-    
-    return () => clearInterval(intervalId);
   }, []);
 
   // Fetch notifications from local storage or API

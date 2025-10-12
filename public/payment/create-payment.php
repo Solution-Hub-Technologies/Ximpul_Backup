@@ -55,10 +55,58 @@ if (empty($customerName) || empty($totalAmount) || empty($orderId)) {
     exit;
 }
 
+// Get SSL configuration from database
+try {
+    // Read environment variables
+    $envFile = __DIR__ . '/../../.env.local';
+    $env = [];
+    if (file_exists($envFile)) {
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (strpos($line, '=') !== false && !str_starts_with($line, '#')) {
+                list($key, $value) = explode('=', $line, 2);
+                $env[trim($key)] = trim($value);
+            }
+        }
+    }
+    
+    $supabaseUrl = $env['VITE_SUPABASE_URL'] ?? '';
+    $serviceRoleKey = $env['VITE_SUPABASE_SERVICE_ROLE_KEY'] ?? '';
+    
+    // Fetch SSL config from Supabase
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'header' => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $serviceRoleKey,
+                'apikey: ' . $serviceRoleKey
+            ]
+        ]
+    ]);
+    
+    $response = file_get_contents($supabaseUrl . '/rest/v1/ssl_config?select=*', false, $context);
+    $sslConfigs = json_decode($response, true);
+    
+    if (!empty($sslConfigs) && is_array($sslConfigs)) {
+        $sslConfig = $sslConfigs[0];
+        $store_id = $sslConfig['store_id'];
+        $store_passwd = $sslConfig['store_password'];
+        $is_live = $sslConfig['is_live'];
+    } else {
+        throw new Exception('SSL configuration not found');
+    }
+} catch (Exception $e) {
+    // Fallback to environment variables if database fetch fails
+    $store_id = $env['SSLCOMMERZ_STORE_ID'] ?? 'sohubshop0live';
+    $store_passwd = $env['SSLCOMMERZ_STORE_PASSWORD'] ?? '65FAB9002A98896874';
+    $is_live = ($env['SSLCOMMERZ_IS_LIVE'] ?? 'true') === 'true';
+}
+
 // SSLCommerz configuration
 $post_data = [
-    'store_id' => 'sohubshop0live',
-    'store_passwd' => '65FAB9002A98896874',
+    'store_id' => $store_id,
+    'store_passwd' => $store_passwd,
     'total_amount' => $totalAmount,
     'currency' => 'BDT',
     'tran_id' => $orderId,
@@ -76,7 +124,12 @@ $post_data = [
     'ship_name' => $customerName,
     'ship_add1' => $customerAddress,
     'ship_city' => 'Dhaka',
+    'ship_state' => 'Dhaka',
+    'ship_postcode' => '1000',
     'ship_country' => 'Bangladesh',
+    
+    'cus_state' => 'Dhaka',
+    'cus_postcode' => '1000',
     'shipping_method' => 'Courier',
     'product_name' => 'Ximpul Flow Water Bottle',
     'product_category' => 'Physical',
@@ -84,7 +137,10 @@ $post_data = [
 ];
 
 # REQUEST SEND TO SSLCOMMERZ
-$direct_api_url = 'https://securepay.sslcommerz.com/gwprocess/v4/api.php';
+// Use correct SSL endpoint based on live/sandbox mode
+$direct_api_url = $is_live 
+    ? 'https://securepay.sslcommerz.com/gwprocess/v4/api.php' 
+    : 'https://sandbox.sslcommerz.com/gwprocess/v4/api.php';
 
 $handle = curl_init();
 curl_setopt($handle, CURLOPT_URL, $direct_api_url);
@@ -104,7 +160,7 @@ if ($code == 200 && !curl_errno($handle)) {
     $sslcommerzResponse = $content;
 } else {
     curl_close($handle);
-    echo json_encode(['success' => false, 'error' => 'CURL Error: ' . curl_error($handle)]);
+    echo json_encode(['success' => false, 'error' => 'Payment gateway temporarily unavailable']);
     exit;
 }
 
@@ -119,8 +175,7 @@ if (isset($sslcz['GatewayPageURL']) && $sslcz['GatewayPageURL'] != "") {
 } else {
     echo json_encode([
         'success' => false,
-        'error' => 'Failed to get payment gateway URL',
-        'response' => $sslcz
+        'error' => 'Payment gateway temporarily unavailable'
     ]);
 }
 ?>

@@ -8,17 +8,6 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
-    proxy: {
-      '/send-order-email': {
-        target: 'http://localhost:3002',
-        changeOrigin: true
-      },
-      '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
-      }
-    }
   },
   plugins: [
     react(),

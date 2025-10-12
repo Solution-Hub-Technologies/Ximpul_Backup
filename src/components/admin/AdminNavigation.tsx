@@ -54,23 +54,8 @@ export const AdminNavigation = () => {
   };
 
   const fetchDbNotifications = async () => {
-    try {
-      const { data, error } = await supabaseAdmin
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
-      
-      if (error) {
-        // Table doesn't exist, set empty array
-        setDbNotifications([]);
-        return;
-      }
-      setDbNotifications(data || []);
-    } catch (error) {
-      // Silently handle missing table
-      setDbNotifications([]);
-    }
+    // Skip fetching notifications table as it doesn't exist
+    setDbNotifications([]);
   };
 
   useEffect(() => {
@@ -314,6 +299,12 @@ export const AdminNavigation = () => {
                   <TestTube className="mr-2 h-4 w-4" />
                   <span>Email Configuration</span>
                 </DropdownMenuItem>
+                {adminUser?.role === 'superadmin' && (
+                  <DropdownMenuItem onClick={() => navigate('/admin/ssl-config')}>
+                    <Shield className="mr-2 h-4 w-4" />
+                    <span>SSL Configure</span>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout} className="text-red-600 focus:text-red-600">
                   <LogOut className="mr-2 h-4 w-4" />

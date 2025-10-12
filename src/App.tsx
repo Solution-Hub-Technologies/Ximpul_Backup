@@ -13,8 +13,10 @@ import { AdminUserManagement } from "./pages/AdminUserManagement";
 import { AdminLoginHistory } from "./pages/AdminLoginHistory";
 import { AdminSMTPTests } from "./pages/AdminSMTPTests";
 import { AdminSMTPConfig } from "./pages/AdminSMTPConfig";
+import { AdminSSLConfig } from "./pages/AdminSSLConfig";
 import { AdminNotifications } from "./pages/AdminNotifications";
 import { AdminLayout } from "./components/admin/AdminLayout";
+import { PaymentError } from "./pages/PaymentError";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +30,9 @@ const App = () => (
           {navItems.map(({ to, page }) => (
             <Route key={to} path={to} element={page} />
           ))}
+          
+          {/* Payment Error Route */}
+          <Route path="/payment-error" element={<PaymentError />} />
           
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
@@ -44,6 +49,7 @@ const App = () => (
             <Route path="notifications" element={<AdminNotifications />} />
 
             <Route path="smtp-config" element={<AdminSMTPConfig />} />
+            <Route path="ssl-config" element={<AdminSSLConfig />} />
           </Route>
           
           {/* Catch-all route for 404 */}
