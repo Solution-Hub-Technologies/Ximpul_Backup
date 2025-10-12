@@ -1,0 +1,9 @@
+{
+  "name": "send-order-email",
+  "version": "1.0.0",
+  "description": "Send order confirmation emails",
+  "main": "index.ts",
+  "dependencies": {
+    "denomailer": "^0.6.0"
+  }
+}

@@ -1,0 +1,17 @@
+project_id = "jzgfijvohytbcrtnagqy"
+
+[api]
+port = 54321
+
+[studio]
+port = 54323
+
+[db]
+port = 54322
+
+[auth]
+site_url = "https://ximpul.com"
+additional_redirect_urls = ["https://ximpul.com"]
+
+[inbucket]
+port = 54325

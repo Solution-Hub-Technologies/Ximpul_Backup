@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /private/
+
+# Sitemap
+Sitemap: https://ximpul.com/sitemap.xml
+
+# Crawl-delay
+Crawl-delay: 1

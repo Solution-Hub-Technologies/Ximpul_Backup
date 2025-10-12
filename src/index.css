@@ -1,0 +1,337 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. */
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 5%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 5%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 5%;
+
+    --primary: 0 84% 60%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 5%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 0 84% 60%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 15%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 5%;
+    --sidebar-primary: 0 84% 60%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 0 0% 95%;
+    --sidebar-accent-foreground: 0 84% 60%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 0 84% 60%;
+
+    --brand: 27 96% 61%;
+    --brand-foreground: 31 97% 72%;
+
+    --color-1: 0 100% 63%;
+    --color-2: 270 100% 63%;
+    --color-3: 210 100% 63%;
+    --color-4: 195 100% 63%;
+    --color-5: 90 100% 63%;
+  }
+
+  .dark {
+    --background: 0 0% 5%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 5%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 84% 60%;
+    --primary-foreground: 0 0% 5%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 0 84% 60%;
+    --accent-foreground: 0 0% 5%;
+    --destructive: 0 62% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 0 0% 85%;
+    --sidebar-background: 0 0% 5%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 0 84% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 10%;
+    --sidebar-accent-foreground: 0 84% 60%;
+    --sidebar-border: 0 0% 10%;
+    --sidebar-ring: 0 84% 60%;
+
+    --brand: 31 97% 72%;
+    --brand-foreground: 27 96% 61%
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: SF Pro Display, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif;
+  }
+}
+
+/* Apple-style gradient text effect */
+.apple-gradient-text {
+  background: linear-gradient(180deg, #1f2937 0%, #374151 50%, #6b7280 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: cover;
+}
+
+/* Gradient text with uploaded background image */
+.gradient-text {
+  background-repeat: no-repeat;
+  background-image: url(/ximpul-uploads/e364f418-dced-47e2-abbd-1c15d1258162.png);
+  display: inline-block;
+  background-size: cover;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 32px;
+  line-height: 1.125;
+  font-weight: 600;
+  letter-spacing: .004em;
+  font-family: SF Pro Display, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif;
+}
+
+/* Custom animations for Ximpul Flow */
+@layer utilities {
+  .fade-on-scroll {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.8s ease-out;
+  }
+
+  .fade-on-scroll.animate-fade-in {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .apple-spacing {
+    padding: 120px 0;
+  }
+
+  .apple-spacing-sm {
+    padding: 80px 0;
+  }
+
+  /* Hero section responsive styles */
+  .hero-section {
+    min-height: 100vh;
+    position: relative;
+  }
+
+  /* New animation utilities */
+  .delay-100 {
+    animation-delay: 100ms;
+  }
+  .delay-300 {
+    animation-delay: 300ms;
+  }
+  .delay-700 {
+    animation-delay: 700ms;
+  }
+  .delay-1000 {
+    animation-delay: 1000ms;
+  }
+
+  @media (max-width: 768px) {
+    .hero-section {
+      min-height: 100vh;
+      padding: 2rem 0;
+    }
+    
+    .apple-spacing {
+      padding: 60px 0;
+    }
+    
+    .apple-gradient-text {
+      font-size: clamp(2rem, 8vw, 4rem) !important;
+      line-height: 1.1 !important;
+    }
+
+    .gradient-text {
+      font-size: clamp(1.125rem, 5vw, 1.5rem) !important;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .hero-section {
+      min-height: 100vh;
+      padding: 1rem 0;
+    }
+    
+    .apple-spacing {
+      padding: 40px 0;
+    }
+    
+    .apple-gradient-text {
+      font-size: clamp(1.75rem, 9vw, 3rem) !important;
+      line-height: 1.1 !important;
+    }
+
+    .gradient-text {
+      font-size: clamp(1rem, 6vw, 1.25rem) !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .apple-gradient-text {
+      font-size: clamp(1.5rem, 10vw, 2.5rem) !important;
+      line-height: 1.1 !important;
+    }
+
+    .gradient-text {
+      font-size: clamp(0.875rem, 7vw, 1.125rem) !important;
+    }
+  }
+}
+
+/* Smooth scrolling behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Fix for dialog overlay issues */
+[data-radix-dialog-overlay] {
+  z-index: 50 !important;
+}
+
+[data-radix-dialog-content] {
+  z-index: 51 !important;
+}
+
+/* Ensure dropdown menus appear above other elements */
+[data-radix-popper-content-wrapper] {
+  z-index: 100 !important;
+}
+
+/* Custom cursor for interactive elements */
+.hover-scale {
+  transition: transform 0.3s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+}
+
+/* Apple-style typography improvements */
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: clamp(28px, 6vw, 48px) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-title {
+    font-size: clamp(24px, 8vw, 36px) !important;
+  }
+}
+
+/* Enhanced mobile responsiveness for hero section */
+@media (max-width: 768px) {
+  .hero-product-name {
+    font-size: clamp(1.5rem, 5vw, 2rem) !important;
+  }
+  
+  .hero-tagline {
+    font-size: clamp(1rem, 4vw, 1.25rem) !important;
+  }
+  
+  .hero-cta {
+    font-size: clamp(0.875rem, 3.5vw, 1rem) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-product-name {
+    font-size: clamp(1.25rem, 6vw, 1.75rem) !important;
+  }
+  
+  .hero-tagline {
+    font-size: clamp(0.875rem, 4.5vw, 1.125rem) !important;
+  }
+}
+
+/* Apple-style multi-gradient headline */
+.apple-gradient-headline {
+  background: linear-gradient(
+    90deg,
+    #1296F6 0%,
+    #7474F6 40%,
+    #C056FA 60%,
+    #FB5A63 80%,
+    #FF6A26 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  display: inline-block;
+}
+
+/* Subheadline bold display */
+.apple-section-subtitle {
+  font-weight: 700;
+  color: #1d1d1f;
+}
+
+/* Muted description for section */
+.apple-section-desc {
+  color: #86868b;
+  font-size: 1.25rem;
+  line-height: 1.4;
+  font-weight: 400;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .apple-gradient-headline {
+    font-size: 2rem !important;
+  }
+  .apple-section-subtitle {
+    font-size: 1.5rem !important;
+  }
+  .apple-section-desc {
+    font-size: 1rem !important;
+  }
+}
+@media (max-width: 480px) {
+  .apple-gradient-headline {
+    font-size: 1.2rem !important;
+  }
+}

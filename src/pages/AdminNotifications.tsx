@@ -1,0 +1,357 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { supabaseAdmin } from '@/integrations/supabase/admin-client';
+import { Bell, Mail, Phone, Calendar, Check, X, Send, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
+
+interface StockNotification {
+  id: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string | null;
+  color_requested: string;
+  is_notified: boolean;
+  created_at: string;
+  notified_at: string | null;
+}
+
+export const AdminNotifications = () => {
+  const [stockNotifications, setStockNotifications] = useState<StockNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedNotification, setSelectedNotification] = useState<StockNotification | null>(null);
+  const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
+  const [notifyMessage, setNotifyMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchStockNotifications = async () => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('stock_notifications')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setStockNotifications(data || []);
+    } catch (error) {
+      console.error('Error fetching stock notifications:', error);
+      toast.error('Failed to load notifications');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStockNotifications();
+  }, []);
+
+  const handleNotifyCustomer = async () => {
+    if (!selectedNotification) return;
+    
+    setIsSubmitting(true);
+    try {
+      // Send email notification
+      const emailResponse = await fetch('https://ximpul.com/smtp-test.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          to: selectedNotification.customer_email || '',
+          subject: `Stock Available - ${selectedNotification.color_requested} | Ximpul Flow`,
+          message: `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stock Available</title></head><body style="font-family: Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;"><div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"><div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;"><h1 style="color: #ffffff; font-size: 28px; font-weight: 300; margin: 0 0 10px 0; letter-spacing: 1px;">XIMPUL FLOW</h1><p style="color: #d1fae5; font-size: 16px; margin: 0;">Stock Available!</p></div><div style="padding: 40px 30px; text-align: center;"><div style="width: 60px; height: 60px; background-color: #10b981; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 24px;">✓</span></div><h2 style="color: #1f2937; font-size: 24px; font-weight: 400; margin: 0 0 10px 0;">Great News, ${selectedNotification.customer_name}!</h2><p style="color: #6b7280; font-size: 16px; margin: 0 0 30px 0;">The <strong>${selectedNotification.color_requested}</strong> you requested is now back in stock!</p><div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; margin-bottom: 30px; text-align: left;"><h4 style="color: #065f46; font-size: 16px; font-weight: 600; margin: 0 0 10px 0;">Ready to Order?</h4><p style="color: #047857; margin: 0 0 15px 0; line-height: 1.6;">${notifyMessage || `Your requested ${selectedNotification.color_requested} is now available for immediate purchase. Don't wait - limited stock available!`}</p><div style="text-align: center; margin-top: 20px;"><a href="https://ximpul.com/#buy" style="display: inline-block; background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Order Now</a></div></div><div style="text-align: center; padding: 20px 0;"><p style="color: #6b7280; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">Thank you for your patience. We're excited to get your Ximpul Flow to you!</p><p style="color: #1f2937; font-weight: 600; font-size: 18px; margin: 0;">Your Water. Your Freedom.</p></div></div><div style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb; border-radius: 0 0 12px 12px;"><p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0;">Need help? Contact us:</p><p style="color: #1f2937; font-weight: 600; margin: 0;">Email: ximpulshop@gmail.com | Phone: 01881408611</p><p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0 0;">Copyright 2024 Ximpul. All rights reserved.</p></div></div></body></html>`,
+          from_name: 'Ximpul Shop'
+        })
+      });
+
+      // Update notification status
+      const { error } = await supabaseAdmin
+        .from('stock_notifications')
+        .update({ 
+          is_notified: true, 
+          notified_at: new Date().toISOString() 
+        })
+        .eq('id', selectedNotification.id);
+
+      if (error) throw error;
+
+      toast.success('Customer notified successfully!');
+      setIsNotifyModalOpen(false);
+      setSelectedNotification(null);
+      setNotifyMessage('');
+      fetchStockNotifications();
+    } catch (error) {
+      console.error('Error notifying customer:', error);
+      toast.error('Failed to notify customer');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const markAsNotified = async (id: string) => {
+    try {
+      const { error } = await supabaseAdmin
+        .from('stock_notifications')
+        .update({ 
+          is_notified: true, 
+          notified_at: new Date().toISOString() 
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      toast.success('Marked as notified');
+      fetchStockNotifications();
+    } catch (error) {
+      console.error('Error updating notification:', error);
+      toast.error('Failed to update notification');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="flex flex-col items-center">
+          <RefreshCw className="h-8 w-8 text-primary animate-spin mb-2" />
+          <p className="text-lg font-medium">Loading notifications...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const pendingNotifications = stockNotifications.filter(n => !n.is_notified);
+  const completedNotifications = stockNotifications.filter(n => n.is_notified);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Stock Notifications</h1>
+          <p className="text-gray-500 mt-1">Manage customer stock alert requests</p>
+        </div>
+        <Button onClick={fetchStockNotifications} variant="outline" className="flex items-center gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
+            <Bell className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stockNotifications.length}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <X className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{pendingNotifications.length}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Completed</CardTitle>
+            <Check className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{completedNotifications.length}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Pending Notifications */}
+      {pendingNotifications.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-red-500" />
+              Pending Notifications ({pendingNotifications.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {pendingNotifications.map((notification) => (
+                <div key={notification.id} className="border rounded-lg p-4 bg-red-50/30">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-semibold text-lg">{notification.customer_name}</h3>
+                        <Badge variant="destructive">Pending</Badge>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm">{notification.customer_phone}</span>
+                        </div>
+                        {notification.customer_email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm">{notification.customer_email}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm">
+                            {new Date(notification.created_at).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded-full bg-gray-800"></div>
+                          <span className="text-sm font-medium">{notification.color_requested}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      {notification.customer_email && (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setSelectedNotification(notification);
+                            setIsNotifyModalOpen(true);
+                          }}
+                          className="flex items-center gap-1"
+                        >
+                          <Send className="h-3 w-3" />
+                          Notify
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => markAsNotified(notification.id)}
+                        className="flex items-center gap-1"
+                      >
+                        <Check className="h-3 w-3" />
+                        Mark Done
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Completed Notifications */}
+      {completedNotifications.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Check className="h-5 w-5 text-green-500" />
+              Completed Notifications ({completedNotifications.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {completedNotifications.map((notification) => (
+                <div key={notification.id} className="border rounded-lg p-4 bg-green-50/30">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-semibold text-lg">{notification.customer_name}</h3>
+                        <Badge variant="secondary" className="bg-green-100 text-green-800">Completed</Badge>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm">{notification.customer_phone}</span>
+                        </div>
+                        {notification.customer_email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm">{notification.customer_email}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm">
+                            Requested: {new Date(notification.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        {notification.notified_at && (
+                          <div className="flex items-center gap-2">
+                            <Check className="h-4 w-4 text-green-500" />
+                            <span className="text-sm">
+                              Notified: {new Date(notification.notified_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded-full bg-gray-800"></div>
+                          <span className="text-sm font-medium">{notification.color_requested}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {stockNotifications.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Bell className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No notifications yet</h3>
+            <p className="text-gray-500">Stock alert requests will appear here when customers request notifications.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Notify Customer Modal */}
+      <Dialog open={isNotifyModalOpen} onOpenChange={setIsNotifyModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Notify Customer - {selectedNotification?.color_requested}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Customer: {selectedNotification?.customer_name}</Label>
+              <p className="text-sm text-gray-500">{selectedNotification?.customer_email}</p>
+            </div>
+            <div>
+              <Label htmlFor="notify-message">Custom Message (Optional)</Label>
+              <Textarea
+                id="notify-message"
+                value={notifyMessage}
+                onChange={(e) => setNotifyMessage(e.target.value)}
+                placeholder="Add a custom message or leave empty for default message..."
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsNotifyModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleNotifyCustomer} disabled={isSubmitting}>
+              {isSubmitting ? 'Sending...' : 'Send Notification'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
