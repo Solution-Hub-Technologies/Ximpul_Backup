@@ -92,7 +92,7 @@ export const useOrderSubmission = () => {
           const { data: customerTemplate, error: customerTemplateError } = await supabase
             .from('email_templates')
             .select('*')
-            .eq('type', 'order')
+            .eq('type', 'order_customer')
             .single();
           
           console.log('📧 Customer template result:', { customerTemplate, customerTemplateError });
@@ -120,7 +120,7 @@ export const useOrderSubmission = () => {
                 .replace(/{{orderId}}/g, (order as any).order_id);
             } else {
               console.log('⚠️ No customer portal templates available - using fallback template');
-              console.log('⚠️ To use custom templates, create "order" type template in Admin > SMTP Config > Templates');
+              console.log('⚠️ To use custom templates, create "order_customer" type template in Admin > SMTP Config > Templates');
               // Fallback to simple template
               customerEmailHTML = `<h2>Order Confirmation</h2><p>Dear ${orderData.customerName},</p><p>Your order #${(order as any).order_id} has been confirmed.</p><p>Total: ${orderData.totalAmount} BDT</p><p>Thank you for choosing Ximpul!</p>`;
             }
@@ -210,15 +210,15 @@ export const useOrderSubmission = () => {
           const { data: adminTemplate, error: adminTemplateError } = await supabase
             .from('email_templates')
             .select('*')
-            .eq('type', 'notification')
+            .eq('type', 'order_admin')
             .single();
           
           console.log('📧 Admin template result:', { adminTemplate, adminTemplateError });
           
-          // If no notification template found, try any template
+          // If no order_admin template found, try any template
           let finalAdminTemplate = adminTemplate;
           if (!adminTemplate) {
-            console.log('📧 No notification template found, trying any template...');
+            console.log('📧 No order_admin template found, trying any template...');
             const { data: anyTemplate } = await supabase
               .from('email_templates')
               .select('*')
@@ -229,7 +229,7 @@ export const useOrderSubmission = () => {
             
             if (!finalAdminTemplate) {
               console.log('⚠️ No email templates found in admin portal! Using fallback template.');
-              console.log('⚠️ Please create email templates in Admin > SMTP Config > Templates tab');
+              console.log('⚠️ Please create "order_admin" template in Admin > SMTP Config > Templates tab');
             }
           }
 
