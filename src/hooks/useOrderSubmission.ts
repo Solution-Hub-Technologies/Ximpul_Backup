@@ -88,12 +88,14 @@ export const useOrderSubmission = () => {
           console.log('📧 Sending emails for order:', order.id);
           
           // Fetch email templates from database
-          const { data: customerTemplate } = await supabase
+          console.log('📧 Fetching customer email template...');
+          const { data: customerTemplate, error: customerTemplateError } = await supabase
             .from('email_templates')
             .select('*')
             .eq('type', 'order')
-            .eq('name', 'Order Confirmation')
             .single();
+          
+          console.log('📧 Customer template result:', { customerTemplate, customerTemplateError });
 
           // Send customer email if provided
           if (orderData.customerEmail) {
@@ -104,6 +106,7 @@ export const useOrderSubmission = () => {
             let customerSubject = `Order Confirmation - ${(order as any).order_id} | Ximpul Flow`;
             
             if (customerTemplate) {
+              console.log('✅ Using admin portal customer template:', customerTemplate.name);
               // Use template from admin panel
               customerEmailHTML = customerTemplate.template
                 .replace(/{{customerName}}/g, orderData.customerName)
@@ -116,6 +119,8 @@ export const useOrderSubmission = () => {
               customerSubject = customerTemplate.subject
                 .replace(/{{orderId}}/g, (order as any).order_id);
             } else {
+              console.log('⚠️ No customer portal templates available - using fallback template');
+              console.log('⚠️ To use custom templates, create "order" type template in Admin > SMTP Config > Templates');
               // Fallback to simple template
               customerEmailHTML = `<h2>Order Confirmation</h2><p>Dear ${orderData.customerName},</p><p>Your order #${(order as any).order_id} has been confirmed.</p><p>Total: ${orderData.totalAmount} BDT</p><p>Thank you for choosing Ximpul!</p>`;
             }
@@ -201,12 +206,32 @@ export const useOrderSubmission = () => {
           console.log('📧 Email config used:', emailConfig?.[0] || 'No config found');
           
           // Fetch admin email template
-          const { data: adminTemplate } = await supabase
+          console.log('📧 Fetching admin email template...');
+          const { data: adminTemplate, error: adminTemplateError } = await supabase
             .from('email_templates')
             .select('*')
             .eq('type', 'notification')
-            .eq('name', 'Admin Order Alert')
             .single();
+          
+          console.log('📧 Admin template result:', { adminTemplate, adminTemplateError });
+          
+          // If no notification template found, try any template
+          let finalAdminTemplate = adminTemplate;
+          if (!adminTemplate) {
+            console.log('📧 No notification template found, trying any template...');
+            const { data: anyTemplate } = await supabase
+              .from('email_templates')
+              .select('*')
+              .limit(1)
+              .single();
+            finalAdminTemplate = anyTemplate;
+            console.log('📧 Using any available template:', finalAdminTemplate);
+            
+            if (!finalAdminTemplate) {
+              console.log('⚠️ No email templates found in admin portal! Using fallback template.');
+              console.log('⚠️ Please create email templates in Admin > SMTP Config > Templates tab');
+            }
+          }
 
           // Send admin emails
           const paymentStatus = orderData.paymentMethod === 'cod' ? 'Cash on Delivery' : (orderData.paymentMethod === 'online' ? 'Online Payment' : orderData.paymentMethod || 'Not specified');
@@ -214,9 +239,10 @@ export const useOrderSubmission = () => {
           let adminEmailHTML = '';
           let adminSubject = `New Ximpul Order - ${(order as any).order_id}`;
           
-          if (adminTemplate) {
+          if (finalAdminTemplate) {
+            console.log('✅ Using admin portal template:', finalAdminTemplate.name);
             // Use template from admin panel
-            adminEmailHTML = adminTemplate.template
+            adminEmailHTML = finalAdminTemplate.template
               .replace(/{{customerName}}/g, orderData.customerName)
               .replace(/{{customerPhone}}/g, orderData.customerPhone || 'Not provided')
               .replace(/{{customerEmail}}/g, orderData.customerEmail || 'Not provided')
@@ -228,9 +254,11 @@ export const useOrderSubmission = () => {
               .replace(/{{paymentMethod}}/g, paymentStatus)
               .replace(/{{totalAmount}}/g, orderData.totalAmount?.toString() || 'Not specified');
             
-            adminSubject = adminTemplate.subject
+            adminSubject = finalAdminTemplate.subject
               .replace(/{{orderId}}/g, (order as any).order_id);
           } else {
+            console.log('⚠️ No admin portal templates available - using fallback template');
+            console.log('⚠️ To use custom templates, create them in Admin > SMTP Config > Templates');
             // Fallback to simple template
             adminEmailHTML = `<h2>New Order Alert</h2><p>Order #${(order as any).order_id}</p><p>Customer: ${orderData.customerName}</p><p>Total: ${orderData.totalAmount} BDT</p><p>Please process this order.</p>`;
           }
@@ -249,7 +277,7 @@ export const useOrderSubmission = () => {
           
           console.log('📧 STEP 3.2: Sending admin email with params:', emailParams);
           console.log('📧 Admin email HTML length:', adminEmailHTML.length);
-          console.log('📧 Admin template found:', !!adminTemplate);
+          console.log('📧 Admin template found:', !!finalAdminTemplate);
           
           const adminEmailResponse = await fetch('https://ximpul.com/smtp-mailer.php', {
             method: 'POST',
