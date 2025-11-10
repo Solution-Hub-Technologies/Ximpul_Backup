@@ -55,21 +55,124 @@ export const AdminNotifications = () => {
     
     setIsSubmitting(true);
     try {
-      // Send email notification using template
-      const defaultMessage = `Your requested ${selectedNotification.color_requested} is now available for immediate purchase. Don't wait - limited stock available!`;
+      // Send emails using same system as orders and contacts
+      const { supabase } = await import('@/integrations/supabase/client');
       
-      await fetch('https://ximpul.com/send-template-email.php', {
+      const defaultMessage = `Your requested ${selectedNotification.color_requested} is now available for immediate purchase. Don't wait - limited stock available!`;
+      const finalMessage = notifyMessage || defaultMessage;
+      
+      // Send customer notification email
+      if (selectedNotification.customer_email) {
+        // Fetch customer email template
+        const { data: customerTemplate } = await supabase
+          .from('email_templates')
+          .select('*')
+          .eq('type', 'notify_customer')
+          .single();
+        
+        let customerEmailHTML = '';
+        let customerSubject = `Good News! ${selectedNotification.color_requested} is Available - Ximpul`;
+        
+        if (customerTemplate) {
+          console.log('✅ Using notify customer template:', customerTemplate.name);
+          customerEmailHTML = customerTemplate.template
+            .replace(/\$\{customerName\}/g, selectedNotification.customer_name)
+            .replace(/\$\{color\}/g, selectedNotification.color_requested)
+            .replace(/\$\{customMessage\}/g, finalMessage)
+            .replace(/{{customerName}}/g, selectedNotification.customer_name)
+            .replace(/{{color}}/g, selectedNotification.color_requested)
+            .replace(/{{customMessage}}/g, finalMessage);
+          
+          customerSubject = customerTemplate.subject
+            .replace(/\$\{color\}/g, selectedNotification.color_requested)
+            .replace(/{{color}}/g, selectedNotification.color_requested);
+        } else {
+          console.log('⚠️ No notify customer template found, using fallback');
+          customerEmailHTML = `<h2>Good News!</h2><p>Dear ${selectedNotification.customer_name},</p><p>${finalMessage}</p><p>Visit our website to place your order now!</p><p>Best regards,<br>Team Ximpul</p>`;
+        }
+        
+        await fetch('https://ximpul.com/smtp-mailer.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            to: selectedNotification.customer_email,
+            subject: customerSubject,
+            message: customerEmailHTML,
+            from_name: 'Ximpul Shop'
+          })
+        });
+      }
+      
+      // Fetch admin email configuration
+      console.log('📧 Fetching admin email configuration for notification...');
+      const { data: emailConfig } = await supabase
+        .from('email_config')
+        .select('*')
+        .eq('config_type', 'customer');
+      
+      // Use configured emails or fallback to default
+      let adminEmails = 'ximpulshop@gmail.com';
+      let ccEmails = '';
+      
+      if (emailConfig && emailConfig.length > 0) {
+        const config = emailConfig[0];
+        if (config?.to_emails?.length > 0) {
+          adminEmails = config.to_emails.join(',');
+          console.log('📧 Using configured TO emails for notification:', adminEmails);
+        }
+        if (config?.cc_emails?.length > 0) {
+          ccEmails = config.cc_emails.join(',');
+          console.log('📧 Using configured CC emails for notification:', ccEmails);
+        }
+      }
+      
+      // Send admin notification email
+      const { data: adminTemplate } = await supabase
+        .from('email_templates')
+        .select('*')
+        .eq('type', 'notify_admin')
+        .single();
+      
+      let adminEmailHTML = '';
+      let adminSubject = `Customer Notified - ${selectedNotification.color_requested}`;
+      
+      if (adminTemplate) {
+        console.log('✅ Using notify admin template:', adminTemplate.name);
+        adminEmailHTML = adminTemplate.template
+          .replace(/\$\{customerName\}/g, selectedNotification.customer_name)
+          .replace(/\$\{customerEmail\}/g, selectedNotification.customer_email || 'Not provided')
+          .replace(/\$\{customerPhone\}/g, selectedNotification.customer_phone)
+          .replace(/\$\{color\}/g, selectedNotification.color_requested)
+          .replace(/\$\{customMessage\}/g, finalMessage)
+          .replace(/{{customerName}}/g, selectedNotification.customer_name)
+          .replace(/{{customerEmail}}/g, selectedNotification.customer_email || 'Not provided')
+          .replace(/{{customerPhone}}/g, selectedNotification.customer_phone)
+          .replace(/{{color}}/g, selectedNotification.color_requested)
+          .replace(/{{customMessage}}/g, finalMessage);
+        
+        adminSubject = adminTemplate.subject
+          .replace(/\$\{color\}/g, selectedNotification.color_requested)
+          .replace(/{{color}}/g, selectedNotification.color_requested);
+      } else {
+        console.log('⚠️ No notify admin template found, using fallback');
+        adminEmailHTML = `<h2>Customer Notification Sent</h2><p><strong>Customer:</strong> ${selectedNotification.customer_name}</p><p><strong>Email:</strong> ${selectedNotification.customer_email}</p><p><strong>Phone:</strong> ${selectedNotification.customer_phone}</p><p><strong>Color:</strong> ${selectedNotification.color_requested}</p><p><strong>Message Sent:</strong> ${finalMessage}</p><p>Customer has been notified about stock availability.</p>`;
+      }
+      
+      const adminEmailParams: any = {
+        to: adminEmails,
+        subject: adminSubject,
+        message: adminEmailHTML,
+        from_name: 'Ximpul Shop'
+      };
+      
+      if (ccEmails) {
+        adminEmailParams.cc = ccEmails;
+      }
+      
+      await fetch('https://ximpul.com/smtp-mailer.php', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          template_name: 'stock_available_customer',
-          to: selectedNotification.customer_email,
-          variables: {
-            customerName: selectedNotification.customer_name,
-            color: selectedNotification.color_requested,
-            customMessage: notifyMessage || defaultMessage
-          }
-        })
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(adminEmailParams)
       });
 
       // Update notification status
@@ -83,14 +186,14 @@ export const AdminNotifications = () => {
 
       if (error) throw error;
 
-      toast.success('Customer notified successfully!');
+      toast.success('Customer and admin notified successfully!');
       setIsNotifyModalOpen(false);
       setSelectedNotification(null);
       setNotifyMessage('');
       fetchStockNotifications();
     } catch (error) {
       console.error('Error notifying customer:', error);
-      toast.error('Failed to notify customer');
+      toast.error('Failed to send notifications');
     } finally {
       setIsSubmitting(false);
     }
