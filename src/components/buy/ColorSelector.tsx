@@ -202,34 +202,116 @@ export const ColorSelector = ({ colors, selectedColor, selectedEdition, onColorC
                       return;
                     }
                     
-                    // Send email to admin using template
-                    await fetch('https://ximpul.com/send-template-email.php', {
+                    // Send emails using same system as orders and contacts
+                    const { supabase } = await import('@/integrations/supabase/client');
+                    
+                    // Fetch admin email configuration
+                    console.log('📧 Fetching admin email configuration for stock notification...');
+                    const { data: emailConfig } = await supabase
+                      .from('email_config')
+                      .select('*')
+                      .eq('config_type', 'customer');
+                    
+                    // Use configured emails or fallback to default
+                    let adminEmails = 'ximpulshop@gmail.com';
+                    let ccEmails = '';
+                    
+                    if (emailConfig && emailConfig.length > 0) {
+                      const config = emailConfig[0];
+                      if (config?.to_emails?.length > 0) {
+                        adminEmails = config.to_emails.join(',');
+                        console.log('📧 Using configured TO emails for stock notification:', adminEmails);
+                      }
+                      if (config?.cc_emails?.length > 0) {
+                        ccEmails = config.cc_emails.join(',');
+                        console.log('📧 Using configured CC emails for stock notification:', ccEmails);
+                      }
+                    }
+                    
+                    // Fetch admin email template
+                    const { data: adminTemplate } = await supabase
+                      .from('email_templates')
+                      .select('*')
+                      .eq('type', 'stock_notify_admin')
+                      .single();
+                    
+                    // Send admin notification email
+                    let adminEmailHTML = '';
+                    let adminSubject = `Stock Notification Request - ${notifyData.color}`;
+                    
+                    if (adminTemplate) {
+                      console.log('✅ Using stock admin template:', adminTemplate.name);
+                      adminEmailHTML = adminTemplate.template
+                        .replace(/\$\{customerName\}/g, notifyData.name)
+                        .replace(/\$\{customerPhone\}/g, notifyData.phone)
+                        .replace(/\$\{customerEmail\}/g, notifyData.email || 'Not provided')
+                        .replace(/\$\{color\}/g, notifyData.color)
+                        .replace(/{{customerName}}/g, notifyData.name)
+                        .replace(/{{customerPhone}}/g, notifyData.phone)
+                        .replace(/{{customerEmail}}/g, notifyData.email || 'Not provided')
+                        .replace(/{{color}}/g, notifyData.color);
+                      
+                      adminSubject = adminTemplate.subject
+                        .replace(/\$\{color\}/g, notifyData.color)
+                        .replace(/{{color}}/g, notifyData.color);
+                    } else {
+                      console.log('⚠️ No stock admin template found, using fallback');
+                      adminEmailHTML = `<h2>Stock Notification Request</h2><p><strong>Customer:</strong> ${notifyData.name}</p><p><strong>Phone:</strong> ${notifyData.phone}</p><p><strong>Email:</strong> ${notifyData.email || 'Not provided'}</p><p><strong>Requested Color:</strong> ${notifyData.color}</p><p>Please notify the customer when this color is back in stock.</p>`;
+                    }
+                    
+                    const adminEmailParams: any = {
+                      to: adminEmails,
+                      subject: adminSubject,
+                      message: adminEmailHTML,
+                      from_name: 'Ximpul Shop'
+                    };
+                    
+                    if (ccEmails) {
+                      adminEmailParams.cc = ccEmails;
+                    }
+                    
+                    await fetch('https://ximpul.com/smtp-mailer.php', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        template_name: 'stock_notification_admin',
-                        to: 'ximpulshop@gmail.com',
-                        variables: {
-                          customerName: notifyData.name,
-                          customerPhone: notifyData.phone,
-                          customerEmail: notifyData.email || 'Not provided',
-                          color: notifyData.color
-                        }
-                      })
+                      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                      body: new URLSearchParams(adminEmailParams)
                     });
                     
                     // Send confirmation email to customer if email provided
                     if (notifyData.email) {
-                      await fetch('https://ximpul.com/send-template-email.php', {
+                      // Fetch customer email template
+                      const { data: customerTemplate } = await supabase
+                        .from('email_templates')
+                        .select('*')
+                        .eq('type', 'stock_notification_customer')
+                        .single();
+                      
+                      let customerEmailHTML = '';
+                      let customerSubject = 'Stock Notification Confirmed - Ximpul';
+                      
+                      if (customerTemplate) {
+                        console.log('✅ Using stock customer template:', customerTemplate.name);
+                        customerEmailHTML = customerTemplate.template
+                          .replace(/\$\{customerName\}/g, notifyData.name)
+                          .replace(/\$\{color\}/g, notifyData.color)
+                          .replace(/{{customerName}}/g, notifyData.name)
+                          .replace(/{{color}}/g, notifyData.color);
+                        
+                        customerSubject = customerTemplate.subject
+                          .replace(/\$\{color\}/g, notifyData.color)
+                          .replace(/{{color}}/g, notifyData.color);
+                      } else {
+                        console.log('⚠️ No stock customer template found, using fallback');
+                        customerEmailHTML = `<h2>Stock Notification Confirmed</h2><p>Dear ${notifyData.name},</p><p>Thank you for your interest in the ${notifyData.color} Ximpul Flow!</p><p>We'll notify you as soon as it's back in stock.</p><p>Best regards,<br>Team Ximpul</p>`;
+                      }
+                      
+                      await fetch('https://ximpul.com/smtp-mailer.php', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          template_name: 'stock_notification_customer',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
                           to: notifyData.email,
-                          variables: {
-                            customerName: notifyData.name,
-                            color: notifyData.color
-                          }
+                          subject: customerSubject,
+                          message: customerEmailHTML,
+                          from_name: 'Ximpul Shop'
                         })
                       });
                     }
