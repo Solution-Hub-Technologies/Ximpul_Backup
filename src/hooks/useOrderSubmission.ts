@@ -109,6 +109,16 @@ export const useOrderSubmission = () => {
               console.log('✅ Using admin portal customer template:', customerTemplate.name);
               // Use template from admin panel
               customerEmailHTML = customerTemplate.template
+                .replace(/\$\{customerName\}/g, orderData.customerName)
+                .replace(/\$\{orderId\}/g, (order as any).order_id)
+                .replace(/\$\{selectedEdition\}/g, orderData.selectedEdition || 'Not specified')
+                .replace(/\$\{selectedColor\}/g, orderData.selectedColor || 'Not specified')
+                .replace(/\$\{paymentMethod\}/g, paymentMethod)
+                .replace(/\$\{totalAmount\}/g, orderData.totalAmount?.toString() || 'Not specified')
+                .replace(/\$\{customerPhone\}/g, orderData.customerPhone || 'Not provided')
+                .replace(/\$\{customerEmail\}/g, orderData.customerEmail || 'Not provided')
+                .replace(/\$\{customerAddress\}/g, orderData.customerAddress || 'Not provided')
+                .replace(/\$\{engravingText\}/g, orderData.engravingText || '')
                 .replace(/{{customerName}}/g, orderData.customerName)
                 .replace(/{{orderId}}/g, (order as any).order_id)
                 .replace(/{{selectedEdition}}/g, orderData.selectedEdition || 'Not specified')
@@ -121,6 +131,7 @@ export const useOrderSubmission = () => {
                 .replace(/{{engravingText}}/g, orderData.engravingText || '');
               
               customerSubject = customerTemplate.subject
+                .replace(/\$\{orderId\}/g, (order as any).order_id)
                 .replace(/{{orderId}}/g, (order as any).order_id);
             } else {
               console.log('⚠️ No customer portal templates available - using fallback template');
@@ -245,8 +256,18 @@ export const useOrderSubmission = () => {
           
           if (finalAdminTemplate) {
             console.log('✅ Using admin portal template:', finalAdminTemplate.name);
-            // Use template from admin panel
+            // Use template from admin panel - support both ${} and {{}} syntax
             adminEmailHTML = finalAdminTemplate.template
+              .replace(/\$\{customerName\}/g, orderData.customerName)
+              .replace(/\$\{customerPhone\}/g, orderData.customerPhone || 'Not provided')
+              .replace(/\$\{customerEmail\}/g, orderData.customerEmail || 'Not provided')
+              .replace(/\$\{customerAddress\}/g, orderData.customerAddress || 'Not provided')
+              .replace(/\$\{orderId\}/g, (order as any).order_id)
+              .replace(/\$\{selectedEdition\}/g, orderData.selectedEdition || 'Not specified')
+              .replace(/\$\{selectedColor\}/g, orderData.selectedColor || 'Not specified')
+              .replace(/\$\{engravingText\}/g, orderData.engravingText || '')
+              .replace(/\$\{paymentMethod\}/g, paymentStatus)
+              .replace(/\$\{totalAmount\}/g, orderData.totalAmount?.toString() || 'Not specified')
               .replace(/{{customerName}}/g, orderData.customerName)
               .replace(/{{customerPhone}}/g, orderData.customerPhone || 'Not provided')
               .replace(/{{customerEmail}}/g, orderData.customerEmail || 'Not provided')
@@ -259,6 +280,7 @@ export const useOrderSubmission = () => {
               .replace(/{{totalAmount}}/g, orderData.totalAmount?.toString() || 'Not specified');
             
             adminSubject = finalAdminTemplate.subject
+              .replace(/\$\{orderId\}/g, (order as any).order_id)
               .replace(/{{orderId}}/g, (order as any).order_id);
           } else {
             console.log('⚠️ No admin portal templates available - using fallback template');
