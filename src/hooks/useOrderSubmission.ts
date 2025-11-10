@@ -111,18 +111,22 @@ export const useOrderSubmission = () => {
               customerEmailHTML = customerTemplate.template
                 .replace(/{{customerName}}/g, orderData.customerName)
                 .replace(/{{orderId}}/g, (order as any).order_id)
-                .replace(/{{selectedEdition}}/g, orderData.selectedEdition)
-                .replace(/{{selectedColor}}/g, orderData.selectedColor)
+                .replace(/{{selectedEdition}}/g, orderData.selectedEdition || 'Not specified')
+                .replace(/{{selectedColor}}/g, orderData.selectedColor || 'Not specified')
                 .replace(/{{paymentMethod}}/g, paymentMethod)
-                .replace(/{{totalAmount}}/g, orderData.totalAmount.toString());
+                .replace(/{{totalAmount}}/g, orderData.totalAmount?.toString() || 'Not specified')
+                .replace(/{{customerPhone}}/g, orderData.customerPhone || 'Not provided')
+                .replace(/{{customerEmail}}/g, orderData.customerEmail || 'Not provided')
+                .replace(/{{customerAddress}}/g, orderData.customerAddress || 'Not provided')
+                .replace(/{{engravingText}}/g, orderData.engravingText || '');
               
               customerSubject = customerTemplate.subject
                 .replace(/{{orderId}}/g, (order as any).order_id);
             } else {
               console.log('⚠️ No customer portal templates available - using fallback template');
               console.log('⚠️ To use custom templates, create "order_customer" type template in Admin > SMTP Config > Templates');
-              // Fallback to simple template
-              customerEmailHTML = `<h2>Order Confirmation</h2><p>Dear ${orderData.customerName},</p><p>Your order #${(order as any).order_id} has been confirmed.</p><p>Total: ${orderData.totalAmount} BDT</p><p>Thank you for choosing Ximpul!</p>`;
+              // Fallback to detailed template
+              customerEmailHTML = `<h2>Order Confirmation</h2><p>Dear ${orderData.customerName},</p><p>Your order has been confirmed!</p><br><strong>Order Details:</strong><br>Order ID: #${(order as any).order_id}<br>Product: ${orderData.selectedEdition} Edition<br>Color: ${orderData.selectedColor}<br>Payment: ${paymentMethod}<br>Total: ${orderData.totalAmount} BDT<br><br><p>Thank you for choosing Ximpul!</p>`;
             }
             
             const customerEmailResponse = await fetch('https://ximpul.com/smtp-mailer.php', {
@@ -259,8 +263,8 @@ export const useOrderSubmission = () => {
           } else {
             console.log('⚠️ No admin portal templates available - using fallback template');
             console.log('⚠️ To use custom templates, create them in Admin > SMTP Config > Templates');
-            // Fallback to simple template
-            adminEmailHTML = `<h2>New Order Alert</h2><p>Order #${(order as any).order_id}</p><p>Customer: ${orderData.customerName}</p><p>Total: ${orderData.totalAmount} BDT</p><p>Please process this order.</p>`;
+            // Fallback to detailed template
+            adminEmailHTML = `<h2>New Order Alert</h2><p><strong>Order #${(order as any).order_id}</strong><br>Total: ${orderData.totalAmount} BDT</p><br><h3>Customer Information</h3><strong>Name:</strong><br>${orderData.customerName}<br><strong>Phone:</strong><br>${orderData.customerPhone || 'Not provided'}<br><strong>Email:</strong><br>${orderData.customerEmail || 'Not provided'}<br><strong>Address:</strong><br>${orderData.customerAddress || 'Not provided'}<br><br><h3>Product Details</h3><strong>Edition:</strong><br>${orderData.selectedEdition || 'Not specified'}<br><strong>Color:</strong><br>${orderData.selectedColor || 'Not specified'}<br>${orderData.engravingText ? `<strong>Engraving:</strong><br>${orderData.engravingText}<br>` : ''}<strong>Payment Method:</strong><br>${paymentStatus}<br><br><p>Please process this order.</p>`;
           }
           
           const emailParams: any = {
