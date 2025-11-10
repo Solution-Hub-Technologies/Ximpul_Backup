@@ -87,19 +87,45 @@ export const useOrderSubmission = () => {
 
           console.log('📧 Sending emails for order:', order.id);
           
+          // Fetch email templates from database
+          const { data: customerTemplate } = await supabase
+            .from('email_templates')
+            .select('*')
+            .eq('type', 'order')
+            .eq('name', 'Order Confirmation')
+            .single();
+
           // Send customer email if provided
           if (orderData.customerEmail) {
             console.log('📧 Sending customer email to:', orderData.customerEmail);
             const paymentMethod = orderData.paymentMethod === 'cod' ? 'Cash on Delivery' : (orderData.paymentMethod === 'online' ? 'Online Payment' : orderData.paymentMethod || 'Not specified');
             
-            const customerEmailHTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Order Confirmation - Ximpul Flow</title></head><body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f8fafc;"><div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;"><div style="background: linear-gradient(135deg, #1f2937 0%, #111827 100%); padding: 40px 30px; text-align: center;"><h1 style="color: #ffffff; font-size: 28px; font-weight: 300; margin: 0 0 10px 0; letter-spacing: 1px;">XIMPUL FLOW</h1><p style="color: #d1d5db; font-size: 16px; margin: 0;">Order Confirmation</p></div><div style="padding: 40px 30px; text-align: center; border-bottom: 1px solid #e5e7eb;"><div style="width: 60px; height: 60px; background-color: #10b981; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 24px;">OK</span></div><h2 style="color: #1f2937; font-size: 24px; font-weight: 400; margin: 0 0 10px 0;">Thank You, ${orderData.customerName}!</h2><p style="color: #6b7280; font-size: 16px; margin: 0;">Your order has been confirmed and is being processed.</p></div><div style="padding: 30px;"><div style="background-color: #f9fafb; border-radius: 12px; padding: 25px; margin-bottom: 30px;"><h3 style="color: #1f2937; font-size: 18px; font-weight: 600; margin: 0 0 20px 0; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">Order Summary</h3><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #6b7280; font-weight: 500;">Order ID:</td><td style="padding: 8px 0; color: #1f2937; font-weight: 700; font-family: monospace;">#${(order as any).order_id}</td></tr><tr><td style="padding: 8px 0; color: #6b7280; font-weight: 500;">Product:</td><td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${orderData.selectedEdition} Edition</td></tr><tr><td style="padding: 8px 0; color: #6b7280; font-weight: 500;">Color:</td><td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${orderData.selectedColor}</td></tr><tr><td style="padding: 8px 0; color: #6b7280; font-weight: 500;">Payment:</td><td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${paymentMethod}</td></tr><tr style="border-top: 1px solid #e5e7eb;"><td style="padding: 12px 0 8px 0; color: #1f2937; font-weight: 700; font-size: 18px;">Total:</td><td style="padding: 12px 0 8px 0; color: #1f2937; font-weight: 700; font-size: 18px;">${orderData.totalAmount} BDT</td></tr></table></div><div style="background: linear-gradient(135deg, #1f2937 0%, #374151 100%); border-radius: 12px; padding: 25px; text-align: center; margin-bottom: 30px;"><h3 style="color: #ffffff; font-size: 18px; font-weight: 600; margin: 0 0 15px 0;">Track Your Order</h3><p style="color: #d1d5db; margin: 0 0 20px 0;">Monitor your order status in real-time</p><a href="https://ximpul.com/track-order?orderId=${(order as any).order_id}" style="display: inline-block; background-color: #ffffff; color: #1f2937; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: 600;">Track Order #${(order as any).order_id}</a><p style="color: #9ca3af; font-size: 14px; margin: 15px 0 0 0;">Or visit ximpul.com/track-order</p></div><div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; margin-bottom: 30px;"><h4 style="color: #065f46; font-size: 16px; font-weight: 600; margin: 0 0 10px 0;">What happens next?</h4><p style="color: #047857; margin: 0; line-height: 1.6;">${orderData.paymentMethod === 'cod' ? 'We will prepare your order for delivery. Please keep the exact amount ready for cash on delivery.' : 'Your payment has been processed successfully. We will prepare your order for delivery.'}</p></div><div style="text-align: center; padding: 20px 0;"><p style="color: #6b7280; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">Thank you for choosing Ximpul Flow - a product built with care, purpose, and the belief that water should be free.</p><p style="color: #1f2937; font-weight: 600; font-size: 18px; margin: 0;">Your Water. Your Freedom.</p></div></div><div style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;"><p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0;">Need help? Contact us:</p><p style="color: #1f2937; font-weight: 600; margin: 0;">Email: ximpulshop@gmail.com | Phone: 01881408611</p><p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0 0;">Copyright 2024 Ximpul. All rights reserved.</p></div></div></body></html>`;
+            let customerEmailHTML = '';
+            let customerSubject = `Order Confirmation - ${(order as any).order_id} | Ximpul Flow`;
+            
+            if (customerTemplate) {
+              // Use template from admin panel
+              customerEmailHTML = customerTemplate.template
+                .replace(/{{customerName}}/g, orderData.customerName)
+                .replace(/{{orderId}}/g, (order as any).order_id)
+                .replace(/{{selectedEdition}}/g, orderData.selectedEdition)
+                .replace(/{{selectedColor}}/g, orderData.selectedColor)
+                .replace(/{{paymentMethod}}/g, paymentMethod)
+                .replace(/{{totalAmount}}/g, orderData.totalAmount.toString());
+              
+              customerSubject = customerTemplate.subject
+                .replace(/{{orderId}}/g, (order as any).order_id);
+            } else {
+              // Fallback to simple template
+              customerEmailHTML = `<h2>Order Confirmation</h2><p>Dear ${orderData.customerName},</p><p>Your order #${(order as any).order_id} has been confirmed.</p><p>Total: ${orderData.totalAmount} BDT</p><p>Thank you for choosing Ximpul!</p>`;
+            }
             
             const customerEmailResponse = await fetch('https://ximpul.com/smtp-mailer.php', {
               method: 'POST',
               headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
               body: new URLSearchParams({
                 to: orderData.customerEmail,
-                subject: `Order Confirmation - ${(order as any).order_id} | Ximpul Flow`,
+                subject: customerSubject,
                 message: customerEmailHTML,
                 from_name: 'Ximpul Shop'
               })
@@ -118,53 +144,112 @@ export const useOrderSubmission = () => {
           }
           
           // Fetch admin email configuration from database
+          console.log('📧 STEP 3.1: Fetching admin email configuration...');
           const { data: emailConfig, error: emailConfigError } = await supabase
             .from('email_config')
-            .select('to_emails, cc_emails')
-            .eq('config_type', 'customer')
-            .single();
+            .select('*')
+            .eq('config_type', 'customer');
           
-          console.log('📧 Email config fetched:', emailConfig);
-          console.log('📧 Email config error:', emailConfigError);
+          console.log('📧 Email config query result:', { emailConfig, emailConfigError });
+          console.log('📧 Email config raw data:', JSON.stringify(emailConfig, null, 2));
+          
+          // Also fetch all email configs for debugging
+          const { data: allEmailConfigs } = await supabase
+            .from('email_config')
+            .select('*');
+          console.log('📧 All email configs in database:', JSON.stringify(allEmailConfigs, null, 2));
           
           // Use configured emails or fallback to default
           let adminEmails = 'ximpulshop@gmail.com'; // Default fallback
+          let ccEmails = '';
           
-          if (emailConfig?.to_emails?.length > 0) {
-            adminEmails = emailConfig.to_emails.join(',');
-            console.log('📧 Using configured admin emails:', adminEmails);
+          if (emailConfig && emailConfig.length > 0) {
+            const config = emailConfig[0];
+            if (config?.to_emails?.length > 0) {
+              adminEmails = config.to_emails.join(',');
+              console.log('📧 Using configured TO emails:', adminEmails);
+            }
+            if (config?.cc_emails?.length > 0) {
+              ccEmails = config.cc_emails.join(',');
+              console.log('📧 Using configured CC emails:', ccEmails);
+            }
           } else {
             console.log('📧 No email config found, using fallback:', adminEmails);
+            console.log('📧 Attempting to create default email config...');
             // If no config exists, try to create one with default email
             try {
-              await supabase
+              const { data: insertResult, error: insertError } = await supabase
                 .from('email_config')
                 .insert({
                   config_type: 'customer',
                   to_emails: ['ximpulshop@gmail.com'],
                   cc_emails: []
-                });
-              console.log('📧 Created default email config');
+                })
+                .select();
+              console.log('📧 Insert result:', { insertResult, insertError });
+              if (!insertError) {
+                console.log('📧 Created default email config successfully');
+                adminEmails = 'ximpulshop@gmail.com';
+              }
             } catch (insertError) {
               console.log('📧 Could not create default config:', insertError);
             }
           }
           
-          console.log('📧 Final admin emails to send to:', adminEmails);
+          console.log('📧 Final TO emails:', adminEmails);
+          console.log('📧 Final CC emails:', ccEmails);
+          console.log('📧 Email config used:', emailConfig?.[0] || 'No config found');
           
-          // Send admin emails with beautiful HTML design
+          // Fetch admin email template
+          const { data: adminTemplate } = await supabase
+            .from('email_templates')
+            .select('*')
+            .eq('type', 'notification')
+            .eq('name', 'Admin Order Alert')
+            .single();
+
+          // Send admin emails
           const paymentStatus = orderData.paymentMethod === 'cod' ? 'Cash on Delivery' : (orderData.paymentMethod === 'online' ? 'Online Payment' : orderData.paymentMethod || 'Not specified');
           
-          const adminEmailHTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>New Order Alert - Ximpul Admin</title></head><body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f1f5f9;"><div style="max-width: 650px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"><div style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); padding: 30px; text-align: center;"><div style="background-color: rgba(255,255,255,0.2); width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 24px;">!</span></div><h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 0 0 5px 0;">New Order Alert</h1><p style="color: #fecaca; font-size: 14px; margin: 0;">Immediate attention required</p></div><div style="padding: 30px;"><div style="background: linear-gradient(135deg, #1f2937 0%, #374151 100%); border-radius: 12px; padding: 20px; margin-bottom: 25px; text-align: center;"><h2 style="color: #ffffff; font-size: 20px; font-weight: 600; margin: 0 0 10px 0;">Order #${(order as any).order_id}</h2><p style="color: #d1d5db; font-size: 14px; margin: 0;">Total: <span style="font-size: 18px; font-weight: 700; color: #10b981;">${orderData.totalAmount || 'Not specified'} BDT</span></p></div><div style="background-color: #f8fafc; border-radius: 12px; padding: 25px; margin-bottom: 25px;"><h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Customer Information</h3><div style="display: grid; gap: 12px;"><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Name:</span><span style="color: #1f2937; font-weight: 600;">${orderData.customerName}</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Phone:</span><span style="color: #1f2937; font-weight: 600;">${orderData.customerPhone || 'Not provided'}</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Email:</span><span style="color: #1f2937; font-weight: 600;">${orderData.customerEmail || 'Not provided'}</span></div><div style="padding: 8px 0;"><span style="color: #64748b; font-weight: 500; display: block; margin-bottom: 5px;">Address:</span><span style="color: #1f2937; font-weight: 600; background-color: #ffffff; padding: 10px; border-radius: 6px; display: block;">${orderData.customerAddress || 'Not provided'}</span></div></div></div><div style="background-color: #f0f9ff; border-radius: 12px; padding: 25px; margin-bottom: 25px;"><h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px;">Product Details</h3><div style="display: grid; gap: 12px;"><div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Edition:</span><span style="color: #1f2937; font-weight: 600;">${orderData.selectedEdition || 'Not specified'}</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Color:</span><span style="color: #1f2937; font-weight: 600;">${orderData.selectedColor || 'Not specified'}</span></div>${orderData.engravingText ? `<div style="padding: 8px 0;"><span style="color: #1e40af; font-weight: 500; display: block; margin-bottom: 5px;">Engraving:</span><span style="color: #1f2937; font-weight: 600; background-color: #ffffff; padding: 10px; border-radius: 6px; display: block; font-style: italic;">${orderData.engravingText}</span></div>` : ''}<div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Payment Method:</span><span style="color: #1f2937; font-weight: 600;">${paymentStatus}</span></div></div></div><div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 12px; padding: 20px; text-align: center;"><h4 style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0 0 10px 0;">Action Required</h4><p style="color: #fef3c7; margin: 0 0 15px 0; font-size: 14px;">Please process this order in the admin dashboard</p><a href="https://ximpul.com/admin/orders" style="display: inline-block; background-color: #ffffff; color: #d97706; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">View in Dashboard</a></div></div><div style="background-color: #1f2937; padding: 20px; text-align: center;"><p style="color: #9ca3af; font-size: 12px; margin: 0;">Ximpul Admin Panel | Order Management System</p><p style="color: #6b7280; font-size: 11px; margin: 5px 0 0 0;">This is an automated notification</p></div></div></body></html>`;
+          let adminEmailHTML = '';
+          let adminSubject = `New Ximpul Order - ${(order as any).order_id}`;
           
-          const emailParams = {
+          if (adminTemplate) {
+            // Use template from admin panel
+            adminEmailHTML = adminTemplate.template
+              .replace(/{{customerName}}/g, orderData.customerName)
+              .replace(/{{customerPhone}}/g, orderData.customerPhone || 'Not provided')
+              .replace(/{{customerEmail}}/g, orderData.customerEmail || 'Not provided')
+              .replace(/{{customerAddress}}/g, orderData.customerAddress || 'Not provided')
+              .replace(/{{orderId}}/g, (order as any).order_id)
+              .replace(/{{selectedEdition}}/g, orderData.selectedEdition || 'Not specified')
+              .replace(/{{selectedColor}}/g, orderData.selectedColor || 'Not specified')
+              .replace(/{{engravingText}}/g, orderData.engravingText || '')
+              .replace(/{{paymentMethod}}/g, paymentStatus)
+              .replace(/{{totalAmount}}/g, orderData.totalAmount?.toString() || 'Not specified');
+            
+            adminSubject = adminTemplate.subject
+              .replace(/{{orderId}}/g, (order as any).order_id);
+          } else {
+            // Fallback to simple template
+            adminEmailHTML = `<h2>New Order Alert</h2><p>Order #${(order as any).order_id}</p><p>Customer: ${orderData.customerName}</p><p>Total: ${orderData.totalAmount} BDT</p><p>Please process this order.</p>`;
+          }
+          
+          const emailParams: any = {
             to: adminEmails,
-            subject: `New Ximpul Order - ${(order as any).order_id}`,
+            subject: adminSubject,
             message: adminEmailHTML,
             from_name: 'Ximpul Shop'
           };
           
-          console.log('📧 Sending admin email with params:', emailParams);
+          // Add CC emails if configured
+          if (ccEmails) {
+            emailParams.cc = ccEmails;
+          }
+          
+          console.log('📧 STEP 3.2: Sending admin email with params:', emailParams);
+          console.log('📧 Admin email HTML length:', adminEmailHTML.length);
+          console.log('📧 Admin template found:', !!adminTemplate);
           
           const adminEmailResponse = await fetch('https://ximpul.com/smtp-mailer.php', {
             method: 'POST',
@@ -172,11 +257,13 @@ export const useOrderSubmission = () => {
             body: new URLSearchParams(emailParams)
           });
           
+          console.log('📧 Admin email response status:', adminEmailResponse.status);
           const adminEmailResult = await adminEmailResponse.json();
-          console.log('📧 Admin email response:', adminEmailResult);
+          console.log('📧 Admin email full response:', adminEmailResult);
           
           if (!adminEmailResult.success) {
             console.error('❌ Admin email failed:', adminEmailResult.error);
+            console.error('❌ Admin email error details:', adminEmailResult);
           } else {
             console.log('✅ Admin email sent successfully');
           }

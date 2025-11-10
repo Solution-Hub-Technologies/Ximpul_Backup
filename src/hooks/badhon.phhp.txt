@@ -1,0 +1,1879 @@
+<link href="<?php echo base_url(); ?>assets/deepal/css/plugins.css" rel="stylesheet">
+<link href="<?php echo base_url(); ?>assets/deepal/css/style.css" rel="stylesheet">
+<link href="<?php echo base_url(); ?>assets/deepal/css/custom.css" rel="stylesheet">
+<link href="<?php echo base_url(); ?>assets/deepal/css/jquery-ui.css" rel="stylesheet">
+<link rel="stylesheet" href="<?php echo base_url(); ?>assets/deepal/css/swiper-bundle.min.css" />
+<style>
+	.events-hd {
+	line-height: 1.3;
+	color: #3b89db;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.events-p {
+	padding-top: 2px;
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.events-d {
+	padding-top: 2px;
+	display: -webkit-box;
+	-webkit-line-clamp: 5;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.swiper-event {
+	width: 100%;
+	height: 50%;
+}
+
+.swiper-slide-event {
+	text-align: center;
+	height: 450px !important;
+	margin-top: 0px !important;
+	font-size: 18px;
+	background: #fff;
+	display: -webkit-box;
+	display: -ms-flexbox;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-pack: center;
+	-ms-flex-pack: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	-webkit-box-align: center;
+	-ms-flex-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+}
+
+.swiper-wrapper-event {}
+
+.swiper-slide-event img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.swiper {
+	position: absolute !important;
+	top: 0 !important;
+	width: 100% !important;
+	background: white !important;
+	height: 100% !important;
+}
+
+.swiper-slide {
+	z-index: 3;
+	height: 100% !important;
+	background: transparent !important;
+	text-align: center;
+	font-size: 18px;
+}
+
+.slider-container {
+	width: 100%;
+	height: 100% !important;
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+.slider-container-row {
+	width: 100% !important;
+	height: 100% !important;
+}
+
+.model-name-h {
+	position: relative;
+	top: 12vh;
+}
+
+.model-sec-event {
+	position: relative;
+	top: 4vh;
+}
+
+.custom-size {
+	position: absolute;
+	bottom: 40px;
+}
+
+@media only screen and (min-width:1px) and (max-width:520px) {
+	.slider-container {
+		width: 100%;
+		height: 100% !important;
+		position: absolute;
+		left: 15px;
+		right: 0;
+	}
+	.slider-container-row {
+		width: 100% !important;
+		height: 100% !important;
+	}
+	.custom-size {
+		position: absolute;
+		bottom: 40px;
+	}
+}
+
+.sidenav {
+	height: 100%;
+	width: 0;
+	position: fixed;
+	z-index: 1;
+	top: 0;
+	right: 0;
+	background-color: #fff;
+	overflow-x: hidden;
+	transition: 0.5s;
+	padding-top: 60px;
+}
+
+.sidenav a {
+	padding: 8px 8px 8px 32px;
+	text-decoration: none;
+	font-size: 25px;
+	color: #818181;
+	display: block;
+	transition: 0.3s;
+}
+
+.sidenav:hover {
+	background: #f2f2f2;
+}
+
+.sidenav a:hover {
+	text-decoration: none !important;
+}
+
+.sidenav .closebtn {
+	position: absolute;
+	top: 20px;
+	right: 25px;
+	font-size: 36px;
+	margin-left: 50px;
+}
+
+.plus1 i {
+	border: 3px solid black;
+	padding: 10px;
+	border-radius: 50px;
+	background: ;
+}
+
+.plus1 i:hover {
+	border: 3px solid black;
+	padding: 10px;
+	color: white !important;
+	border-radius: 50px;
+	background: black;
+}
+
+@media screen and (max-height: 450px) {
+	.sidenav {
+		padding-top: 15px;
+	}
+	.sidenav a {
+		font-size: 18px;
+	}
+}
+
+.bd-imgg4 {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/images/32584793_916282411876850_2097293665201291264_n.html') !important;
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 100vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.bd-imgg1 {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/images/changan/15151.html') !important;
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 100vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.bd-imgg5 {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/images/mechanic.html');
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 100vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.btn-1 {
+	background: transparent !important;
+	width: 250px !important;
+	border-radius: 20px !important;
+	background: #0009 !important;
+	border: none !important;
+}
+
+.btn-1 a {
+	color: white !important;
+	text-decoration: none !important;
+}
+
+.btn-1 a:hover {
+	text-decoration: none !important;
+}
+
+.btn-2 {
+	background: transparent !important;
+	width: 250px !important;
+	border-radius: 20px !important;
+	background: #1111 !important;
+	border: none !important;
+	color: black !important;
+}
+
+.btn-2 a {
+	color: black !important;
+}
+
+@media only screen and (min-width:1px) and (max-width:520px) {
+	.display-mb {
+		display: none !important;
+	}
+	.bd-imgg {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/images/M3-Homepage-M.html');
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 100vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.bd-imgg1 {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/images/Mobile-ModelY.html');
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 100vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.bd-imgg2 {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/images/ms-homepage-mobile.html');
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 100vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.bd-imgg3 {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/images/ModelX-Homepage-M.html');
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 100vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.bd-model-3 {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/images/model-3-main-hero-a-desktop.html');
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 100vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.hide-menu {
+		display: none !important;
+	}
+	.header-inner {
+		position: relative;
+	}
+	.menu-on-right {
+		position: absolute;
+		margin-top: 10px !important;
+		left: 70vw;
+		height: 40px;
+		width: 77px;
+		margin-left: 5px;
+		border-radius: 10px;
+	}
+	.logo-default {
+		position: absolute;
+		top: 0px;
+		left: -25px;
+	}
+	.right-list {
+		cursor: pointer !important;
+		margin-top: -10px;
+		right: 5% !important;
+	}
+	.btn-1 {
+		background: transparent !important;
+		width: 100% !important;
+		height: 48px;
+		border-radius: 20px !important;
+		background: #0009 !important;
+		border: none !important;
+	}
+	.btn-2 {
+		margin-top: 10px !important;
+		height: 48px;
+		background: transparent !important;
+		width: 100% !important;
+		border-radius: 20px !important;
+		background: #1111 !important;
+		border: none !important;
+		color: black !important;
+	}
+	.distop-block {
+		display: block !important;
+	}
+}
+
+.swiper-full {
+	width: 100%;
+	height: 100%;
+}
+
+.swiper-slide-full {
+	text-align: center;
+	font-size: 18px;
+	background: #fff !important;
+	display: -webkit-box;
+	display: -ms-flexbox;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-pack: center;
+	-ms-flex-pack: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	-webkit-box-align: center;
+	-ms-flex-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+}
+
+.swiper-slide-ful img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.swiper-half {
+	width: 100%;
+	height: 300px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.swiper-slide-half {
+	background-size: cover;
+	background-position: center;
+}
+
+.mySwiper2 {
+	height: 80%;
+	width: 100%;
+}
+
+.mySwiper1 {
+	height: 20%;
+	box-sizing: border-box;
+	padding: 10px 0;
+}
+
+.mySwiper1 .swiper-slide {
+	width: 25%;
+	height: 100%;
+	opacity: 0.4;
+}
+
+.mySwiper1 .swiper-slide-thumb-active {
+	opacity: 8;
+}
+
+.swiper-slide-full img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.swiper-slide-half img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.swiper-wrapper-full {
+	width: 40vw !important;
+}
+
+.swiper-slide-full {}
+
+.swiper-full {
+	float: left !important;
+	width: 70vw !important;
+	height: 100vh;
+}
+
+.swiper-half {
+	width: 29.5vw !important;
+	height: 100vh;
+}
+
+.swiper-slide-half {
+	height: 200px !important;
+}
+
+.swiper-slide-half div {
+	width: 100vw;
+	/*height: 20vh;*/
+}
+
+.swiper-scroll {
+	width: 100%;
+	height: 100%;
+}
+
+.swiper-slide-scroll {
+	font-size: 18px;
+	height: auto !important;
+	-webkit-box-sizing: border-box;
+	box-sizing: border-box;
+	padding: 30px;
+}
+
+.xl65 {
+	padding: 5px;
+	border: 1px solid #000;
+	padding-left: 40px;
+}
+
+.xl68 {
+	padding-left: 10px;
+}
+
+.transparant_bg {
+	background: rgba(255, 255, 255, 0.4);
+}
+
+.fadeInUp2 {
+	display: none;
+}
+
+.fadeInUp3 {
+	display: none;
+}
+
+.fadeInUp1 {
+	display: none;
+}
+
+.fadeInUp {
+	-webkit-animation-name: fadeInUp;
+	-moz-animation-name: fadeInUp;
+	-o-animation-name: fadeInUp;
+	animation-name: fadeInUp;
+	-webkit-animation-duration: 2s;
+	-webkit-animation-delay: 0s;
+	-webkit-animation-timing-function: ease;
+	-webkit-animation-fill-mode: both;
+	-moz-animation-duration: 2s;
+	-moz-animation-delay: 0s;
+	-moz-animation-timing-function: ease;
+	-moz-animation-fill-mode: both;
+	-o-animation-duration: 2s;
+	-o-animation-delay: 0s;
+	-o-animation-timing-function: ease;
+	-o-animation-fill-mode: both;
+	animation-duration: 2s;
+	animation-delay: 0s;
+	animation-timing-function: ease;
+	animation-fill-mode: both;
+}
+
+@-Webkit-keyframes fadeInUp {
+	0% {
+		opacity: 0;
+		-moz-transform: translateY(20px);
+	}
+}
+
+.first-model-bd-img {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/upload/deepal-homepage-banner-s07160824063106-drive.html');
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 100vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.second-model-bd-img {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/upload/deepal-homepage-banner-l07160824063127-drive.html') !important;
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 100vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.third-model-bd-img {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/upload/Karvaan140222031248-drive.html');
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 100vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.fourth-model-bd-img {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/upload/sherpa130222044644-drive.html');
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 100vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.about-changan-bg-img {
+	background-image: url('<?php echo base_url();
+	?>assets/deepal/upload/Alsvin%20-%20Part%20III130222010702-drive.html');
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 100vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.changan-quality-bg-img {
+	background-image: url('<?php echo base_url();
+	?>assets/deepal/upload/Alsvin%20-%20Part%20III130222010702-drive.html');
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 100vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.bg-img-half {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/images/alsvin/page3.html')!important;
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 65vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.bg-img-half-sec3 {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/images/alsvin/page4.html')!important;
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 65vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.bg-img-half-sec4 {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/images/alsvin/page5.html')!important;
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 100vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.bg-img-half-sec5 {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/images/alsvin/Steering-Wheel-Multi-Functional.html')!important;
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 65vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.bd-model-3 {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/images/1974648061.html')!important;
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 100vh !important;
+	background-size: cover;
+	background-position: center;
+}
+
+@media only screen and (min-width:1px) and (max-width:520px) {
+	.first-model-bd-img {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/upload/deepal-home-page-banner-s7-mobile160824101823-drive.html');
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 100vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.second-model-bd-img {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/upload/deepal-home-page-banner-L03-mobile160824101938-drive.html') !important;
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 100vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.third-model-bd-img {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/upload/homepage-banners-karvaan-mobile-2010322014858-drive.html');
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 100vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.fourth-model-bd-img {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/upload/home%20page%20sherpa%20mobile%203010322104323-drive.html');
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 100vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.about-changan-bg-img {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/upload/Alsvin%20Red%20-%20Mob130222070555-drive.html');
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 100vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.changan-quality-bg-img {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/upload/Hunter%20-%20Mobile130222043224-drive.html');
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 100vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.bg-img-half {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/images/alsvin/Energy-Banner.html')!important;
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 55vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.bg-img-half-sec3 {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/images/alsvin/Fashion-Banner.html')!important;
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 40vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.bg-img-half-sec4 {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/images/alsvin/Elegance-Banner.html')!important;
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 40vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+	.bg-img-half-sec5 {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/images/alsvin/Super-EPS.html')!important;
+		background-repeat: no-repeat;
+		width: 100%;
+		height: 50vh !important;
+		background-size: cover;
+		background-position: center;
+	}
+}
+
+.blureffect {
+	filter: blur(3px) !important;
+	-webkit-filter: blur(3px) !important;
+}
+
+.imgg-height {
+	height: 500px !important;
+}
+
+.video-text-slider {
+	line-height: 1.3;
+	display: -webkit-box;
+	-webkit-line-clamp: 8;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.swiper-pagination-bullet {
+	width: var(--swiper-pagination-bullet-width, var(--swiper-pagination-bullet-size, 10px));
+	height: var(--swiper-pagination-bullet-height, var(--swiper-pagination-bullet-size, 10px));
+	display: inline-block;
+	border-radius: 10%;
+	background: var(--swiper-pagination-bullet-inactive-color, #fff);
+	opacity: var(--swiper-pagination-bullet-inactive-opacity, .2);
+}
+
+.swiper-pagination-bullet-active {
+	opacity: var(--swiper-pagination-bullet-opacity, 1);
+	background: var(--swiper-pagination-color, var(--swiper-theme-color));
+}
+
+.swiper-button-next1 {
+	background: #0005;
+	padding: 20px;
+	border: 2px solid #fff;
+	border-radius: 5px;
+}
+
+.swiper-button-prev1 {
+	background: #0005;
+	padding: 20px;
+	border: 2px solid #fff;
+	border-radius: 5px;
+}
+
+.swiper-button-next1 {
+	right: 3% !important;
+	top: 40% !important;
+}
+
+.swiper-button-prev1 {
+	left: 3% !important;
+	top: 40% !important;
+}
+
+.swiper-new-gallery {
+	width: 100% !important;
+}
+
+.swiper-slide-new-gallery {
+	padding: 0px !important;
+	margin: 0px !important;
+	text-align: center;
+	font-size: 18px;
+	background: #fff;
+}
+
+.swiper-slide-new-gallery img {
+	display: block;
+	width: 100%;
+	height: 60%;
+	object-fit: cover;
+}
+
+.swiper-button-next1 {
+	top: 40% !important;
+}
+
+.swiper-button-prev1 {
+	top: 40% !important;
+}
+
+.swiper-slide-full {
+	text-align: center;
+	font-size: 18px;
+	background: #fff;
+	display: -webkit-box;
+	display: -ms-flexbox;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-pack: center;
+	-ms-flex-pack: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	-webkit-box-align: center;
+	-ms-flex-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+}
+
+.swiper-slide-ful img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.swiper-half {
+	width: 100%;
+	height: 300px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.swiper-slide-half {
+	background-size: cover;
+	background-position: center;
+}
+
+.paintactive {
+	border: 2px solid blue !important;
+}
+
+.swiper-gallery {
+	width: 100%;
+	padding-top: 5%;
+}
+
+.swiper-slide-gallery {
+	background-position: center;
+	background-size: cover;
+	width: 500px;
+}
+
+.swiper-slide-gallery img {
+    display: block;
+    width: 650px !important;
+}
+@media (max-width: 768px) {
+    .swiper-slide-gallery img {
+		padding: 44px;
+        max-height: 50vh;
+        max-width: -webkit-fill-available;
+    }
+}
+
+* {
+	box-sizing: border-box;
+	scroll-behavior: smooth;
+}
+
+.header-mini {
+	background: rgba(255, 255, 255, 0.4) !important;
+}
+
+.slidefadeanimation {
+	display: none;
+}
+
+.swiper-button-next-icon {
+	position: absolute;
+	left: 50%;
+	bottom: 5px;
+	cursor: pointer;
+	animation: iconanimation 1s infinite;
+	transition: smooth;
+}
+
+@keyframes iconanimation {
+	from {
+		bottom: 5px;
+	}
+	to {
+		bottom: 10px;
+	}
+}
+
+.swiper {
+	background: #0006 !important;
+	width: 100%;
+	height: 100%;
+}
+
+.swiper-slide {
+	text-align: center;
+	font-size: 18px;
+	background: #fff;
+}
+
+.container-style-css {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+}
+
+.row-style-css {
+	background: #fff !important;
+	position: relative;
+	left: 0;
+	right: 0;
+	padding: 0px;
+	height: 100% !important;
+}
+
+.product-first-bg-img {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/images/lhd-awd-hero-desktop.jpg')!important;
+	background-repeat: no-repeat;
+	width: 100%;
+	height: 100% !important;
+	background-size: cover;
+	background-position: center;
+}
+
+.container-adjustment {
+	align-items: center !important;
+	justify-content: center;
+	height: 100% !important;
+	width: 100%;
+	top: 0;
+	right: 0;
+	position: relative;
+}
+
+.model-title-adjustment {
+	position: absolute;
+	left: 0;
+	top: 12%;
+	width: 100%;
+}
+
+.model-specification {
+	position: absolute;
+	left: 1.2% !important;
+	right: 0 !important;
+	bottom: 5%;
+	width: 100%;
+}
+
+.model-specification .model-specification-adjustmetn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	list-style: none;
+	grid-gap: 15%;
+	width: 100%;
+}
+
+.bg-cover-css {
+	background-repeat: no-repeat !important;
+	width: 100% !important;
+	height: 100% !important;
+	background-size: cover;
+	background-position: center !important;
+}
+
+.half-screen-text {
+	justify-content: left;
+	text-align: left;
+	margin-top: 5%;
+}
+
+.performa {
+	height: 70%;
+}
+
+.performa1 {
+	height: 30%;
+}
+
+.banner-img {
+	background-image: url('<?php echo base_url(); ?>assets/deepal/S07-image/outro-page.jpg')!important;
+	height: 90vh !important;
+}
+
+@media only screen and (min-width:1px) and (max-width:520px) {
+	.imgg-height {
+		height: 150px !important;
+	}
+	.banner-img {
+		background-image: url('<?php echo base_url(); ?>assets/deepal/S07-image/outro-page.jpg')!important;
+		height: 89vh !important;
+		background-repeat: no-repeat;
+	}
+	.index-text-css {
+		line-height: 1.5 !important;
+		font-size: 15px !important;
+		display: -webkit-box !important;
+		-webkit-line-clamp: 15 !important;
+		-webkit-box-orient: vertical !important;
+		overflow: hidden !important;
+		text-overflow: ellipsis !important;
+	}
+	.swiper-button-next-icon {
+		position: absolute;
+		left: 47%;
+		bottom: 5px;
+		cursor: pointer;
+	}
+	.half-screen-img {
+		height: 25vh !important;
+	}
+	.half-screen-pol {
+		height: 50vh !important;
+	}
+	.half-screen-text {
+		justify-content: left;
+		text-align: left;
+	}
+	.performa {
+		height: 40% !important;
+	}
+	.performa1 {
+		height: 60% !important;
+	}
+	.secure {
+		height: 40% !important;
+	}
+	.secure1 {
+		height: 60% !important;
+	}
+	.swwiper2 {
+		margin-top: 0px !important;
+	}
+	.model-specification {
+		position: absolute !important;
+		left: 3.5% !important;
+		align-items: center !important;
+		bottom: 5% !important;
+		width: 100% !important;
+	}
+	.model-specification .model-specification-adjustmetn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		list-style: none;
+		grid-gap: 15%;
+		width: 100%;
+	}
+	.row-style-css {
+		position: relative;
+		top: 6.5%;
+		left: 0;
+		right: 0;
+		padding: 0px;
+		height: 100% !important;
+	}
+	@media (min-width: 1024px) {
+		.container-adjustment {
+			align-items: center !important;
+			justify-content: center;
+			height: 100% !important;
+			width: 100%;
+			right: 0;
+			position: relative;
+		}
+		.model-title-adjustment {
+			position: absolute;
+			left: 0;
+			top: 12%;
+			width: 100%;
+		}
+		.model-specification {
+			position: absolute;
+			left: 1.2% !important;
+			right: 0 !important;
+			bottom: 5%;
+			width: 100%;
+		}
+		.model-specification .model-specification-adjustmetn {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			list-style: none;
+			grid-gap: 15%;
+			width: 100%;
+		}
+	}
+	@media only screen and (min-width:350px) and (max-width:800px) {
+		.model-specification .model-specification-adjustmetn {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			list-style: none;
+			grid-gap: 8%;
+			width: 100%;
+		}
+		.swiper-slide-new-gallery img {
+			height: 34% !important;
+		}
+		.swiper-button-next1 {
+			top: 12% !important;
+		}
+		.swiper-button-prev1 {
+			top: 12% !important;
+		}
+	}
+	@media only screen and (min-width:700px) and (max-width:1080px) {
+		.imgg-height {
+			height: 390px !important;
+		}
+	}
+</style>
+<style>
+.background-black {
+	background-color: #e8ebf1 !important;
+	color: black!important;
+}
+
+.text-light,
+.text-light h1,
+.text-light h2,
+.text-light h3,
+.text-light h4,
+.text-light h5,
+.text-light h6,
+.text-light .lead,
+.text-light p,
+.text-light a:not(.btn),
+.text-light a:not(.btn):hover:not(.btn-light),
+.text-light i,
+.text-light li,
+.text-light label,
+.text-light div:not(.alert),
+.text-light span:not(.btn-label) {
+	color: black !important;
+}
+
+.container-adjustment {
+    align-items: center !important;
+    justify-content: center;
+    height: 100% !important;
+    width: 100%;
+    top: 30px;
+    right: 0;
+    position: relative;
+}
+.model-title-adjustment {
+    position: absolute;
+    left: 0;
+    top: 5%;
+    width: 100%;
+}
+</style>
+<div class="body-inner">
+	<style type="text/css">
+	@media screen and (max-width: 1027px) and (min-width: 520px) {
+		.header-inner {
+			position: relative;
+		}
+		.header-extras {
+			position: absolute;
+			right: 2% !important;
+		}
+	}
+	
+	@media screen and (max-width:520px) and (min-width: 520px) {
+		.header-extras {
+			display: none;
+		}
+	}
+	
+	@media only screen and (min-width:1px) and (max-width:520px) {
+		.header-inner {
+			position: relative;
+		}
+		.mb-menu-st {
+			margin-top: -10px;
+			position: absolute;
+			right: 10% !important;
+		}
+	}
+	</style>
+	<div class="bg-cover-css banner-img " style="">
+		<div class="container container-adjustment text-center">
+			<div data-animate="fadeInLeft" class="model-title-adjustment fadeInUp">
+				<h4 class="m-0" style="font-size:2.2em !important">Deepal S07</h4> <span style="font-size: 18px !important" class="">Touch the future</span> </div>
+		
+			<div class="row model-specification">
+				<div class="col-md-9 model-specification-adjustmetn">
+					<div class="fadeInUp">
+						<h3 class="m-0" style="color:#000000 !important;"><b>160 KW</b></h3>
+						<h3 class="m-0" style="color:#000000 !important;"><b>255 HP</b></h3>
+						<p style="color:#000000 !important;">Max Motor Power</p>
+					</div>
+					<div class="fadeInUp">
+						<h3 style="color:#000000 !important;" class="m-0"><b>560 Km</b></h3>
+						<p style="color:#000000 !important;">Range</p>
+					</div>
+					<div class="fadeInUp">
+						<h3 style="color:#000000 !important;" class="m-0"><b>RWD</b></h3>
+						<p style="color:#000000 !important;">Drivetrain</p>
+					</div>
+				</div>
+				<div class="col-md-3">
+					<button class="btn btn-1 m-t-20 fadeInUp" style="color:white !important"><a href="<?php echo base_url(); ?>/book_now" style="color:white !important">Register your interest</a></button>
+				</div>
+			</div>
+		</div>
+	</div>
+	
+<section class="p-t-30 p-b-30 background-black">
+	<center>
+		<h3 data-animate="fadeInUp" style="color:black">Exterior</h3></center>
+</section>
+<section style="width:100%;height:auto;" class="p-0 m-0"> <img src="<?php echo base_url(); ?>assets/deepal/S07-image/exterior-new-22.png" style="width:100%"> </section>
+<section class="p-0">
+	<div class="container">
+		<div class="row p-20">
+			<div class="col-md-5 text-dark"> <span data-animate="fadeInUp" style="font-size:16px">Intelligent all-electric SUV</span>
+				<h4 data-animate="fadeInUp">Glamorous  Exterior</h4> </div>
+			<div class="col-md-7 text-dark">
+				<p data-animate="fadeInUp" style="font-size:16px">Touch the future sculpted in steel! The sleek future-forward design comes to life with frameless doors and stealthy handle mechanisms, creating a vision of tomorrow's aesthetic elegance</p>
+			</div>
+		</div>
+	</div>
+</section>
+<section class="p-0" style="min-height:600px;margin:0px ;padding:0px;display: flex;align-items: center;justify-content: center;background:#e8ebf1">
+	<div class="swiper swiper-new-gallery mySwiper-new-gallery p-t-10 m-0" style="width:80% !important;">
+		<div class="swiper-wrapper">
+			<div class="swiper-slide swiper-slide-new-gallery p-0 m-0" ">
+                            <div class="row text-light " style="width: 100%;padding: 0;margin: 0px !important;background:#e8ebf1;height:100%;max-height:auto; ">
+                                <div class="col-md-12 " style="height:70% ">
+                                 <img src="<?php echo base_url(); ?>assets/deepal/S07-image/slide1-1.jpg" style="height: 100%;margin: 0px" > </div>
+			<div class="col-md-3"> </div>
+			<div class="col-md-9 p-t-10" style="text-align: left;">
+				<h5 class="m-0" style="font-size:21px;">
+                                      State of the art design
+                                    </h5>
+				<p class="video-text-slider" style="font-size:16px"> A head-turning fusion of futuristic design ​and sophisticated elegance. Every line ​exudes a sharp, modern presence </p>
+				<div class="swiper-pagination" style="text-align:left !important;margin-left:11.5px; "></div>
+			</div>
+		</div>
+	</div>
+	<div class="swiper-slide swiper-slide-new-gallery p-0 m-0" ">
+                            <div class="row text-light " style="width: 100%;padding: 0;margin: 0px !important;background:#e8ebf1;height:100%;max-height:auto; ">
+                                <div class="col-md-12 " style="height:70% ">
+                                 <img src="<?php echo base_url(); ?>assets/deepal/S07-image/slider4-6.jpg" style="height: 100%;margin: 0px" > </div>
+	<div class="col-md-3"> </div>
+	<div class="col-md-9 p-t-10" style="text-align: left;">
+		<h5 class="m-0" style="font-size:21px;">
+                                      A side profile with a statement of ​electric confidence
+                                    </h5>
+		<p class="video-text-slider" style="font-size:16px"> An electrifying presence with sleek ​curves, sharp creases, and dynamic ​accents. With a 2,900mm wheelbase, it ​redefines elegance and performance, ​capturing attention and admiration. </p>
+		<div class="swiper-pagination" style="text-align:left !important;margin-left:11.5px; "></div>
+	</div>
+	</div>
+	</div>
+	<div class="swiper-slide swiper-slide-new-gallery p-0 m-0" ">
+                            <div class="row text-light " style="width: 100%;padding: 0;margin: 0px !important;background:#e8ebf1;height:100%;max-height:auto; ">
+                                <div class="col-md-12 " style="height:70% ">
+                                 <img src="<?php echo base_url(); ?>assets/deepal/S07-image/slide1-3.jpg" style="height: 100%;margin: 0px" > </div>
+	<div class="col-md-3"> </div>
+	<div class="col-md-9 p-t-10" style="text-align: left;">
+		<h5 class="m-0" style="font-size:21px;">
+                                      A Vision of Power and Grace:
+                                    </h5>
+		<p class="video-text-slider" style="font-size:16px"> The Deepal S07's form reaches a ​crescendo at the rear, where a ​captivating interplay of power and ​grace unfolds. </p>
+		<div class="swiper-pagination" style="text-align:left !important;margin-left:11.5px; "></div>
+	</div>
+	</div>
+	</div>
+	</div>
+	<div class="swiper-button-next swiper-button-next1"></div>
+	<div class="swiper-button-prev swiper-button-prev1"></div>
+	</div>
+</section>
+<section class="p-0" style="background: #e8ebf1 !important;">
+	<div class="container">
+		<div class="row p-t-20 ">
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/S07-image/frameless.jpg" width="100%"> </div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">Frameless windows with hidden electric ​door handles</h3>
+					<p data-animate="fadeInUp">Experience the epitome of elegance with ​frameless doors. The sleek, hidden door ​handles not only reduce wind resistance but ​also elevate the sense of ceremony every ​time you enter the cabin.</p>
+				</div>
+			</div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">LED Star Petal Daytime Running Light</h3>
+					<p data-animate="fadeInUp">Illuminate your drive with the Star Petal ​DRL’s a radiant blend of style and visibility</p>
+				</div>
+			</div>
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/S07-image/led-light.jpg" width="100%"> </div>
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/S07-image/wheels.jpg" width="100%"> </div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">20-inch Sports Wheels</h3>
+					<p data-animate="fadeInUp">The perfect intersection of confident ​handling and head-turning design</p>
+				</div>
+			</div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">LED Star flame through-type taillights</h3>
+					<p data-animate="fadeInUp">When lit, it resembles a thin flame when ​a spaceship is launched. The internally ​illuminated logo on the rear of the car is ​integrated with the through-type ​taillights, highlighting the technological ​connotation.</p>
+				</div>
+			</div>
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/S07-image/slider4-3.jpg" width="100%"> </div>
+		</div>
+	</div>
+</section>
+<section class="p-t-30 p-b-30 background-black">
+	<center>
+		<h3 data-animate="fadeInUp" style="color:black">Interior</h3></center>
+</section>
+<section style="width:100%;height:700px;" class="p-0 m-0"> <img src="<?php echo base_url(); ?>assets/deepal/S07-image/interior.jpg" style="width:100%"> </section>
+<section class="p-0">
+	<div class="container">
+		<div class="row p-20">
+			<div class="col-md-5 text-dark"> <span data-animate="fadeInUp" style="font-size:16px">Interior</span>
+				<h4 data-animate="fadeInUp">Extravagant yacht Inspired interior</h4> </div>
+			<div class="col-md-7 text-dark">
+				<p data-animate="fadeInUp" style="font-size:16px">Step aboard and be enveloped by the extravagant yacht inspired interior, ​where luxury and detail converge for an exclusive, high-quality experience ​beneath a canopy of stars</p>
+			</div>
+		</div>
+	</div>
+</section>
+<section class="p-0" style="min-height:600px;margin:0px ;padding:0px;display: flex;align-items: center;justify-content: center;background:#e8ebf1">
+	<div class="swiper swiper-new-gallery mySwiper-new-gallery p-t-10 m-0" style="width:80% !important;">
+		<div class="swiper-wrapper">
+			<div class="swiper-slide swiper-slide-new-gallery p-0 m-0" ">
+                            <div class="row text-light " style="width: 100%;padding: 0;margin: 0px !important;background:#e8ebf1;height:100%;max-height:auto; ">
+                                <div class="col-md-12 " style="height:70% ">
+                                 <img src="<?php echo base_url(); ?>assets/deepal/S07-image/slider2-1.jpg" style="height: 100%;margin: 0px" > </div>
+			<div class="col-md-3"> </div>
+			<div class="col-md-9 p-t-10" style="text-align: left;">
+				<h5 class="m-0" style="font-size:21px;">
+                                      Rear Touch Screen A/C control
+                                    </h5>
+				<p class="video-text-slider" style="font-size:16px"> Easily control the A/C, sunshade, and ​passenger seat, putting comfort and ​convenience at your fingertips. </p>
+				<div class="swiper-pagination" style="text-align:left !important;margin-left:11.5px; "></div>
+			</div>
+		</div>
+	</div>
+	<div class="swiper-slide swiper-slide-new-gallery p-0 m-0" ">
+                            <div class="row text-light " style="width: 100%;padding: 0;margin: 0px !important;background:#e8ebf1;height:100%;max-height:auto; ">
+                                <div class="col-md-12 " style="height:70% ">
+                                 <img src="<?php echo base_url(); ?>assets/deepal/upload/s07-slider-int-02260824045629-drive.jpg" style="height: 100%;margin: 0px" > </div>
+	<div class="col-md-3"> </div>
+	<div class="col-md-9 p-t-10" style="text-align: left;">
+		<h5 class="m-0" style="font-size:21px;">
+                                      Panoramic Roof
+                                    </h5>
+		<p class="video-text-slider" style="font-size:16px"> Provides a breathtaking view and a ​sense of spaciousness, flooding the ​cabin with natural light for an enhanced ​driving experience. </p>
+		<div class="swiper-pagination" style="text-align:left !important;margin-left:11.5px; "></div>
+	</div>
+	</div>
+	</div>
+	<div class="swiper-slide swiper-slide-new-gallery p-0 m-0" ">
+                            <div class="row text-light " style="width: 100%;padding: 0;margin: 0px !important;background:#e8ebf1;height:100%;max-height:auto; ">
+                                <div class="col-md-12 " style="height:70% ">
+                                 <img src="<?php echo base_url(); ?>assets/deepal/upload/s07-slider-int-03260824045658-drive.jpg" style="height: 100%;margin: 0px" > </div>
+	<div class="col-md-3"> </div>
+	<div class="col-md-9 p-t-10" style="text-align: left;">
+		<h5 class="m-0" style="font-size:21px;">
+                                      Camouflaged Air Vents
+                                    </h5>
+		<p class="video-text-slider" style="font-size:16px"> Blend seamlessly with the interior ​design, maintaining a sleek and modern ​look while ensuring efficient climate ​control. </p>
+		<div class="swiper-pagination" style="text-align:left !important;margin-left:11.5px; "></div>
+	</div>
+	</div>
+	</div>
+	</div>
+	<div class="swiper-button-next swiper-button-next1"></div>
+	<div class="swiper-button-prev swiper-button-prev1"></div>
+	</div>
+</section>
+<section class="p-0" style="background: #e8ebf1 !important;">
+	<div class="container">
+		<div class="row p-t-20 ">
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/S07-image/power-adjustment.jpg" width="100%"> </div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">6-Way Power Adjustment Driver Seat ​with 4-Way Power-Adjustment Lumbar ​Support</h3>
+					<p data-animate="fadeInUp">Take control of your comfort and find ​your perfect driving position</p>
+				</div>
+			</div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">Multi-function Steering Wheel</h3>
+					<p data-animate="fadeInUp">This versatile hub puts an array of ​features at your fingertips, keeping you ​focused on the road ahead.</p>
+				</div>
+			</div>
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/S07-image/steering.jpg" width="100%"> </div>
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/S07-image/rear-seat.jpg" width="100%"> </div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">60:40 Foldable Rear Seat</h3>
+					<p data-animate="fadeInUp">This flexible seating configuration allows you ​to seamlessly transition from carrying ​passengers to optimizing storage for your ​travels.</p>
+				</div>
+			</div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">Four-door Electric Interior Unlocking</h3>
+					<p data-animate="fadeInUp">Four-door inward-opening electric ​unlocking is easily activated with a ​button press, enhancing the vehicle's ​electrification and technological feel.</p>
+				</div>
+			</div>
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/S07-image/interior-unlock.png" width="100%"> </div>
+		</div>
+	</div>
+</section>
+<section class="p-t-30 p-b-30 background-black">
+	<center>
+		<h3 data-animate="fadeInUp" style="color:black">Intelligent Cabin</h3></center>
+</section>
+<section style="width:100%;height:500px;" class="p-0 m-0"> <img src="<?php echo base_url(); ?>assets/deepal/S07-image/smart-panel.png" style="width:100%"> </section>
+<section class="p-0">
+	<div class="container">
+		<div class="row p-20">
+			<div class="col-md-5 text-dark"> <span data-animate="fadeInUp" style="font-size:16px">Intelligent cabin</span>
+				<h4 data-animate="fadeInUp">Ultimate comfort meets smart tech</h4> </div>
+			<div class="col-md-7 text-dark">
+				<p data-animate="fadeInUp" style="font-size:16px">Powered by the formidable Qualcomm Snapdragon 8155 chip and the Huawei Harmony OS, immerse yourself in a cabin experience like no other, elevating every ​journey with unparalleled quality.</p>
+			</div>
+		</div>
+	</div>
+</section>
+<section class="p-0" style="min-height:600px;margin:0px ;padding:0px;display: flex;align-items: center;justify-content: center;background:#e8ebf1">
+	<div class="swiper swiper-new-gallery mySwiper-new-gallery p-t-10 m-0" style="width:80% !important;">
+		<div class="swiper-wrapper">
+			<div class="swiper-slide swiper-slide-new-gallery p-0 m-0" ">
+                            <div class="row text-light " style="width: 100%;padding: 0;margin: 0px !important;background:#e8ebf1;height:100%;max-height:auto; ">
+                                <div class="col-md-12 " style="height:70% ">
+                                 <img src="<?php echo base_url(); ?>assets/deepal/S07-image/slider3-1.jpg" style="height: 100%;margin: 0px" > </div>
+			<div class="col-md-3"> </div>
+			<div class="col-md-9 p-t-10" style="text-align: left;">
+				<h5 class="m-0" style="font-size:21px;">
+                                      Sony 14-Speaker Music System
+                                    </h5>
+				<p class="video-text-slider" style="font-size:16px"> Immerse yourself in premium audio with Deepal’s ​14-speaker sound system, delivering a rich and ​dynamic sound experience. Plus, enjoy personalized ​audio with exclusive driver headrest speakers for a ​unique and immersive journey. </p>
+				<div class="swiper-pagination" style="text-align:left !important;margin-left:11.5px; "></div>
+			</div>
+		</div>
+	</div>
+	<div class="swiper-slide swiper-slide-new-gallery p-0 m-0" ">
+                            <div class="row text-light " style="width: 100%;padding: 0;margin: 0px !important;background:#e8ebf1;height:100%;max-height:auto; ">
+                                <div class="col-md-12 " style="height:70% ">
+                                 <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal-s07-intl-cab-sldr-01260824061955-drive.png" style="height: 100%;margin: 0px" > </div>
+	<div class="col-md-3"> </div>
+	<div class="col-md-9 p-t-10" style="text-align: left;">
+		<h5 class="m-0" style="font-size:21px;">
+                                      Gesture Recognition
+                                    </h5>
+		<p class="video-text-slider" style="font-size:16px"> Unlock effortless convenience with ​Deepal's intuitive gesture recognition. ​Control your music, snap selfies, and ​answer calls—all with simple, natural ​gestures </p>
+		<div class="swiper-pagination" style="text-align:left !important;margin-left:11.5px; "></div>
+	</div>
+
+<!---	<div class="swiper-slide swiper-slide-new-gallery p-0 m-0" ">
+                            <div class="row text-light " style="width: 100%;padding: 0;margin: 0px !important;background:#e8ebf1;height:100%;max-height:auto; ">
+                                <div class="col-md-12 " style="height:70% ">
+                                 <img src="<?php echo base_url(); ?>assets/deepal/upload/l07-slider-cab-modes.jpg190924084817-drive.jpg" style="height: 100%;margin: 0px" > </div>
+	<div class="col-md-3"> </div>
+	<div class="col-md-9 p-t-10" style="text-align: left;">
+		<h5 class="m-0" style="font-size:21px;">
+                                      Cabin Intelligent Scenario Modes
+                                    </h5>
+		<p class="video-text-slider" style="font-size:16px"> Deepal's cabin modes—Camping, ​Cold, Car Wash, and Nap—offer ​customizable comfort for every ​journey, from outdoor adventures ​to relaxing breaks. </p>
+		<div class="swiper-pagination" style="text-align:left !important;margin-left:11.5px; "></div>
+	</div>--->
+	</div>
+	</div>
+	</div>
+	<div class="swiper-button-next swiper-button-next1"></div>
+	<div class="swiper-button-prev swiper-button-prev1"></div>
+	</div>
+</section>
+<section class="p-0" style="background: #e8ebf1 !important;">
+	<div class="container">
+		<div class="row p-t-20 ">
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/upload/s07-intl-feature-01-lcd260824064217-drive.jpg" width="100%"> </div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">15.6 Inches Sunflower Touchscreen</h3>
+					<p data-animate="fadeInUp">Experience seamless control and vivid display ​with the 15.6-inch Sunflower touchscreen, ​offering an intuitive interface and vibrant ​visuals for enhanced interaction with your ​vehicle's features.</p>
+				</div>
+			</div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">Advanced Heads-Up Display with AR ​Navigation</h3>
+					<p data-animate="fadeInUp">Transform your driving experience with our ​cutting-edge Heads-Up Display (HUD). This ​innovative system projects real-time ​navigation, speed limits, and critical driving ​information directly onto your windshield, ​using Augmented Reality (AR) to keep you ​informed and focused on the road ahead.</p>
+				</div>
+			</div>
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/upload/s07-intl-feature-02-hud260824064237-drive.jpg" width="100%"> </div>
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/upload/s07-intl-feature-03-snapdragon260824064256-drive.jpg" width="100%"> </div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">Qualcomm Snapdragon 8155 Automotive System</h3>
+					<p data-animate="fadeInUp">Delivers cutting-edge performance and seamless connectivity, ensuring rapid response times, enhanced infotainment features, and a smoother, more intuitive driving experience.</p>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+<section class="p-t-30 p-b-30 background-black">
+	<center>
+		<h3 data-animate="fadeInUp" style="color:black">Performance</h3></center>
+</section>
+<section style="width:100%;height:auto;" class="p-0 m-0"> <img src="<?php echo base_url(); ?>assets/deepal/S07-image/performance.png" style="width:100%"> </section>
+<section class="p-0">
+	<div class="container">
+		<div class="row p-20">
+			<div class="col-md-5 text-dark"> <span data-animate="fadeInUp" style="font-size:16px">High efficiency</span>
+				<h4 data-animate="fadeInUp">Ultimate electric drive system</h4> </div>
+			<div class="col-md-7 text-dark">
+				<p data-animate="fadeInUp" style="font-size:16px">Achieving up to 95% efficiency, this electric drive system leads the industry in ​performance.</p>
+			</div>
+		</div>
+	</div>
+</section>
+<section class="p-0" style="background: #e8ebf1 !important;">
+	<div class="container">
+		<div class="row p-t-20 ">
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/upload/s07-performance-feature-item-engine120924051218-drive.png" width="100%"> </div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">Force Super collector drive</h3>
+					<p data-animate="fadeInUp">Powered by Permanent Magnetic Synchronous Motor, delivering 255 HP, 320 Nm of torque, and 95% electric efficiency. Its silent operation ensures a smooth and quiet driving experience.</p>
+				</div>
+			</div>
+			<div class="col-md-6 p-0 text-light" style="display: flex;justify-content: center;align-items: center;">
+				<div style="text-align:left;color:white;padding:10px">
+					<h3 data-animate="fadeInUp" style="font-size:22px;">CATL Ternary Lithium Battery</h3>
+					<p data-animate="fadeInUp">Offers 99% early warning accuracy and precise SOC predictions, meeting 1,196 safety standards. With a 66.8 kWh capacity, it supports DC fast charging.</p>
+					
+					<div class="fadeInUp">
+						<h3 class="m-0" style="color:#000000 !important;"><b>80 kWh</b></h3>
+						<p style="color:#000000 !important;">Charging<br>munits out</p>
+					</div>
+				</div>
+				
+					
+				
+			</div>
+			<div class="col-md-6 p-0"> <img src="<?php echo base_url(); ?>assets/deepal/upload/s07-performance-feature-item-battery.png120924051158-drive.png" width="100%"> </div>
+		</div>
+	</div>
+</section>
+<section class="p-t-30 p-b-30 background-black">
+	<center>
+		<h3 data-animate="fadeInUp" style="color:black">Safety and Innovation</h3></center>
+</section>
+<section style="width:100%;height:auto;" class="p-0 m-0"> <img src="<?php echo base_url(); ?>assets/deepal/upload/safety-banner-1160924073547-drive.jpg" style="width:100%"> </section>
+<section class="p-0">
+	<div class="container">
+		<div class="row p-20">
+			<div class="col-md-5 text-dark"> <span data-animate="fadeInUp" style="font-size:16px">Designed for EV</span>
+				<h4 data-animate="fadeInUp">EPA 1 - All electric digital platform</h4> </div>
+			<div class="col-md-7 text-dark">
+				<p data-animate="fadeInUp" style="font-size:16px">EPA 1 platform ensures optimal energy efficiency, intelligent connectivity, and top-​tier safety for an enhanced electric vehicle experience.</p>
+			</div>
+		</div>
+	</div>
+</section>
+<section class="p-t-30 p-b-30" style="height: auto !important;">
+	<div class="container-fluid ">
+		<div class="row ">
+			<div class="col-md-8 p-0 m-0" style="display: -webkit-box;-webkit-box-pack: center;justify-content: center;-webkit-box-align: center;">
+				<div id="set-col1" class="painted_cars" style="display:"> <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal%20s7%20color%20black290424071001-drive.png" style="width:100%;"> </div>
+				<div id="set-col2" class="painted_cars" style="display:none"> <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal%20s7%20color%20gray290424071028-drive.png" style="width:100%;"> </div>
+				<div id="set-col3" class="painted_cars" style="display:none"> <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal%20s7%20color%20white290424071155-drive.png" style="width:100%;"> </div>
+				<div id="set-col4" class="painted_cars" style="display:none"> <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal%20s7%20color%20cyan290424071130-drive.png" style="width:100%;"> </div>
+				<div id="set-col5" class="painted_cars" style="display:none"> <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal%20s7%20color%20yellow290424071205-drive.png" style="width:100%;"> </div>
+				<div id="set-col6" class="painted_cars" style="display:none"> <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal%20s7%20color%20orange290424071145-drive.png" style="width:100%;"> </div>
+			</div>
+			<div class="col-md-4 text-dark">
+				<div class="half-screen-text">
+					<div class="row m-t-30">
+						<div class="col-md-12"> <span style="font-size:16px !important" class=" slidefade8">Deepal S07</span>
+							<h3 class="slidefade8" data-animate="fadeInUp" class="m-0"></h3>
+							<h5 class="slidefade8" data-animate="fadeInUp" class="m-0"></h5>
+							<p class="slidefade8" data-animate="fadeInUp"></p>
+						</div>
+						<div class=" col-md-12 m-t-0">
+							<h4 class=" slidefade8" data-animate="fadeInUp">Paint</h4>
+							<ul class="" style="list-style-type: none;padding-top: 20px">
+								<li style="width: 67px;float: left;margin-right: 7px !important;margin-bottom: 60px;cursor:pointer"> <span id="paint_circle_1" class="paint_circles" onclick="changepaintcar('1')" style="border: 3px solid black;padding-top:15px;padding-bottom:15px;padding-left: 25px;padding-right: 25px;background:#000000;border-radius: 50%;"></span>
+									<br>
+									<br>
+									<div style="padding-left:6px"> <span style="text-align:center; "> Eclipse Black</span></div>
+									<li style="width: 67px;float: left;margin-right: 7px !important;margin-bottom: 60px;cursor:pointer"> <span id="paint_circle_2" class="paint_circles" onclick="changepaintcar('2')" style="border: 3px solid black;padding-top:15px;padding-bottom:15px;padding-left: 25px;padding-right: 25px;background:#70787d;border-radius: 50%;"></span>
+										<br>
+										<br>
+										<div style="padding-left:6px"> <span style="text-align:center; "> Lunar Gray</span></div>
+										<li style="width: 67px;float: left;margin-right: 7px !important;margin-bottom: 60px;cursor:pointer"> <span id="paint_circle_3" class="paint_circles" onclick="changepaintcar('3')" style="border: 3px solid black;padding-top:15px;padding-bottom:15px;padding-left: 25px;padding-right: 25px;background:#ffffff;border-radius: 50%;"></span>
+											<br>
+											<br>
+											<div style="padding-left:6px"> <span style="text-align:center; "> Comet White</span></div>
+											<li style="width: 67px;float: left;margin-right: 7px !important;margin-bottom: 60px;cursor:pointer"> <span id="paint_circle_4" class="paint_circles" onclick="changepaintcar('4')" style="border: 3px solid black;padding-top:15px;padding-bottom:15px;padding-left: 25px;padding-right: 25px;background:#93c5ce;border-radius: 50%;"></span>
+												<br>
+												<br>
+												<div style="padding-left:6px"> <span style="text-align:center; "> Nebula Green</span></div>
+												<li style="width: 67px;float: left;margin-right: 7px !important;margin-bottom: 60px;cursor:pointer"> <span id="paint_circle_5" class="paint_circles" onclick="changepaintcar('5')" style="border: 3px solid black;padding-top:15px;padding-bottom:15px;padding-left: 25px;padding-right: 25px;background:#c3d277;border-radius: 50%;"></span>
+													<br>
+													<br>
+													<div style="padding-left:6px"> <span style="text-align:center; "> Cosmic Yellow</span></div>
+													<li style="width: 67px;float: left;margin-right: 7px !important;margin-bottom: 60px;cursor:pointer"> <span id="paint_circle_6" class="paint_circles" onclick="changepaintcar('6')" style="border: 3px solid black;padding-top:15px;padding-bottom:15px;padding-left: 25px;padding-right: 25px;background:#d47566;border-radius: 50%;"></span>
+														<br>
+														<br>
+														<div style="padding-left:6px"> <span style="text-align:center; "> Sunset Orange</span></div>
+							</ul>
+						</div>
+						<div class="col-md-12">
+							<div class="p-t-10">
+								<a href="#">
+									<button data-animate="fadeInUp" class="btn btn1" style="background: none;border-color: black;color: black;border: 3px solid black"><a href="<?php echo base_url(); ?>assets/deepal/upload/s7-Brochure.pdf" download="" target="_blank">Download BROCHURE </a></button>
+								</a>
+								<!--<a href="../" download="" target="_blank">Download BROCHURE </a></button>--></a>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+<section class="p-0" style="background: #000 !important;">
+	<div class="container">
+		<div class="row">
+			<div class="col-md-12 text-light">
+				<div style="text-align: left; color:white !important"> </div>
+			</div>
+		</div>
+	</div>
+</section>
+<!---<section class="p-0" style="background: #e8ebf1 !important;">
+	<div>
+		<style type="text/css">
+		video[poster] {
+			width: 100% !important;
+			height: 100% !important;
+		}
+		
+		video {
+			object-fit: fill !important;
+		}
+		
+		iframe {
+			width: 100% !important;
+			height: 400px !important;
+		}
+		</style>
+		<div class="container p-10" style="background: black !important">
+			<div class="row" style="background: black !important;width:100%;height: 100%">
+				<div class="col-md-1"></div>
+				<div class="col-md-10">
+					<div class="col-md-12" style="background: black !important;border-radius: 20px">
+						<center>
+							<h3 style="color:white">Video Library</h3></center>
+						<div class="m-0 p-0 p-t-10">
+							<div class="allvideos" id="video_player" style="width:100%;height:400px !important;border-radius:10px;" id="video_1">
+								<iframe src="" title="YouTube video player" frameborder="0" allow="accelerometer;  clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+							</div>
+						</div>
+					</div>
+					<div class="col-md-12">
+						<div style="height: 140px;white-space: nowrap;margin-top:10px;">
+							<div class="carousel team-members team-members-shadow" data-margin="20" data-items="4" style="height:110px !important;">
+								<div class="team-member thumnnailholder border" id="thumbnailholder_1" onclick="toggleactivevideo('1','../&lt;iframe src=&quot;https://www.youtube.com/embed/6_jU3iZisKk?si=EPOZN76msSonfNnt?rel=0&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer;  clipboard-write; encrypted-media; gyroscope; picture-in-picture&quot; allowfullscreen&gt;&lt;/iframe&gt;')">
+									<div class="team-image" style="margin:0px !important"> <img src="<?php echo base_url(); ?>assets/deepal/upload/video-thumbnail-2190924064614-drive.jpg" style="width:200px;height:100px !important"> </div>
+								</div>
+								<div class="team-member thumnnailholder border" id="thumbnailholder_2" onclick="toggleactivevideo('2','../&lt;iframe src=&quot;https://www.youtube.com/embed/UlQyLjFZQto?si=ojPRG5WMT_03JSyK?rel=0&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer;  clipboard-write; encrypted-media; gyroscope; picture-in-picture&quot; allowfullscreen&gt;&lt;/iframe&gt;')">
+									<div class="team-image" style="margin:0px !important"> <img src="<?php echo base_url(); ?>assets/deepal/upload/video-thumbnail-1190924064551-drive.jpg" style="width:200px;height:100px !important"> </div>
+								</div>
+								<div class="team-member thumnnailholder border" id="thumbnailholder_3" onclick="toggleactivevideo('3','../&lt;iframe src=&quot;https://www.youtube.com/embed/9pPwGXz18bI?si=8H_mcc0UIq4AL8-H?rel=0&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer;  clipboard-write; encrypted-media; gyroscope; picture-in-picture&quot; allowfullscreen&gt;&lt;/iframe&gt;')">
+									<div class="team-image" style="margin:0px !important"> <img src="<?php echo base_url(); ?>assets/deepal/upload/video-thumbnail-3190924064634-drive.jpg" style="width:200px;height:100px !important"> </div>
+								</div>
+								<div class="team-member thumnnailholder border" id="thumbnailholder_4" onclick="toggleactivevideo('4','../&lt;iframe src=&quot;https://www.youtube.com/embed/UbatXT59QgI?si=6BD7vbTZfrIIBKhu?rel=0&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer;  clipboard-write; encrypted-media; gyroscope; picture-in-picture&quot; allowfullscreen&gt;&lt;/iframe&gt;')">
+									<div class="team-image" style="margin:0px !important"> <img src="<?php echo base_url(); ?>assets/deepal/upload/video-thumbnail-4190924064649-drive.jpg" style="width:200px;height:100px !important"> </div>
+								</div>
+								<div class="team-member thumnnailholder border" id="thumbnailholder_5" onclick="toggleactivevideo('5','../&lt;iframe src=&quot;https://www.youtube.com/embed/0kZrTFQIoTA?si=O_22QPFJIaOto6HQ&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture&quot; allowfullscreen&gt;&lt;/iframe&gt;')">
+									<div class="team-image" style="margin:0px !important"> <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal-s7-video-gallery-3020524063605-drive.jpg" style="width:200px;height:100px !important"> </div>
+								</div>
+								<div class="team-member thumnnailholder border" id="thumbnailholder_6" onclick="toggleactivevideo('6','../&lt;iframe src=&quot;https://www.youtube.com/embed/lIwOEHX50GE?si=wn9yclJaf14Y95ow&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture&quot; allowfullscreen&gt;&lt;/iframe&gt;')">
+									<div class="team-image" style="margin:0px !important"> <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal-s7-video-6260824084229-drive.jpg" style="width:200px;height:100px !important"> </div>
+								</div>
+								<div class="team-member thumnnailholder border" id="thumbnailholder_7" onclick="toggleactivevideo('7','../&lt;iframe src=&quot;https://www.youtube.com/embed/YSgbHSNIQIM?si=W2rr8iYtn7CTaOxd&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture&quot; allowfullscreen&gt;&lt;/iframe&gt;')">
+									<div class="team-image" style="margin:0px !important"> <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal-s7-video-gallery-2020524052448-drive.jpg" style="width:200px;height:100px !important"> </div>
+								</div>
+								<div class="team-member thumnnailholder border" id="thumbnailholder_8" onclick="toggleactivevideo('8','../&lt;iframe src=&quot;https://www.youtube.com/embed/AGYZu8E4xis?si=rdts0TCyt7d2DnxR&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture&quot; allowfullscreen&gt;&lt;/iframe&gt;')">
+									<div class="team-image" style="margin:0px !important"> <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal-s7-video-gallery-1020524045534-drive.jpg" style="width:200px;height:100px !important"> </div>
+								</div>
+								<div class="team-member thumnnailholder border" id="thumbnailholder_9" onclick="toggleactivevideo('9','../&lt;iframe src=&quot;https://www.youtube.com/embed/GJpiLMWgcBE?si=acXQf4BWBABu49ar&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture&quot; allowfullscreen&gt;&lt;/iframe&gt;')">
+									<div class="team-image" style="margin:0px !important"> <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal-s7-video-7260824084326-drive.jpg" style="width:200px;height:100px !important"> </div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-1"></div>
+			</div>
+		</div>
+	</div>
+</section>--------------->
+<section class="p-t-0 p-b-30" style="background: #000000 !important;height: 90vh !important">
+	<div style="background: #000000 !important">
+		<div class="container-fluid">
+			<div class="row">
+				<div class="col-md-12">
+					<center>
+						<h3 style="color:white;text-align:center;z-index:99999999999 !important;">Photo Gallery</h3></center>
+				</div>
+				<div class="swiper swiper-gallery mySwiper-gallery">
+					<div class="swiper-wrapper swiper-wrapper-gallery mob-hid">
+						<div class="swiper-slide swiper-slide-gallery" style="border-radius:10px;"> <img class="blurgallery" id="blurgallery_0" src="<?php echo base_url(); ?>assets/deepal/S07-image/slider4-1.jpg" style="height:80%;border-radius:10px;"> </div>
+						<div class="swiper-slide swiper-slide-gallery" style="border-radius:10px;"> <img class="blurgallery" id="blurgallery_1" src="<?php echo base_url(); ?>assets/deepal/S07-image/slide1-1.jpg" style="height:80%;border-radius:10px;"> </div>
+						<div class="swiper-slide swiper-slide-gallery" style="border-radius:10px;"> <img class="blurgallery" id="blurgallery_2" src="<?php echo base_url(); ?>assets/deepal/S07-image/slider4-3.jpg" style="height:80%;border-radius:10px;"> </div>
+						<div class="swiper-slide swiper-slide-gallery" style="border-radius:10px;"> <img class="blurgallery" id="blurgallery_3" src="<?php echo base_url(); ?>assets/deepal/S07-image/slider4-4.jpg" style="height:80%;border-radius:10px;"> </div>
+						<div class="swiper-slide swiper-slide-gallery" style="border-radius:10px;"> <img class="blurgallery" id="blurgallery_4" src="<?php echo base_url(); ?>assets/deepal/S07-image/slider4-5.jpg" style="height:80%;border-radius:10px;"> </div>
+						<div class="swiper-slide swiper-slide-gallery" style="border-radius:10px;"> <img class="blurgallery" id="blurgallery_5" src="<?php echo base_url(); ?>assets/deepal/S07-image/slider4-6.jpg" style="height:80%;border-radius:10px;"> </div>
+						<div class="swiper-slide swiper-slide-gallery" style="border-radius:10px;"> <img class="blurgallery" id="blurgallery_6" src="<?php echo base_url(); ?>assets/deepal/S07-image/slide1-3.jpg" style="height:80%;border-radius:10px;"> </div>
+						<div class="swiper-slide swiper-slide-gallery" style="border-radius:10px;"> <img class="blurgallery" id="blurgallery_7" src="<?php echo base_url(); ?>assets/deepal/S07-image/wheels.jpg" style="height:80%;border-radius:10px;"> </div>
+						
+						
+					</div>
+					<div class="swiper-button-next" style="z-index:999999 !important"></div>
+					<div class="swiper-button-prev" style="z-index:999999 !important"></div>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+
+<section class="p-t-30 p-b-30">
+	<div class="container-fluid">
+		<div class="row" style="-webkit-align-items: center;align-items: center;">
+			<div class="col-md-1 text-left"></div>
+			<div class="col-md-5 text-left">
+				<h3 class="" style="color:black !important;" data-animate="fadeInUp">Deepal S07</h3>
+				<button class="btn btn-2 text-light m-t-20" style="background: #000 !important color:white!important;"><a href="<?php echo base_url(); ?>/book_now">Register Your Interest</a> </button>
+				<button class="btn btn-2 text-light m-t-20" style="background: #000 !important; color:white!important;" onclick="downloadBrochure()">Download BROCHURE</button>
+			</div>
+			<div class="col-md-6"> <img src="<?php echo base_url(); ?>assets/deepal/upload/deepal%20s7%20color%20orange290424071145-drive.png" width="100%"> </div>
+		</div>
+	</div>
+</section>
+</div> <a id="scrollTop"><i class="icon-chevron-up"></i><i class="icon-chevron-up"></i></a>
+<script src="<?php echo base_url(); ?>assets/deepal/js/jquery.js"></script>
+<script src="<?php echo base_url(); ?>assets/deepal/js/plugins.js"></script>
+<script src="<?php echo base_url(); ?>assets/deepal/js/functions.js"></script>
+<script src="<?php echo base_url(); ?>assets/deepal/unpkg.com/swiper%4011.1.15/swiper-bundle.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Variant change for mobile
+    $("#variant_change_mobile").change(function() {
+        let variantData = $(this).val().split('|');
+        $(".variant_price_changer").html(variantData[1]);
+    });
+
+    // Show/hide specific painted car
+    function changepaintcar(id) {
+        $(".painted_cars").hide();
+        $("#set-col" + id).show();
+        $(".paint_circles").removeClass('paintactive');
+        $("#paint_circle_" + id).addClass('paintactive');
+    }
+
+    // Toggle active video
+    function toggleactivevideo(id, url) {
+        $("#video_player").html(url);
+        $(".thumnnailholder").removeClass('paintactive');
+        $("#thumbnailholder_" + id).addClass('paintactive');
+    }
+
+    // Initial display settings for sections
+    $("#set-col1").show();
+    $(".painted_cars:not(#set-col1)").hide();
+
+    $(".set-button").click(function() {
+        const setId = $(this).attr('data-set');
+        $(".painted_cars").hide();
+        $(`#set-col${setId}`).show();
+    });
+
+    // Dropdown menu toggle
+    $(".dropdown-btn").click(function() {
+        $(this).toggleClass("active");
+        $(this).next(".dropdown-content").slideToggle();
+    });
+
+    // Sidenav toggle
+    function openNav() {
+        $("#mySidenav").css("width", "260px");
+    }
+
+    function closeNav() {
+        $("#mySidenav").css("width", "0");
+    }
+
+    // Swiper instances with responsive settings
+    const initializeSwiperGallery = (width) => {
+        let coverflowModifier = width < 575 ? 0 : 0.5;
+        let swiper = new Swiper(".mySwiper-gallery", {
+            effect: "coverflow",
+            grabCursor: true,
+            centeredSlides: true,
+            slidesPerView: "auto",
+            initialSlide: 1,
+            coverflowEffect: {
+                rotate: 40,
+                stretch: 0,
+                depth: 100,
+                modifier: coverflowModifier,
+                slideShadows: true,
+            },
+            navigation: {
+                nextEl: ".swiper-button-next",
+                prevEl: ".swiper-button-prev",
+            },
+            on: {
+                slideChange: function() {
+                    $(".blurgallery").addClass('blureffect');
+                    $(`#blurgallery_${this.realIndex}`).removeClass('blureffect');
+                }
+            }
+        });
+    };
+
+    // Swiper initialization based on screen size
+    let width = screen.width;
+    initializeSwiperGallery(width);
+
+    new Swiper(".mySwiper-scroll", {
+        direction: "vertical",
+        slidesPerView: "auto",
+        freeMode: true,
+        scrollbar: {
+            el: ".swiper-scrollbar",
+        },
+        mousewheel: true,
+    });
+
+    let verticalSwiperOptions = {
+        direction: "vertical",
+        mousewheel: {
+            releaseOnEdges: true,
+        },
+        slidesPerView: "auto",
+        freeMode: true,
+        on: {
+            slideChange: function() {
+                $(".header-mini").toggle(this.realIndex === 0);
+                $(".slidefadeanimation").hide().removeClass("fadeInUp");
+                $(`.slidefade${this.realIndex}`).show().addClass('fadeInUp');
+            }
+        },
+        pagination: {
+            el: ".swiper-pagination",
+            clickable: true,
+        },
+        navigation: {
+            nextEl: ".swiper-button-next-icon",
+        },
+    };
+
+    new Swiper(".mySwiper", verticalSwiperOptions);
+    new Swiper(".mySwiper-new-gallery", {
+        loop: false,
+        cssMode: true,
+        freeMode: true,
+        navigation: {
+            nextEl: ".swiper-button-next",
+            prevEl: ".swiper-button-prev",
+        },
+        pagination: {
+            el: ".swiper-pagination",
+            clickable: true,
+        },
+    });
+});
+
+// Function to download brochure
+function downloadBrochure() {
+    const pdfUrl = 'https://deepal.com.bd/assets/deepal/upload/s7-Brochure.pdf';
+    window.open(pdfUrl, '_blank');
+}
+
+
+
+</script>

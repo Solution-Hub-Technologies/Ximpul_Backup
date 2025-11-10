@@ -239,21 +239,7 @@ export const AdminSMTPConfig = () => {
   };
 
   const getDefaultValue = (variable: string): string => {
-    const defaults: {[key: string]: string} = {
-      customerName: 'John Doe',
-      customerEmail: 'customer@example.com',
-      customerPhone: '+8801234567890',
-      orderId: '12345',
-      selectedEdition: 'Premium',
-      selectedColor: 'Obsidian',
-      totalAmount: '2500',
-      paymentMethod: 'Online',
-      subject: 'Test Subject',
-      message: 'Test message content',
-      color: 'Obsidian',
-      id: 'uuid-123'
-    };
-    return defaults[variable] || `{{${variable}}}`;
+    return `{{${variable}}}`;
   };
 
   const processTemplate = (template: string, variables: {[key: string]: string}): string => {
@@ -324,12 +310,36 @@ export const AdminSMTPConfig = () => {
 
   const updateEmailConfig = async (configType: string, toEmails: string[], ccEmails: string[]) => {
     try {
-      const { error } = await supabase
-        .from('email_config')
-        .update({ to_emails: toEmails, cc_emails: ccEmails })
-        .eq('config_type', configType);
+      console.log('Updating email config:', { configType, toEmails, ccEmails });
       
-      if (error) throw error;
+      // Check if config exists first
+      const { data: existingConfig } = await supabase
+        .from('email_config')
+        .select('*')
+        .eq('config_type', configType)
+        .single();
+      
+      console.log('Existing config:', existingConfig);
+      
+      let result;
+      if (existingConfig) {
+        // Update existing
+        result = await supabase
+          .from('email_config')
+          .update({ to_emails: toEmails, cc_emails: ccEmails })
+          .eq('config_type', configType)
+          .select();
+      } else {
+        // Insert new
+        result = await supabase
+          .from('email_config')
+          .insert({ config_type: configType, to_emails: toEmails, cc_emails: ccEmails })
+          .select();
+      }
+      
+      console.log('Update/Insert result:', result);
+      
+      if (result.error) throw result.error;
       
       toast.success('Email configuration updated');
       await fetchEmailConfigs();
@@ -701,7 +711,7 @@ export const AdminSMTPConfig = () => {
                           <Label className="text-xs w-20 truncate">{variable}:</Label>
                           <Input
                             size="sm"
-                            value={previewData[variable] || getDefaultValue(variable)}
+                            value={previewData[variable] || ''}
                             onChange={(e) => setPreviewData({...previewData, [variable]: e.target.value})}
                             className="text-xs h-8"
                           />
@@ -714,14 +724,14 @@ export const AdminSMTPConfig = () => {
                 <div>
                   <Label className="text-sm font-medium text-gray-700 mb-2 block">Subject Preview</Label>
                   <div className="p-3 bg-gray-50 rounded border text-sm font-medium">
-                    {processTemplate(newTemplate.subject, {...previewData, ...Object.fromEntries(newTemplate.variables.map(v => [v, previewData[v] || getDefaultValue(v)]))}) || 'Enter subject...'}
+                    {processTemplate(newTemplate.subject, {...previewData, ...Object.fromEntries(newTemplate.variables.map(v => [v, previewData[v] || '']))}) || 'Enter subject...'}
                   </div>
                 </div>
                 
                 <div>
                   <Label className="text-sm font-medium text-gray-700 mb-2 block">Email Preview</Label>
                   <div className="p-4 bg-white border rounded-lg h-64 overflow-y-auto text-sm whitespace-pre-wrap">
-                    {processTemplate(newTemplate.template, {...previewData, ...Object.fromEntries(newTemplate.variables.map(v => [v, previewData[v] || getDefaultValue(v)]))}) || 'Start typing your template to see preview...'}
+                    {processTemplate(newTemplate.template, {...previewData, ...Object.fromEntries(newTemplate.variables.map(v => [v, previewData[v] || '']))}) || 'Start typing your template to see preview...'}
                   </div>
                 </div>
               </CardContent>
@@ -828,7 +838,7 @@ export const AdminSMTPConfig = () => {
                                 // Initialize modal preview data
                                 const previewVars: {[key: string]: string} = {};
                                 template.variables?.forEach(variable => {
-                                  previewVars[variable] = getDefaultValue(variable);
+                                  previewVars[variable] = '';
                                 });
                                 setModalPreviewData(previewVars);
                                 setShowEditModal(true);
@@ -869,7 +879,7 @@ export const AdminSMTPConfig = () => {
                                 });
                                 const vars: {[key: string]: string} = {};
                                 template.variables?.forEach(variable => {
-                                  vars[variable] = getDefaultValue(variable);
+                                  vars[variable] = '';
                                 });
                                 setTemplateVariables(vars);
                                 setActiveTab('test');
@@ -1013,79 +1023,442 @@ export const AdminSMTPConfig = () => {
               <p className="text-blue-100 text-sm mt-2">Manage who receives order notifications and admin alerts</p>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="space-y-6">
-                <div>
-                  <Label className="text-lg font-semibold text-gray-800 mb-3 block">
-                    📧 Admin Email Addresses
-                  </Label>
-                  <p className="text-sm text-gray-600 mb-4">
-                    These emails will receive all order notifications, admin alerts, and system notifications.
-                  </p>
+              <div className="space-y-8">
+                {/* Admin Email Configuration */}
+                <div className="border-2 border-blue-200 rounded-lg p-6 bg-blue-50/30">
+                  <h3 className="text-xl font-bold text-blue-800 mb-4 flex items-center gap-2">
+                    👥 Admin Email Configuration
+                  </h3>
+                  <p className="text-sm text-blue-700 mb-6">Configure admin emails for order notifications and system alerts</p>
                   
-                  <div className="flex flex-wrap gap-2 mb-4 p-4 bg-gray-50 rounded-lg border">
-                    {(emailConfigs.find(c => c.config_type === 'customer')?.to_emails || []).map(email => (
-                      <Badge key={email} variant="default" className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 border border-blue-200">
-                        <span>{email}</span>
-                        <X 
-                          className="w-4 h-4 cursor-pointer hover:text-red-600" 
-                          onClick={() => {
-                            const config = emailConfigs.find(c => c.config_type === 'customer');
-                            if (config) {
-                              const newToEmails = removeEmailFromConfig(config.to_emails, email);
-                              updateEmailConfig('customer', newToEmails, config.cc_emails);
+                  {/* Admin TO Emails */}
+                  <div className="mb-6">
+                    <Label className="text-lg font-semibold text-gray-800 mb-3 block">
+                      📧 Admin Primary Recipients (TO)
+                    </Label>
+                    <p className="text-sm text-gray-600 mb-4">
+                      These admin emails will receive all order notifications as primary recipients.
+                    </p>
+                    
+                    <div className="flex flex-wrap gap-2 mb-4 p-4 bg-white rounded-lg border min-h-[60px]">
+                      {(emailConfigs.find(c => c.config_type === 'customer')?.to_emails || []).map(email => (
+                        <Badge key={email} variant="default" className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 border border-blue-200">
+                          <span>{email}</span>
+                          <X 
+                            className="w-4 h-4 cursor-pointer hover:text-red-600" 
+                            onClick={() => {
+                              const config = emailConfigs.find(c => c.config_type === 'customer');
+                              if (config) {
+                                const newToEmails = removeEmailFromConfig(config.to_emails, email);
+                                updateEmailConfig('customer', newToEmails, config.cc_emails || []);
+                              }
+                            }}
+                          />
+                        </Badge>
+                      ))}
+                      {(emailConfigs.find(c => c.config_type === 'customer')?.to_emails || []).length === 0 && (
+                        <p className="text-gray-500 italic">No admin primary recipients configured yet</p>
+                      )}
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <Input
+                        value={newEmailByConfig['admin-to-emails'] || ''}
+                        onChange={(e) => setNewEmailByConfig({...newEmailByConfig, 'admin-to-emails': e.target.value})}
+                        placeholder="Enter admin email address (e.g., admin@ximpul.com)"
+                        className="flex-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            const email = newEmailByConfig['admin-to-emails'];
+                            if (email) {
+                              const config = emailConfigs.find(c => c.config_type === 'customer') || { to_emails: [], cc_emails: [] };
+                              const newToEmails = addEmailToConfig(config.to_emails, email);
+                              updateEmailConfig('customer', newToEmails, config.cc_emails || []);
+                              setNewEmailByConfig({...newEmailByConfig, 'admin-to-emails': ''});
                             }
-                          }}
-                        />
-                      </Badge>
-                    ))}
-                    {(emailConfigs.find(c => c.config_type === 'customer')?.to_emails || []).length === 0 && (
-                      <p className="text-gray-500 italic">No admin emails configured yet</p>
-                    )}
-                  </div>
-                  
-                  <div className="flex gap-3">
-                    <Input
-                      value={newEmailByConfig['admin-emails'] || ''}
-                      onChange={(e) => setNewEmailByConfig({...newEmailByConfig, 'admin-emails': e.target.value})}
-                      placeholder="Enter admin email address (e.g., admin@ximpul.com)"
-                      className="flex-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          const email = newEmailByConfig['admin-emails'];
+                          }
+                        }}
+                      />
+                      <Button 
+                        onClick={() => {
+                          const email = newEmailByConfig['admin-to-emails'];
                           if (email) {
                             const config = emailConfigs.find(c => c.config_type === 'customer') || { to_emails: [], cc_emails: [] };
                             const newToEmails = addEmailToConfig(config.to_emails, email);
-                            updateEmailConfig('customer', newToEmails, config.cc_emails);
-                            setNewEmailByConfig({...newEmailByConfig, 'admin-emails': ''});
+                            updateEmailConfig('customer', newToEmails, config.cc_emails || []);
+                            setNewEmailByConfig({...newEmailByConfig, 'admin-to-emails': ''});
                           }
-                        }
-                      }}
-                    />
-                    <Button 
-                      onClick={() => {
-                        const email = newEmailByConfig['admin-emails'];
-                        if (email) {
-                          const config = emailConfigs.find(c => c.config_type === 'customer') || { to_emails: [], cc_emails: [] };
-                          const newToEmails = addEmailToConfig(config.to_emails, email);
-                          updateEmailConfig('customer', newToEmails, config.cc_emails);
-                          setNewEmailByConfig({...newEmailByConfig, 'admin-emails': ''});
-                        }
-                      }}
-                      className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-6"
-                    >
-                      Add Email
-                    </Button>
+                        }}
+                        className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-6"
+                      >
+                        Add Admin TO
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Admin CC Emails */}
+                  <div>
+                    <Label className="text-lg font-semibold text-gray-800 mb-3 block">
+                      📋 Admin CC Recipients (CC)
+                    </Label>
+                    <p className="text-sm text-gray-600 mb-4">
+                      These admin emails will receive copies of all order notifications.
+                    </p>
+                    
+                    <div className="flex flex-wrap gap-2 mb-4 p-4 bg-white rounded-lg border min-h-[60px]">
+                      {(emailConfigs.find(c => c.config_type === 'customer')?.cc_emails || []).map(email => (
+                        <Badge key={email} variant="secondary" className="flex items-center gap-2 px-3 py-1 bg-orange-100 text-orange-800 border border-orange-200">
+                          <span>{email}</span>
+                          <X 
+                            className="w-4 h-4 cursor-pointer hover:text-red-600" 
+                            onClick={() => {
+                              const config = emailConfigs.find(c => c.config_type === 'customer');
+                              if (config) {
+                                const newCcEmails = removeEmailFromConfig(config.cc_emails || [], email);
+                                updateEmailConfig('customer', config.to_emails || [], newCcEmails);
+                              }
+                            }}
+                          />
+                        </Badge>
+                      ))}
+                      {(emailConfigs.find(c => c.config_type === 'customer')?.cc_emails || []).length === 0 && (
+                        <p className="text-gray-500 italic">No admin CC recipients configured yet</p>
+                      )}
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <Input
+                        value={newEmailByConfig['admin-cc-emails'] || ''}
+                        onChange={(e) => setNewEmailByConfig({...newEmailByConfig, 'admin-cc-emails': e.target.value})}
+                        placeholder="Enter admin CC email (e.g., manager@ximpul.com)"
+                        className="flex-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            const email = newEmailByConfig['admin-cc-emails'];
+                            if (email) {
+                              const config = emailConfigs.find(c => c.config_type === 'customer') || { to_emails: [], cc_emails: [] };
+                              const newCcEmails = addEmailToConfig(config.cc_emails || [], email);
+                              updateEmailConfig('customer', config.to_emails || [], newCcEmails);
+                              setNewEmailByConfig({...newEmailByConfig, 'admin-cc-emails': ''});
+                            }
+                          }
+                        }}
+                      />
+                      <Button 
+                        onClick={() => {
+                          const email = newEmailByConfig['admin-cc-emails'];
+                          if (email) {
+                            const config = emailConfigs.find(c => c.config_type === 'customer') || { to_emails: [], cc_emails: [] };
+                            const newCcEmails = addEmailToConfig(config.cc_emails || [], email);
+                            updateEmailConfig('customer', config.to_emails || [], newCcEmails);
+                            setNewEmailByConfig({...newEmailByConfig, 'admin-cc-emails': ''});
+                          }
+                        }}
+                        className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-6"
+                      >
+                        Add Admin CC
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Customer Email Configuration */}
+                <div className="border-2 border-green-200 rounded-lg p-6 bg-green-50/30">
+                  <h3 className="text-xl font-bold text-green-800 mb-4 flex items-center gap-2">
+                    👤 Customer Email Configuration
+                  </h3>
+                  <p className="text-sm text-green-700 mb-6">Configure customer notification emails (for future use)</p>
+                  
+                  {/* Customer TO Emails */}
+                  <div className="mb-6">
+                    <Label className="text-lg font-semibold text-gray-800 mb-3 block">
+                      📧 Customer Primary Recipients (TO)
+                    </Label>
+                    <p className="text-sm text-gray-600 mb-4">
+                      These emails will receive customer-related notifications.
+                    </p>
+                    
+                    <div className="flex flex-wrap gap-2 mb-4 p-4 bg-white rounded-lg border min-h-[60px]">
+                      {(emailConfigs.find(c => c.config_type === 'admin')?.to_emails || []).map(email => (
+                        <Badge key={email} variant="default" className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 border border-green-200">
+                          <span>{email}</span>
+                          <X 
+                            className="w-4 h-4 cursor-pointer hover:text-red-600" 
+                            onClick={() => {
+                              const config = emailConfigs.find(c => c.config_type === 'admin');
+                              if (config) {
+                                const newToEmails = removeEmailFromConfig(config.to_emails, email);
+                                updateEmailConfig('admin', newToEmails, config.cc_emails || []);
+                              }
+                            }}
+                          />
+                        </Badge>
+                      ))}
+                      {(emailConfigs.find(c => c.config_type === 'admin')?.to_emails || []).length === 0 && (
+                        <p className="text-gray-500 italic">No customer primary recipients configured yet</p>
+                      )}
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <Input
+                        value={newEmailByConfig['customer-to-emails'] || ''}
+                        onChange={(e) => setNewEmailByConfig({...newEmailByConfig, 'customer-to-emails': e.target.value})}
+                        placeholder="Enter customer service email (e.g., support@ximpul.com)"
+                        className="flex-1 border-gray-300 focus:border-green-500 focus:ring-green-500"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            const email = newEmailByConfig['customer-to-emails'];
+                            if (email) {
+                              const config = emailConfigs.find(c => c.config_type === 'admin') || { to_emails: [], cc_emails: [] };
+                              const newToEmails = addEmailToConfig(config.to_emails, email);
+                              updateEmailConfig('admin', newToEmails, config.cc_emails || []);
+                              setNewEmailByConfig({...newEmailByConfig, 'customer-to-emails': ''});
+                            }
+                          }
+                        }}
+                      />
+                      <Button 
+                        onClick={() => {
+                          const email = newEmailByConfig['customer-to-emails'];
+                          if (email) {
+                            const config = emailConfigs.find(c => c.config_type === 'admin') || { to_emails: [], cc_emails: [] };
+                            const newToEmails = addEmailToConfig(config.to_emails, email);
+                            updateEmailConfig('admin', newToEmails, config.cc_emails || []);
+                            setNewEmailByConfig({...newEmailByConfig, 'customer-to-emails': ''});
+                          }
+                        }}
+                        className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6"
+                      >
+                        Add Customer TO
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Customer CC Emails */}
+                  <div>
+                    <Label className="text-lg font-semibold text-gray-800 mb-3 block">
+                      📋 Customer CC Recipients (CC)
+                    </Label>
+                    <p className="text-sm text-gray-600 mb-4">
+                      These emails will receive copies of customer notifications.
+                    </p>
+                    
+                    <div className="flex flex-wrap gap-2 mb-4 p-4 bg-white rounded-lg border min-h-[60px]">
+                      {(emailConfigs.find(c => c.config_type === 'admin')?.cc_emails || []).map(email => (
+                        <Badge key={email} variant="secondary" className="flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-800 border border-purple-200">
+                          <span>{email}</span>
+                          <X 
+                            className="w-4 h-4 cursor-pointer hover:text-red-600" 
+                            onClick={() => {
+                              const config = emailConfigs.find(c => c.config_type === 'admin');
+                              if (config) {
+                                const newCcEmails = removeEmailFromConfig(config.cc_emails || [], email);
+                                updateEmailConfig('admin', config.to_emails || [], newCcEmails);
+                              }
+                            }}
+                          />
+                        </Badge>
+                      ))}
+                      {(emailConfigs.find(c => c.config_type === 'admin')?.cc_emails || []).length === 0 && (
+                        <p className="text-gray-500 italic">No customer CC recipients configured yet</p>
+                      )}
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <Input
+                        value={newEmailByConfig['customer-cc-emails'] || ''}
+                        onChange={(e) => setNewEmailByConfig({...newEmailByConfig, 'customer-cc-emails': e.target.value})}
+                        placeholder="Enter customer CC email (e.g., cs-manager@ximpul.com)"
+                        className="flex-1 border-gray-300 focus:border-purple-500 focus:ring-purple-500"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            const email = newEmailByConfig['customer-cc-emails'];
+                            if (email) {
+                              const config = emailConfigs.find(c => c.config_type === 'admin') || { to_emails: [], cc_emails: [] };
+                              const newCcEmails = addEmailToConfig(config.cc_emails || [], email);
+                              updateEmailConfig('admin', config.to_emails || [], newCcEmails);
+                              setNewEmailByConfig({...newEmailByConfig, 'customer-cc-emails': ''});
+                            }
+                          }
+                        }}
+                      />
+                      <Button 
+                        onClick={() => {
+                          const email = newEmailByConfig['customer-cc-emails'];
+                          if (email) {
+                            const config = emailConfigs.find(c => c.config_type === 'admin') || { to_emails: [], cc_emails: [] };
+                            const newCcEmails = addEmailToConfig(config.cc_emails || [], email);
+                            updateEmailConfig('admin', config.to_emails || [], newCcEmails);
+                            setNewEmailByConfig({...newEmailByConfig, 'customer-cc-emails': ''});
+                          }
+                        }}
+                        className="bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white px-6"
+                      >
+                        Add Customer CC
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 
+                {/* All Email Configurations Display */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3">📊 All Email Configurations</h4>
+                  <div className="space-y-3">
+                    {emailConfigs.length === 0 ? (
+                      <p className="text-gray-500 italic">No email configurations found in database</p>
+                    ) : (
+                      emailConfigs.map((config, index) => (
+                        <div key={config.id || index} className="bg-white border rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-semibold text-gray-700 capitalize">
+                              {config.config_type} Configuration
+                            </h5>
+                            <Badge variant="outline" className="text-xs">
+                              ID: {config.id}
+                            </Badge>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <span className="font-medium text-blue-600">TO Emails ({(config.to_emails || []).length}):</span>
+                              <div className="mt-1">
+                                {(config.to_emails || []).length === 0 ? (
+                                  <span className="text-gray-400 italic">None configured</span>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1">
+                                    {config.to_emails.map((email, idx) => (
+                                      <Badge key={idx} variant="default" className="text-xs bg-blue-100 text-blue-800">
+                                        {email}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <span className="font-medium text-orange-600">CC Emails ({(config.cc_emails || []).length}):</span>
+                              <div className="mt-1">
+                                {(config.cc_emails || []).length === 0 ? (
+                                  <span className="text-gray-400 italic">None configured</span>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1">
+                                    {config.cc_emails.map((email, idx) => (
+                                      <Badge key={idx} variant="secondary" className="text-xs bg-orange-100 text-orange-800">
+                                        {email}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  
+                  <div className="mt-4 pt-3 border-t border-gray-200 flex gap-2">
+                    <Button 
+                      onClick={fetchEmailConfigs}
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                    >
+                      🔄 Refresh Configurations
+                    </Button>
+                    <Button 
+                      onClick={async () => {
+                        try {
+                          console.log('🧪 Testing admin email configuration...');
+                          
+                          // Fetch email config
+                          const { data: emailConfig, error } = await supabase
+                            .from('email_config')
+                            .select('*')
+                            .eq('config_type', 'customer');
+                          
+                          console.log('🧪 Email config result:', { emailConfig, error });
+                          
+                          if (!emailConfig || emailConfig.length === 0) {
+                            toast.error('No admin email configuration found! Please add admin emails first.');
+                            return;
+                          }
+                          
+                          const config = emailConfig[0];
+                          const toEmails = config.to_emails?.join(',') || '';
+                          const ccEmails = config.cc_emails?.join(',') || '';
+                          
+                          console.log('🧪 TO emails:', toEmails);
+                          console.log('🧪 CC emails:', ccEmails);
+                          
+                          if (!toEmails) {
+                            toast.error('No TO emails configured! Please add at least one admin TO email.');
+                            return;
+                          }
+                          
+                          // Test email params
+                          const testParams: any = {
+                            to: toEmails,
+                            subject: 'Test Admin Email - Ximpul System',
+                            message: '<h2>Test Email</h2><p>This is a test email to verify admin email configuration.</p><p>If you receive this, the admin email system is working correctly.</p>',
+                            from_name: 'Ximpul Shop'
+                          };
+                          
+                          if (ccEmails) {
+                            testParams.cc = ccEmails;
+                          }
+                          
+                          console.log('🧪 Sending test email with params:', testParams);
+                          
+                          const response = await fetch('https://ximpul.com/smtp-mailer.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: new URLSearchParams(testParams)
+                          });
+                          
+                          const result = await response.json();
+                          console.log('🧪 Test email response:', result);
+                          
+                          if (result.success) {
+                            toast.success('Test admin email sent successfully! Check your inbox.');
+                          } else {
+                            toast.error(`Test email failed: ${result.error}`);
+                          }
+                        } catch (error: any) {
+                          console.error('🧪 Test email error:', error);
+                          toast.error(`Test failed: ${error.message}`);
+                        }
+                      }}
+                      variant="default"
+                      size="sm"
+                      className="text-xs bg-green-600 hover:bg-green-700"
+                    >
+                      🧪 Test Admin Emails
+                    </Button>
+                  </div>
+                </div>
+
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h4 className="font-semibold text-blue-800 mb-2">📋 What emails will be sent here?</h4>
-                  <ul className="text-sm text-blue-700 space-y-1">
-                    <li>• New order notifications</li>
-                    <li>• Payment confirmations</li>
-                    <li>• System alerts and updates</li>
-                    <li>• Admin panel notifications</li>
-                  </ul>
+                  <h4 className="font-semibold text-blue-800 mb-2">📋 Email Types Sent</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-700">
+                    <div>
+                      <h5 className="font-semibold mb-1">TO Recipients receive:</h5>
+                      <ul className="space-y-1">
+                        <li>• New order notifications</li>
+                        <li>• Payment confirmations</li>
+                        <li>• System alerts</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <h5 className="font-semibold mb-1">CC Recipients receive:</h5>
+                      <ul className="space-y-1">
+                        <li>• Copies of all TO emails</li>
+                        <li>• For monitoring purposes</li>
+                        <li>• Backup notifications</li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -1104,7 +1477,7 @@ export const AdminSMTPConfig = () => {
                     <Edit className="w-5 h-5" />
                     Edit Email Template
                   </h2>
-                  <p className="text-blue-100 text-sm mt-1">Edit HTML content and preview in real-time</p>
+                  <p className="text-blue-100 text-sm mt-1">Edit template content and preview in real-time</p>
                 </div>
                 <Button
                   variant="ghost"
@@ -1117,52 +1490,45 @@ export const AdminSMTPConfig = () => {
               </div>
             </div>
             
-            <div className="flex h-96">
+            <div className="flex h-[calc(90vh-140px)]">
               {/* Editor Section */}
-              <div className="w-1/2 p-4 border-r overflow-y-auto">
-                <div className="space-y-3">
-                  <Input
-                    value={modalTemplate.name}
-                    onChange={(e) => setModalTemplate({...modalTemplate, name: e.target.value})}
-                    placeholder="Template Name"
-                    className="text-sm"
-                  />
+              <div className="w-1/2 p-6 border-r overflow-y-auto">
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Template Name</Label>
+                    <Input
+                      value={modalTemplate.name}
+                      onChange={(e) => setModalTemplate({...modalTemplate, name: e.target.value})}
+                      placeholder="Template Name"
+                      className="w-full"
+                    />
+                  </div>
                   
-                  <Input
-                    value={modalTemplate.subject}
-                    onChange={(e) => setModalTemplate({...modalTemplate, subject: e.target.value})}
-                    placeholder="Subject Line"
-                    className="text-sm"
-                  />
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Subject</Label>
+                    <Input
+                      value={modalTemplate.subject}
+                      onChange={(e) => setModalTemplate({...modalTemplate, subject: e.target.value})}
+                      placeholder="Email Subject"
+                      className="w-full"
+                    />
+                  </div>
                   
-                  <Textarea
-                    value={modalTemplate.template}
-                    onChange={(e) => {
-                      setModalTemplate({...modalTemplate, template: e.target.value});
-                      const matches = e.target.value.match(/{{(\w+)}}/g);
-                      const variables = matches ? [...new Set(matches.map(m => m.slice(2, -2)))] : [];
-                      setModalTemplate(prev => ({...prev, variables}));
-                    }}
-                    placeholder="<h2>Hello {{customerName}}</h2><p>Your order {{orderId}} is confirmed.</p>"
-                    rows={15}
-                    className="font-mono text-xs"
-                  />
-                  
-                  {modalTemplate.variables.length > 0 && (
-                    <div className="space-y-2">
-                      {modalTemplate.variables.map(variable => (
-                        <div key={variable} className="flex gap-2">
-                          <span className="text-xs w-16 text-gray-600">{variable}:</span>
-                          <Input
-                            size="sm"
-                            value={modalPreviewData[variable] || getDefaultValue(variable)}
-                            onChange={(e) => setModalPreviewData({...modalPreviewData, [variable]: e.target.value})}
-                            className="text-xs h-6 flex-1"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex-1">
+                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Email Body (HTML)</Label>
+                    <Textarea
+                      value={modalTemplate.template}
+                      onChange={(e) => {
+                        setModalTemplate({...modalTemplate, template: e.target.value});
+                        const matches = e.target.value.match(/{{(\w+)}}/g);
+                        const variables = matches ? [...new Set(matches.map(m => m.slice(2, -2)))] : [];
+                        setModalTemplate(prev => ({...prev, variables}));
+                      }}
+                      placeholder="<h2>Hello {{customerName}}</h2><p>Your order {{orderId}} is confirmed.</p>"
+                      rows={20}
+                      className="font-mono text-sm resize-none"
+                    />
+                  </div>
                 </div>
               </div>
               
@@ -1179,21 +1545,25 @@ export const AdminSMTPConfig = () => {
                   
                   {/* Subject Preview */}
                   <div className="bg-white border rounded-lg p-4">
-                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Subject</Label>
+                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Subject Preview</Label>
                     <div className="font-semibold text-gray-900">
-                      {processTemplate(modalTemplate.subject, {...modalPreviewData, ...Object.fromEntries(modalTemplate.variables.map(v => [v, modalPreviewData[v] || getDefaultValue(v)]))}) || 'Enter subject...'}
+                      {modalTemplate.subject || 'Enter subject...'}
                     </div>
                   </div>
                   
                   {/* HTML Content Preview */}
-                  <div className="bg-white border rounded-lg overflow-hidden">
-                    <Label className="text-sm font-medium text-gray-700 p-4 pb-2 block">Email Content</Label>
-                    <div className="max-h-96 overflow-y-auto p-4 pt-2">
-                      <div 
-                        dangerouslySetInnerHTML={{
-                          __html: processTemplate(modalTemplate.template, {...modalPreviewData, ...Object.fromEntries(modalTemplate.variables.map(v => [v, modalPreviewData[v] || getDefaultValue(v)]))}) || '<div style="padding: 20px; text-align: center; color: #9ca3af; font-style: italic;">Start typing your HTML template to see preview...</div>'
-                        }}
-                      />
+                  <div className="bg-white border rounded-lg overflow-hidden flex-1">
+                    <Label className="text-sm font-medium text-gray-700 p-4 pb-2 block">Email Content Preview</Label>
+                    <div className="h-96 overflow-y-auto p-4 pt-2">
+                      <div className="prose max-w-none text-sm">
+                        {modalTemplate.template ? (
+                          <div dangerouslySetInnerHTML={{ __html: modalTemplate.template }} />
+                        ) : (
+                          <div className="text-gray-500 italic text-center py-8">
+                            Start typing your HTML template to see preview...
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

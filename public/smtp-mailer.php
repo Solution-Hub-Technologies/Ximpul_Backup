@@ -16,14 +16,39 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // Validate inputs
-$to = filter_input(INPUT_POST, 'to', FILTER_VALIDATE_EMAIL);
+$to = $_POST['to'] ?? '';
+$cc = $_POST['cc'] ?? '';
 $subject = filter_input(INPUT_POST, 'subject', FILTER_SANITIZE_STRING) ?: 'Email from Ximpul';
 $message = $_POST['message'] ?? '';
 $from_name = filter_input(INPUT_POST, 'from_name', FILTER_SANITIZE_STRING) ?: 'Ximpul Shop';
 
-if (!$to) {
+// Parse TO emails (comma separated)
+$to_emails = [];
+if (!empty($to)) {
+    $to_list = explode(',', $to);
+    foreach ($to_list as $email) {
+        $email = trim($email);
+        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $to_emails[] = $email;
+        }
+    }
+}
+
+// Parse CC emails (comma separated)
+$cc_emails = [];
+if (!empty($cc)) {
+    $cc_list = explode(',', $cc);
+    foreach ($cc_list as $email) {
+        $email = trim($email);
+        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $cc_emails[] = $email;
+        }
+    }
+}
+
+if (empty($to_emails)) {
     http_response_code(400);
-    echo json_encode(['error' => 'Invalid recipient email']);
+    echo json_encode(['error' => 'No valid recipient emails provided']);
     exit;
 }
 
@@ -147,10 +172,22 @@ try {
         throw new Exception("MAIL FROM failed: $response");
     }
     
-    fputs($socket, "RCPT TO: <$to>\r\n");
-    $response = fgets($socket, 515);
-    if (substr($response, 0, 3) !== '250') {
-        throw new Exception("RCPT TO failed: $response");
+    // Add all TO recipients
+    foreach ($to_emails as $email) {
+        fputs($socket, "RCPT TO: <$email>\r\n");
+        $response = fgets($socket, 515);
+        if (substr($response, 0, 3) !== '250') {
+            throw new Exception("RCPT TO failed for $email: $response");
+        }
+    }
+    
+    // Add all CC recipients
+    foreach ($cc_emails as $email) {
+        fputs($socket, "RCPT TO: <$email>\r\n");
+        $response = fgets($socket, 515);
+        if (substr($response, 0, 3) !== '250') {
+            throw new Exception("RCPT TO failed for CC $email: $response");
+        }
     }
     
     fputs($socket, "DATA\r\n");
@@ -161,7 +198,10 @@ try {
     
     // Email headers and body
     $email_content = "From: $from_name <$smtp_user>\r\n";
-    $email_content .= "To: $to\r\n";
+    $email_content .= "To: " . implode(', ', $to_emails) . "\r\n";
+    if (!empty($cc_emails)) {
+        $email_content .= "Cc: " . implode(', ', $cc_emails) . "\r\n";
+    }
     $email_content .= "Subject: $subject\r\n";
     $email_content .= "MIME-Version: 1.0\r\n";
     $email_content .= "Content-Type: text/html; charset=UTF-8\r\n";
@@ -182,7 +222,8 @@ try {
     echo json_encode([
         'success' => true,
         'message' => 'Email sent successfully',
-        'to' => $to,
+        'to' => $to_emails,
+        'cc' => $cc_emails,
         'subject' => $subject,
         'timestamp' => date('Y-m-d H:i:s')
     ]);
