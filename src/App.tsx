@@ -15,6 +15,7 @@ import { AdminSMTPTests } from "./pages/AdminSMTPTests";
 import { AdminSMTPConfig } from "./pages/AdminSMTPConfig";
 import { AdminSSLConfig } from "./pages/AdminSSLConfig";
 import { AdminNotifications } from "./pages/AdminNotifications";
+import { AdminCourierManagement } from "./pages/AdminCourierManagement";
 import { AdminLayout } from "./components/admin/AdminLayout";
 import { PaymentError } from "./pages/PaymentError";
 import NotFound from "./pages/NotFound";
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="customers" element={<AdminCustomers />} />
             <Route path="products" element={<AdminProducts />} />
             <Route path="users" element={<AdminUserManagement />} />
+            <Route path="courier-management" element={<AdminCourierManagement />} />
             <Route path="login-history" element={<AdminLoginHistory />} />
             <Route path="notifications" element={<AdminNotifications />} />
 

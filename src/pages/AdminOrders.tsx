@@ -9,15 +9,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { useOrders, Order } from '@/hooks/useOrders';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 import { 
   Eye, Copy, RefreshCw, Search, Filter, Calendar, 
   Package, Truck, CheckCircle, AlertTriangle, Clock, 
   CreditCard, MapPin, FileText, User, Phone, Mail, 
   X, ArrowUpRight, Trash2, Shield, ChevronLeft, ChevronRight,
   Download, FileSpreadsheet, FileText as FilePdf, Printer, Receipt,
-  Banknote, Smartphone
+  Banknote, Smartphone, Send
 } from 'lucide-react';
 import { toast } from 'sonner';
+import JsBarcode from 'jsbarcode';
 
 const ColorBadge = ({ color }: { color: string }) => {
   if (color === 'obsidian') {
@@ -58,6 +60,28 @@ export const AdminOrders = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
+  const [steadfastOrder, setSteadfastOrder] = useState<Order | null>(null);
+  const [steadfastParcelId, setSteadfastParcelId] = useState<string>('');
+  const [isSendingToSteadfast, setIsSendingToSteadfast] = useState(false);
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+  const [manualOrderData, setManualOrderData] = useState({
+    customer_name: '',
+    customer_phone: '',
+    customer_email: '',
+    customer_address: '',
+    selected_edition: '',
+    selected_color: 'obsidian',
+    selected_accessories: [] as string[],
+    engraving_text: '',
+    payment_method: 'cod',
+    quantity: 1,
+    subtotal: 0,
+    delivery_fee: 100,
+    total_amount: 100,
+    privacy_preference: false
+  });
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [manualOrders, setManualOrders] = useState<Order[]>([]);
 
   // Order statistics
   const orderStats = {
@@ -100,7 +124,35 @@ export const AdminOrders = () => {
     });
   };
 
-  const filteredOrders = getFilteredOrders(activeTab);
+  const allOrders = [...manualOrders, ...orders];
+  const getFilteredOrdersWithManual = (tabFilter: string) => {
+    return allOrders.filter(order => {
+      // Exclude pending and pending_payment from 'all' tab
+      if (tabFilter === 'all' && (order.order_status === 'pending' || order.order_status === 'pending_payment')) {
+        return false;
+      }
+      
+      const matchesStatus = tabFilter === 'all' || order.order_status === tabFilter;
+      const matchesPrivacy = privacyFilter === 'all' || 
+        (privacyFilter === 'private' && order.privacy_preference) ||
+        (privacyFilter === 'public' && !order.privacy_preference);
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = 
+        order.customer_name.toLowerCase().includes(searchLower) ||
+        order.customer_phone.includes(searchTerm) ||
+        String(order.order_id).toLowerCase().includes(searchLower) ||
+        (order.customer_email && order.customer_email.toLowerCase().includes(searchLower));
+      
+      // Date filtering
+      const orderDate = new Date(order.created_at);
+      const fromDate = dateFrom ? new Date(dateFrom) : null;
+      const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+      const matchesDateRange = (!fromDate || orderDate >= fromDate) && (!toDate || orderDate <= toDate);
+      
+      return matchesStatus && matchesPrivacy && matchesSearch && matchesDateRange;
+    });
+  };
+  const filteredOrders = getFilteredOrdersWithManual(activeTab);
   
   // Show popup if no results found with search filters
   useEffect(() => {
@@ -267,6 +319,73 @@ export const AdminOrders = () => {
   const confirmStatusUpdate = async () => {
     if (adminUser && pendingStatusUpdate) {
       await updateOrderStatus(pendingStatusUpdate.orderId, pendingStatusUpdate.newStatus, adminUser.id, statusUpdateNotes);
+      
+      // Show success message with admin info
+      toast.success(`Order status updated to ${pendingStatusUpdate.newStatus} by ${adminUser.name || adminUser.username}`);
+      
+      // Auto-send to Steadfast when status changes to processing
+      if (pendingStatusUpdate.newStatus === 'processing') {
+        const order = orders.find(o => o.id === pendingStatusUpdate.orderId);
+        if (order && !order.tracking_number) {
+          try {
+            // Fetch SteadFast credentials from database
+            const { data: vendors, error } = await supabaseAdmin
+              .from('courier_vendors')
+              .select('*')
+              .eq('type', 'steadfast')
+              .eq('status', 'active')
+              .limit(1);
+
+            if (error || !vendors || vendors.length === 0) {
+              throw new Error('No active SteadFast vendor found.');
+            }
+
+            const steadfastVendor = vendors[0];
+            if (!steadfastVendor.api_key || !steadfastVendor.secret_key) {
+              throw new Error('SteadFast API credentials not configured.');
+            }
+
+            const codAmount = order.payment_method === 'online' ? 0 : order.total_amount;
+            
+            const steadfastData = {
+              invoice: order.order_id,
+              recipient_name: order.customer_name,
+              recipient_phone: order.customer_phone,
+              recipient_address: order.customer_address,
+              cod_amount: codAmount,
+              note: `Ximpul Flow - ${order.selected_edition} - ${order.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}${order.engraving_text ? ` - Engraved: "${order.engraving_text}"` : ''}`
+            };
+
+            const apiUrl = steadfastVendor.base_url.endsWith('/') 
+              ? `${steadfastVendor.base_url}create_order` 
+              : `${steadfastVendor.base_url}/create_order`;
+
+            const response = await fetch(apiUrl, {
+              method: 'POST',
+              headers: {
+                'Api-Key': steadfastVendor.api_key,
+                'Secret-Key': steadfastVendor.secret_key,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(steadfastData)
+            });
+
+            const result = await response.json();
+            
+            if (result.status === 200 && result.consignment) {
+              // Update order with tracking number
+              await updateTrackingInfo(order.id, result.consignment.consignment_id, 'Order sent to Steadfast');
+              toast.success('Order sent to Steadfast successfully!');
+            } else {
+              throw new Error(result.message || 'Failed to send to Steadfast');
+            }
+          } catch (error) {
+            console.error('Error sending to Steadfast:', error);
+            toast.error(`Failed to send order to Steadfast: ${error.message}`);
+          }
+        }
+      }
+      
       setStatusUpdateNotes('');
       setIsStatusDialogOpen(false);
       setPendingStatusUpdate(null);
@@ -281,6 +400,9 @@ export const AdminOrders = () => {
   const confirmPaymentStatusUpdate = async () => {
     if (adminUser && pendingPaymentStatusUpdate) {
       await updatePaymentStatus(pendingPaymentStatusUpdate.orderId, pendingPaymentStatusUpdate.newStatus, adminUser.id, paymentStatusNotes);
+      
+      // Show success message with admin info
+      toast.success(`Payment status updated to ${pendingPaymentStatusUpdate.newStatus} by ${adminUser.name || adminUser.username}`);
       setPaymentStatusNotes('');
       setIsPaymentStatusDialogOpen(false);
       setPendingPaymentStatusUpdate(null);
@@ -300,6 +422,68 @@ export const AdminOrders = () => {
     }
   };
 
+  const handleSendToSteadfast = async (order: Order) => {
+    setIsSendingToSteadfast(true);
+    try {
+      // Fetch SteadFast credentials from database
+      const { data: vendors, error } = await supabaseAdmin
+        .from('courier_vendors')
+        .select('*')
+        .eq('type', 'steadfast')
+        .eq('status', 'active')
+        .limit(1);
+
+      if (error || !vendors || vendors.length === 0) {
+        throw new Error('No active SteadFast vendor found. Please configure SteadFast in Courier Management.');
+      }
+
+      const steadfastVendor = vendors[0];
+      if (!steadfastVendor.api_key || !steadfastVendor.secret_key) {
+        throw new Error('SteadFast API credentials not configured. Please update in Courier Management.');
+      }
+
+      const codAmount = order.payment_method === 'online' ? 0 : order.total_amount;
+      
+      const steadfastData = {
+        invoice: order.order_id,
+        recipient_name: order.customer_name,
+        recipient_phone: order.customer_phone,
+        recipient_address: order.customer_address,
+        cod_amount: codAmount,
+        note: `Ximpul Flow - ${order.selected_edition} - ${order.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}${order.engraving_text ? ` - Engraved: "${order.engraving_text}"` : ''}`
+      };
+
+      const apiUrl = steadfastVendor.base_url.endsWith('/') 
+        ? `${steadfastVendor.base_url}create_order` 
+        : `${steadfastVendor.base_url}/create_order`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Api-Key': steadfastVendor.api_key,
+          'Secret-Key': steadfastVendor.secret_key,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(steadfastData)
+      });
+
+      const result = await response.json();
+      
+      if (result.status === 200 && result.consignment) {
+        setSteadfastParcelId(result.consignment.consignment_id);
+        setSteadfastOrder(order);
+        toast.success('Order sent to Steadfast successfully!');
+      } else {
+        throw new Error(result.message || 'Failed to send to Steadfast');
+      }
+    } catch (error) {
+      console.error('Error sending to Steadfast:', error);
+      toast.error(`Failed to send order to Steadfast: ${error.message}`);
+    } finally {
+      setIsSendingToSteadfast(false);
+    }
+  };
+
   const copyOrderId = async (orderId: string) => {
     try {
       await navigator.clipboard.writeText(orderId);
@@ -313,6 +497,95 @@ export const AdminOrders = () => {
       document.body.removeChild(textArea);
       toast.success('Order ID copied to clipboard');
     }
+  };
+
+  const generateBarcode = (text: string): string => {
+    try {
+      const canvas = document.createElement('canvas');
+      JsBarcode(canvas, text, {
+        format: 'CODE128',
+        width: 2,
+        height: 60,
+        displayValue: false,
+        margin: 0,
+        background: '#ffffff',
+        lineColor: '#000000'
+      });
+      return canvas.toDataURL('image/png');
+    } catch (error) {
+      console.error('Error generating barcode:', error);
+      return '';
+    }
+  };
+
+  const handleCreateManualOrder = async () => {
+    if (!manualOrderData.customer_name || !manualOrderData.customer_phone || !manualOrderData.customer_address || !manualOrderData.selected_edition) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    setIsCreatingOrder(true);
+    try {
+      const newOrder: Order = {
+        id: `manual_${Date.now()}`,
+        order_id: `M${Date.now().toString().slice(-6)}`,
+        customer_name: manualOrderData.customer_name,
+        customer_phone: manualOrderData.customer_phone,
+        customer_email: manualOrderData.customer_email || null,
+        customer_address: manualOrderData.customer_address,
+        selected_edition: manualOrderData.selected_edition,
+        selected_color: manualOrderData.selected_color,
+        selected_accessories: manualOrderData.selected_accessories,
+        engraving_text: manualOrderData.engraving_text || null,
+        payment_method: manualOrderData.payment_method,
+        subtotal: manualOrderData.subtotal,
+        delivery_fee: manualOrderData.delivery_fee,
+        total_amount: manualOrderData.total_amount,
+        privacy_preference: manualOrderData.privacy_preference,
+        order_status: 'pending',
+        payment_status: 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        tracking_number: null
+      };
+
+      setManualOrders(prev => [newOrder, ...prev]);
+      toast.success('Manual order created successfully!');
+      setIsManualEntryOpen(false);
+      setManualOrderData({
+        customer_name: '',
+        customer_phone: '',
+        customer_email: '',
+        customer_address: '',
+        selected_edition: '',
+        selected_color: 'obsidian',
+        selected_accessories: [],
+        engraving_text: '',
+        payment_method: 'cod',
+        quantity: 1,
+        subtotal: 0,
+        delivery_fee: 100,
+        total_amount: 100,
+        privacy_preference: false
+      });
+    } catch (error) {
+      console.error('Error creating manual order:', error);
+      toast.error('Failed to create order. Please try again.');
+    } finally {
+      setIsCreatingOrder(false);
+    }
+  };
+
+  const updateManualOrderPricing = () => {
+    let unitPrice = 0;
+    if (manualOrderData.selected_edition === 'Base Edition') unitPrice = 2500;
+    else if (manualOrderData.selected_edition === 'Lifestyle Edition') unitPrice = 3500;
+    
+    const subtotal = unitPrice * manualOrderData.quantity;
+    const deliveryFee = manualOrderData.payment_method === 'cod' ? 100 : 0;
+    const total = subtotal + deliveryFee;
+    
+    setManualOrderData(prev => ({ ...prev, subtotal, delivery_fee: deliveryFee, total_amount: total }));
   };
 
   const OrderStatusBadge = ({ status }: { status: string }) => {
@@ -344,8 +617,8 @@ export const AdminOrders = () => {
 
   const PaymentStatusBadge = ({ status }: { status: string }) => {
     const colors = {
-      pending: 'bg-yellow-100 text-yellow-800 border border-yellow-200',
-      completed: 'bg-green-100 text-green-800 border border-green-200',
+      pending: 'bg-red-600 text-white',
+      completed: 'bg-green-600 text-white',
       failed: 'bg-red-100 text-red-800 border border-red-200',
       refunded: 'bg-gray-100 text-gray-800 border border-gray-200'
     };
@@ -368,7 +641,7 @@ export const AdminOrders = () => {
   const PaymentMethodBadge = ({ method }: { method: string }) => {
     if (method.toLowerCase() === 'online') {
       return (
-        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-600 text-white">
           <Smartphone className="w-3 h-3 mr-1" />
           Online
         </span>
@@ -377,7 +650,7 @@ export const AdminOrders = () => {
     
     if (method.toLowerCase() === 'cod') {
       return (
-        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-600 text-white">
           <Banknote className="w-3 h-3 mr-1" />
           COD
         </span>
@@ -413,26 +686,118 @@ export const AdminOrders = () => {
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Order Management</h1>
               <p className="text-gray-600">Manage and track all customer orders efficiently</p>
             </div>
-            <Button 
-              onClick={handleRefresh} 
-              variant="outline" 
-              className="flex items-center gap-2 h-10 px-4 border-gray-300 hover:bg-gray-50"
-              disabled={refreshing}
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setIsManualEntryOpen(true)} 
+                className="flex items-center gap-2 h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Package className="h-4 w-4" />
+                Manual Entry
+              </Button>
+              <Button 
+                onClick={handleRefresh} 
+                variant="outline" 
+                className="flex items-center gap-2 h-10 px-4 border-gray-300 hover:bg-gray-50"
+                disabled={refreshing}
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
         </div>
 
 
 
-        {/* Advanced Filters */}
+        {/* Order Statistics */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <Filter className="h-5 w-5 text-gray-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Advanced Filters</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            {(searchTerm || dateFrom || dateTo || privacyFilter !== 'all') ? 'Filtered Results' : 'Order Statistics'}
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
+              <div className="flex flex-col items-center text-center">
+                <div className="p-2 bg-gray-200 rounded-lg mb-3">
+                  <Package className="h-5 w-5 text-gray-700" />
+                </div>
+                <p className="text-sm font-medium text-gray-600">Total Orders</p>
+                <p className="text-2xl font-bold text-gray-900">{getFilteredOrders('all').length}</p>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-4 border border-yellow-200">
+              <div className="flex flex-col items-center text-center">
+                <div className="p-2 bg-yellow-200 rounded-lg mb-3">
+                  <Clock className="h-5 w-5 text-yellow-700" />
+                </div>
+                <p className="text-sm font-medium text-yellow-700">Pending</p>
+                <p className="text-2xl font-bold text-yellow-800">{activeTab === 'online' ? orders.filter(o => o.payment_method === 'online' && o.order_status === 'pending').length : activeTab === 'cod' ? orders.filter(o => o.payment_method === 'cod' && o.order_status === 'pending').length : getFilteredOrders('all').filter(o => o.order_status === 'pending').length}</p>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+              <div className="flex flex-col items-center text-center">
+                <div className="p-2 bg-blue-200 rounded-lg mb-3">
+                  <Package className="h-5 w-5 text-blue-700" />
+                </div>
+                <p className="text-sm font-medium text-blue-700">Processing</p>
+                <p className="text-2xl font-bold text-blue-800">{activeTab === 'online' ? orders.filter(o => o.payment_method === 'online' && o.order_status === 'processing').length : activeTab === 'cod' ? orders.filter(o => o.payment_method === 'cod' && o.order_status === 'processing').length : getFilteredOrders('all').filter(o => o.order_status === 'processing').length}</p>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
+              <div className="flex flex-col items-center text-center">
+                <div className="p-2 bg-purple-200 rounded-lg mb-3">
+                  <Truck className="h-5 w-5 text-purple-700" />
+                </div>
+                <p className="text-sm font-medium text-purple-700">Shipped</p>
+                <p className="text-2xl font-bold text-purple-800">{activeTab === 'online' ? orders.filter(o => o.payment_method === 'online' && o.order_status === 'shipped').length : activeTab === 'cod' ? orders.filter(o => o.payment_method === 'cod' && o.order_status === 'shipped').length : getFilteredOrders('all').filter(o => o.order_status === 'shipped').length}</p>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
+              <div className="flex flex-col items-center text-center">
+                <div className="p-2 bg-green-200 rounded-lg mb-3">
+                  <CheckCircle className="h-5 w-5 text-green-700" />
+                </div>
+                <p className="text-sm font-medium text-green-700">Delivered</p>
+                <p className="text-2xl font-bold text-green-800">{activeTab === 'online' ? orders.filter(o => o.payment_method === 'online' && o.order_status === 'delivered').length : activeTab === 'cod' ? orders.filter(o => o.payment_method === 'cod' && o.order_status === 'delivered').length : getFilteredOrders('all').filter(o => o.order_status === 'delivered').length}</p>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-4 border border-red-200">
+              <div className="flex flex-col items-center text-center">
+                <div className="p-2 bg-red-200 rounded-lg mb-3">
+                  <X className="h-5 w-5 text-red-700" />
+                </div>
+                <p className="text-sm font-medium text-red-700">Cancelled</p>
+                <p className="text-2xl font-bold text-red-800">{activeTab === 'online' ? orders.filter(o => o.payment_method === 'online' && o.order_status === 'cancelled').length : activeTab === 'cod' ? orders.filter(o => o.payment_method === 'cod' && o.order_status === 'cancelled').length : getFilteredOrders('all').filter(o => o.order_status === 'cancelled').length}</p>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4 border border-orange-200">
+              <div className="flex flex-col items-center text-center">
+                <div className="p-2 bg-orange-200 rounded-lg mb-3">
+                  <Shield className="h-5 w-5 text-orange-700" />
+                </div>
+                <p className="text-sm font-medium text-orange-700">Private</p>
+                <p className="text-2xl font-bold text-orange-800">{getFilteredOrders('all').filter(o => o.privacy_preference).length}</p>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-4 border border-emerald-200">
+              <div className="flex flex-col items-center text-center">
+                <div className="p-2 bg-emerald-200 rounded-lg mb-3">
+                  <CheckCircle className="h-5 w-5 text-emerald-700" />
+                </div>
+                <p className="text-sm font-medium text-emerald-700">Public</p>
+                <p className="text-2xl font-bold text-emerald-800">{getFilteredOrders('all').filter(o => !o.privacy_preference).length}</p>
+              </div>
+            </div>
           </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             {/* Search */}
             <div className="lg:col-span-4">
@@ -547,111 +912,7 @@ export const AdminOrders = () => {
           )}
         </div>
 
-        {/* Filtered Order Statistics */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            {(searchTerm || dateFrom || dateTo || privacyFilter !== 'all') ? 'Filtered Results' : 'Order Statistics'}
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Orders</p>
-                  <p className="text-2xl font-bold text-gray-900">{getFilteredOrders('all').length}</p>
-                </div>
-                <div className="p-2 bg-gray-200 rounded-lg">
-                  <Package className="h-5 w-5 text-gray-700" />
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-4 border border-yellow-200">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium text-yellow-700">Pending</p>
-                  <p className="text-2xl font-bold text-yellow-800">{activeTab === 'online' ? orders.filter(o => o.payment_method === 'online' && o.order_status === 'pending').length : activeTab === 'cod' ? orders.filter(o => o.payment_method === 'cod' && o.order_status === 'pending').length : getFilteredOrders('all').filter(o => o.order_status === 'pending').length}</p>
-                </div>
-                <div className="p-2 bg-yellow-200 rounded-lg">
-                  <Clock className="h-5 w-5 text-yellow-700" />
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium text-blue-700">Processing</p>
-                  <p className="text-2xl font-bold text-blue-800">{activeTab === 'online' ? orders.filter(o => o.payment_method === 'online' && o.order_status === 'processing').length : activeTab === 'cod' ? orders.filter(o => o.payment_method === 'cod' && o.order_status === 'processing').length : getFilteredOrders('all').filter(o => o.order_status === 'processing').length}</p>
-                </div>
-                <div className="p-2 bg-blue-200 rounded-lg">
-                  <Package className="h-5 w-5 text-blue-700" />
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium text-purple-700">Shipped</p>
-                  <p className="text-2xl font-bold text-purple-800">{activeTab === 'online' ? orders.filter(o => o.payment_method === 'online' && o.order_status === 'shipped').length : activeTab === 'cod' ? orders.filter(o => o.payment_method === 'cod' && o.order_status === 'shipped').length : getFilteredOrders('all').filter(o => o.order_status === 'shipped').length}</p>
-                </div>
-                <div className="p-2 bg-purple-200 rounded-lg">
-                  <Truck className="h-5 w-5 text-purple-700" />
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium text-green-700">Delivered</p>
-                  <p className="text-2xl font-bold text-green-800">{activeTab === 'online' ? orders.filter(o => o.payment_method === 'online' && o.order_status === 'delivered').length : activeTab === 'cod' ? orders.filter(o => o.payment_method === 'cod' && o.order_status === 'delivered').length : getFilteredOrders('all').filter(o => o.order_status === 'delivered').length}</p>
-                </div>
-                <div className="p-2 bg-green-200 rounded-lg">
-                  <CheckCircle className="h-5 w-5 text-green-700" />
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-4 border border-red-200">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium text-red-700">Cancelled</p>
-                  <p className="text-2xl font-bold text-red-800">{activeTab === 'online' ? orders.filter(o => o.payment_method === 'online' && o.order_status === 'cancelled').length : activeTab === 'cod' ? orders.filter(o => o.payment_method === 'cod' && o.order_status === 'cancelled').length : getFilteredOrders('all').filter(o => o.order_status === 'cancelled').length}</p>
-                </div>
-                <div className="p-2 bg-red-200 rounded-lg">
-                  <X className="h-5 w-5 text-red-700" />
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4 border border-orange-200">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium text-orange-700">Private</p>
-                  <p className="text-2xl font-bold text-orange-800">{getFilteredOrders('all').filter(o => o.privacy_preference).length}</p>
-                </div>
-                <div className="p-2 bg-orange-200 rounded-lg">
-                  <Shield className="h-5 w-5 text-orange-700" />
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-4 border border-emerald-200">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium text-emerald-700">Public</p>
-                  <p className="text-2xl font-bold text-emerald-800">{getFilteredOrders('all').filter(o => !o.privacy_preference).length}</p>
-                </div>
-                <div className="p-2 bg-emerald-200 rounded-lg">
-                  <CheckCircle className="h-5 w-5 text-emerald-700" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      {/* Payment Method Tabs */}
+      {/* Order Categories */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Categories</h2>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -887,7 +1148,7 @@ export const AdminOrders = () => {
                       </div>
                     ) : (
                       tabPaginatedOrders.map((order) => (
-                        <div key={order.id} className={`border rounded-lg p-6 transition-all shadow-sm ${
+                        <div key={order.id} className={`border rounded-lg p-4 transition-all shadow-sm ${
                           order.privacy_preference 
                             ? 'border-orange-200 bg-orange-50/30 hover:bg-orange-50/50 ring-1 ring-orange-100' 
                             : 'border-gray-200 bg-white hover:bg-gray-50'
@@ -897,25 +1158,24 @@ export const AdminOrders = () => {
                               <div className="flex flex-col gap-3">
                                 <div className="flex items-center gap-3">
                                   <h3 className="font-semibold text-xl text-gray-900">{order.customer_name}</h3>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium text-gray-600">Order ID:</span>
-                                  <button 
-                                    onClick={() => copyOrderId(order.order_id)}
-                                    className="text-primary hover:text-primary/80 font-mono text-sm bg-gray-100 px-2 py-1 rounded inline-flex items-center gap-1 hover:bg-gray-200 transition-colors"
-                                  >
-                                    {order.order_id}
-                                    <Copy className="w-3 h-3" />
-                                  </button>
+                                  <span className="text-gray-600 text-sm">
+                                    Order ID: 
+                                    <button 
+                                      onClick={() => copyOrderId(order.order_id)}
+                                      className="text-primary hover:text-primary/80 font-mono font-medium ml-1 hover:underline"
+                                    >
+                                      {order.order_id}
+                                    </button>
+                                  </span>
                                 </div>
                                 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
                                   <div className="flex items-center gap-3">
                                     <span className="text-sm font-medium text-gray-600 min-w-[80px]">Order Status:</span>
                                     <div className="flex items-center gap-2">
                                       <OrderStatusBadge status={order.order_status} />
                                       <Select onValueChange={(value) => handleStatusChange(order.id, value)}>
-                                        <SelectTrigger className="w-32 h-8">
+                                        <SelectTrigger className="w-28 h-8">
                                           <SelectValue placeholder="Update" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -933,7 +1193,7 @@ export const AdminOrders = () => {
                                     <div className="flex items-center gap-2">
                                       <PaymentStatusBadge status={order.payment_status} />
                                       <Select onValueChange={(value) => handlePaymentStatusChange(order.id, value)}>
-                                        <SelectTrigger className="w-32 h-8">
+                                        <SelectTrigger className="w-28 h-8">
                                           <SelectValue placeholder="Update" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -946,18 +1206,36 @@ export const AdminOrders = () => {
                                     </div>
                                   </div>
                                 </div>
+                                
+
                               </div>
                               
-                              <div className="flex flex-col sm:flex-row gap-2">
-                                <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>
-                                  <Eye className="w-4 h-4 mr-2" /> View Details
-                                </Button>
-                                <Button variant="outline" size="sm" onClick={() => setInvoiceOrder(order)}>
-                                  <FileText className="w-4 h-4 mr-2" /> Invoice
-                                </Button>
-                                <Button variant="destructive" size="sm" onClick={() => handleDeleteOrder(order)}>
-                                  <Trash2 className="w-4 h-4" /> Delete
-                                </Button>
+                              <div className="flex flex-col gap-3 justify-end mt-6">
+                                <div className="flex gap-2 items-end">
+                                  {order.order_status === 'processing' && order.tracking_number && (
+                                    <div 
+                                      className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity border border-green-300 rounded-lg p-2 bg-green-50"
+                                      onClick={() => {
+                                        setSteadfastParcelId(order.tracking_number);
+                                        setSteadfastOrder(order);
+                                      }}
+                                    >
+                                      <div className="w-6 h-6 flex items-center justify-center">
+                                        <img src="/ximpul-uploads/steadfast.svg" alt="Steadfast" className="w-6 h-6" />
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span className="text-green-700 font-medium text-xs">Steadfast</span>
+                                        <span className="text-green-700 font-medium text-xs">{order.tracking_number}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>
+                                    <Eye className="w-4 h-4 mr-2" /> View Details
+                                  </Button>
+                                  <Button variant="destructive" size="sm" onClick={() => handleDeleteOrder(order)}>
+                                    <Trash2 className="w-4 h-4" /> Delete
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                               
@@ -976,6 +1254,18 @@ export const AdminOrders = () => {
                                     minute: '2-digit'
                                   })}
                                 </p>
+                                {/* Admin Update Info */}
+                                {adminUser && (
+                                  <div className="mt-2 pt-2 border-t border-gray-100">
+                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                      <User className="h-3 w-3" />
+                                      <span>{order.order_status === 'processing' ? 'Processed by:' : order.order_status === 'shipped' ? 'Shipped by:' : order.order_status === 'delivered' ? 'Delivered by:' : order.order_status === 'cancelled' ? 'Cancelled by:' : 'Last updated by:'} <span className="font-medium text-gray-700">{adminUser?.name || adminUser?.username || 'System'}</span></span>
+                                    </div>
+                                    <div className="text-xs text-gray-400 mt-1">
+                                      {new Date(order.updated_at).toLocaleString()}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                               
                               <div className="space-y-3">
@@ -1012,14 +1302,8 @@ export const AdminOrders = () => {
                                     <span className="font-medium text-gray-900">Color:</span>
                                     <ColorBadge color={order.selected_color} />
                                   </div>
-                                  <div>
-                                    <span className="font-medium text-gray-900">Accessories:</span>
-                                    <p className="text-gray-700 text-sm">{order.selected_accessories && order.selected_accessories.length > 0 ? order.selected_accessories.join(', ') : 'None'}</p>
-                                  </div>
-                                  <div>
-                                    <span className="font-medium text-gray-900">Engraving:</span>
-                                    <p className="text-gray-700 text-sm">{order.engraving_text || 'No engraving requested'}</p>
-                                  </div>
+                                  <p className="text-gray-900"><span className="font-medium">Accessories:</span> <span className="text-gray-600">{order.selected_accessories && order.selected_accessories.length > 0 ? order.selected_accessories.join(', ') : 'None'}</span></p>
+                                  <p className="text-gray-900"><span className="font-medium">Engraving:</span> <span className="text-gray-600">{order.engraving_text || 'No engraving'}</span></p>
                                 </div>
                               </div>
                               
@@ -1128,11 +1412,16 @@ export const AdminOrders = () => {
             <DialogDescription>Order ID: {selectedOrder?.order_id}</DialogDescription>
           </DialogHeader>
           {selectedOrder && (
-            <Tabs defaultValue="details">
+            <Tabs defaultValue="details" onValueChange={(value) => {
+              if (value === 'invoice') {
+                setInvoiceOrder(selectedOrder);
+                setSelectedOrder(null);
+              }
+            }}>
               <TabsList className="grid grid-cols-3 mb-4">
                 <TabsTrigger value="details">Order Details</TabsTrigger>
                 <TabsTrigger value="customer">Customer Info</TabsTrigger>
-                <TabsTrigger value="actions">Actions</TabsTrigger>
+                <TabsTrigger value="invoice">Invoice</TabsTrigger>
               </TabsList>
               
               <TabsContent value="details" className="space-y-4">
@@ -1241,6 +1530,7 @@ export const AdminOrders = () => {
                         <span>{selectedOrder.total_amount.toLocaleString()} BDT</span>
                       </div>
                     </div>
+
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -1280,65 +1570,8 @@ export const AdminOrders = () => {
                 </Card>
               </TabsContent>
               
-              <TabsContent value="actions">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium">Update Order Status</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div>
-                          <Label className="mb-2 block">Current Status:</Label>
-                          <OrderStatusBadge status={selectedOrder.order_status} />
-                        </div>
-                        <div>
-                          <Label className="mb-2 block">Change Status To:</Label>
-                          <Select onValueChange={(value) => handleStatusChange(selectedOrder.id, value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select new status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="processing">Processing</SelectItem>
-                              <SelectItem value="shipped">Shipped</SelectItem>
-                              <SelectItem value="delivered">Delivered</SelectItem>
-                              <SelectItem value="cancelled">Cancelled</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium">Update Payment Status</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div>
-                          <Label className="mb-2 block">Current Status:</Label>
-                          <PaymentStatusBadge status={selectedOrder.payment_status} />
-                        </div>
-                        <div>
-                          <Label className="mb-2 block">Change Status To:</Label>
-                          <Select onValueChange={(value) => handlePaymentStatusChange(selectedOrder.id, value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select new status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="pending">Pending</SelectItem>
-                              <SelectItem value="completed">Completed</SelectItem>
-                              <SelectItem value="failed">Failed</SelectItem>
-                              <SelectItem value="refunded">Refunded</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
+
+
             </Tabs>
           )}
         </DialogContent>
@@ -1364,6 +1597,14 @@ export const AdminOrders = () => {
               <Label>New Status:</Label>
               {pendingStatusUpdate && <OrderStatusBadge status={pendingStatusUpdate.newStatus} />}
             </div>
+            {adminUser && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-sm text-blue-700">
+                  <User className="h-4 w-4" />
+                  <span>This update will be recorded as made by: <span className="font-medium">{adminUser.name || adminUser.username}</span></span>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="notes">Notes (Optional)</Label>
               <Textarea
@@ -1401,6 +1642,14 @@ export const AdminOrders = () => {
               <Label>New Payment Status:</Label>
               {pendingPaymentStatusUpdate && <PaymentStatusBadge status={pendingPaymentStatusUpdate.newStatus} />}
             </div>
+            {adminUser && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-sm text-blue-700">
+                  <User className="h-4 w-4" />
+                  <span>This update will be recorded as made by: <span className="font-medium">{adminUser.name || adminUser.username}</span></span>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="paymentNotes">Notes (Optional)</Label>
               <Textarea
@@ -1533,6 +1782,13 @@ export const AdminOrders = () => {
                       <td className="border border-gray-300 p-3">{invoiceOrder.engraving_text || 'None'}</td>
                       <td className="border border-gray-300 p-3 text-right font-medium">{invoiceOrder.subtotal.toLocaleString()} BDT</td>
                     </tr>
+                    {invoiceOrder.selected_accessories && invoiceOrder.selected_accessories.length > 0 && (
+                      <tr>
+                        <td className="border border-gray-300 p-3">Accessories</td>
+                        <td className="border border-gray-300 p-3" colSpan={3}>{invoiceOrder.selected_accessories.join(', ')}</td>
+                        <td className="border border-gray-300 p-3 text-right font-medium">Included</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1548,6 +1804,10 @@ export const AdminOrders = () => {
                     <div className="flex justify-between py-2">
                       <span>Delivery Fee:</span>
                       <span>{invoiceOrder.delivery_fee.toLocaleString()} BDT</span>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span>COD Amount:</span>
+                      <span>{invoiceOrder.payment_method === 'online' ? '0' : invoiceOrder.total_amount.toLocaleString()} BDT</span>
                     </div>
                     <div className="flex justify-between py-3 text-lg font-bold border-t-2 border-black">
                       <span>Total Amount:</span>
@@ -1578,24 +1838,159 @@ export const AdminOrders = () => {
                         <head>
                           <title>Invoice - ${invoiceOrder.order_id}</title>
                           <style>
-                            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-                            .invoice-content { max-width: 800px; margin: 0 auto; }
-                            table { width: 100%; border-collapse: collapse; }
-                            th, td { border: 1px solid #000; padding: 8px; text-align: left; }
-                            th { background-color: #f0f0f0; }
-                            .text-center { text-align: center; }
-                            .font-bold { font-weight: bold; }
-                            .border-b-2 { border-bottom: 2px solid #000; }
-                            .pb-4 { padding-bottom: 16px; }
-                            .mb-3 { margin-bottom: 12px; }
-                            .space-y-1 > * + * { margin-top: 4px; }
-                            .grid-cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
-                            .w-80 { width: 300px; margin-left: auto; }
-                            @page { size: A4; margin: 1cm; }
+                            body { 
+                              font-family: Arial, sans-serif; 
+                              margin: 0; 
+                              padding: 15px;
+                              font-size: 12px;
+                              line-height: 1.4;
+                            }
+                            .invoice-content { 
+                              max-width: 100%; 
+                              margin: 0 auto;
+                              border: 2px solid #000;
+                              padding: 15px;
+                            }
+                            .header {
+                              text-align: center;
+                              border-bottom: 2px solid #000;
+                              padding-bottom: 10px;
+                              margin-bottom: 15px;
+                            }
+                            .company-name { font-size: 24px; font-weight: bold; }
+                            .invoice-title { font-size: 18px; margin-top: 5px; }
+                            .info-grid {
+                              display: grid;
+                              grid-template-columns: 1fr 1fr;
+                              gap: 20px;
+                              margin-bottom: 15px;
+                            }
+                            .section-title {
+                              font-weight: bold;
+                              border-bottom: 1px solid #000;
+                              padding-bottom: 3px;
+                              margin-bottom: 8px;
+                            }
+                            .info-line { margin-bottom: 3px; }
+                            .product-table {
+                              width: 100%;
+                              border-collapse: collapse;
+                              margin: 15px 0;
+                            }
+                            .product-table th,
+                            .product-table td {
+                              border: 1px solid #000;
+                              padding: 8px;
+                              text-align: left;
+                            }
+                            .product-table th {
+                              background-color: #f0f0f0;
+                              font-weight: bold;
+                            }
+                            .totals {
+                              width: 250px;
+                              margin-left: auto;
+                              border: 1px solid #000;
+                            }
+                            .totals tr td {
+                              padding: 5px 10px;
+                              border-bottom: 1px solid #ccc;
+                            }
+                            .total-final {
+                              font-weight: bold;
+                              font-size: 14px;
+                              background-color: #f0f0f0;
+                            }
+                            .footer {
+                              text-align: center;
+                              margin-top: 15px;
+                              padding-top: 10px;
+                              border-top: 1px solid #000;
+                              font-size: 10px;
+                            }
+                            .no-print { display: none !important; }
+                            @page { size: A4; margin: 0.5cm; }
                           </style>
                         </head>
                         <body>
-                          <div class="invoice-content">${printContent}</div>
+                          <div class="invoice-content">
+                            <div class="header">
+                              <div class="company-name">XIMPUL</div>
+                              <div class="invoice-title">INVOICE</div>
+                            </div>
+                            
+                            <div class="info-grid">
+                              <div>
+                                <div class="section-title">Bill To:</div>
+                                <div class="info-line"><strong>${invoiceOrder.customer_name}</strong></div>
+                                <div class="info-line">${invoiceOrder.customer_phone}</div>
+                                ${invoiceOrder.customer_email ? `<div class="info-line">${invoiceOrder.customer_email}</div>` : ''}
+                                <div class="info-line">${invoiceOrder.customer_address.replace(/\n/g, '<br>')}</div>
+                                ${invoiceOrder.privacy_preference ? '<div class="info-line" style="color: #666; font-style: italic;">Private Order</div>' : ''}
+                              </div>
+                              
+                              <div>
+                                <div class="section-title">Invoice Details:</div>
+                                <div class="info-line"><strong>Invoice #:</strong> ${invoiceOrder.order_id}</div>
+                                <div class="info-line"><strong>Date:</strong> ${new Date(invoiceOrder.created_at).toLocaleDateString()}</div>
+                                <div class="info-line"><strong>Status:</strong> ${invoiceOrder.order_status}</div>
+                                <div class="info-line"><strong>Payment:</strong> ${invoiceOrder.payment_status}</div>
+                                <div class="info-line"><strong>Method:</strong> ${invoiceOrder.payment_method}</div>
+                              </div>
+                            </div>
+                            
+                            <table class="product-table">
+                              <thead>
+                                <tr>
+                                  <th>Product</th>
+                                  <th>Edition</th>
+                                  <th>Color</th>
+                                  <th>Engraving</th>
+                                  <th style="text-align: right;">Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr>
+                                  <td>Ximpul Flow Water Bottle</td>
+                                  <td>${invoiceOrder.selected_edition}</td>
+                                  <td>${invoiceOrder.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}</td>
+                                  <td>${invoiceOrder.engraving_text || 'None'}</td>
+                                  <td style="text-align: right;">${invoiceOrder.subtotal.toLocaleString()} BDT</td>
+                                </tr>
+                                ${invoiceOrder.selected_accessories && invoiceOrder.selected_accessories.length > 0 ? `
+                                <tr>
+                                  <td>Accessories</td>
+                                  <td colspan="3">${invoiceOrder.selected_accessories.join(', ')}</td>
+                                  <td style="text-align: right;">Included</td>
+                                </tr>` : ''}
+                              </tbody>
+                            </table>
+                            
+                            <table class="totals">
+                              <tr>
+                                <td>Subtotal:</td>
+                                <td style="text-align: right;">${invoiceOrder.subtotal.toLocaleString()} BDT</td>
+                              </tr>
+                              <tr>
+                                <td>Delivery Fee:</td>
+                                <td style="text-align: right;">${invoiceOrder.delivery_fee.toLocaleString()} BDT</td>
+                              </tr>
+                              <tr>
+                                <td>COD Amount:</td>
+                                <td style="text-align: right;">${invoiceOrder.payment_method === 'online' ? '0' : invoiceOrder.total_amount.toLocaleString()} BDT</td>
+                              </tr>
+                              <tr class="total-final">
+                                <td><strong>Total Amount:</strong></td>
+                                <td style="text-align: right;"><strong>${invoiceOrder.total_amount.toLocaleString()} BDT</strong></td>
+                              </tr>
+                            </table>
+                            
+                            <div class="footer">
+                              <div><strong>Ximpul - Making Water Free Again</strong></div>
+                              <div>Thank you for choosing Ximpul Flow!</div>
+                              <div>For support, contact us at ximpulshop@gmail.com</div>
+                            </div>
+                          </div>
                         </body>
                       </html>
                     `);
@@ -1641,6 +2036,487 @@ export const AdminOrders = () => {
               `}</style>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Steadfast Parcel Details Modal */}
+      <Dialog open={!!steadfastOrder} onOpenChange={(open) => !open && setSteadfastOrder(null)}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="pb-6">
+            <DialogTitle className="flex items-center gap-3 text-2xl">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Truck className="h-6 w-6 text-green-700" />
+              </div>
+              Steadfast Parcel Details
+            </DialogTitle>
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span>Order ID:</span>
+              <span className="font-mono bg-gray-100 px-2 py-1 rounded">{steadfastOrder?.order_id}</span>
+            </div>
+          </DialogHeader>
+          {steadfastOrder && (
+            <div className="space-y-6 parcel-content">
+              {/* Header Card */}
+              <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
+                      <Package className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">Ximpul Parcel</h2>
+                      <p className="text-green-700 font-medium">Ready for Steadfast Delivery</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-600">Steadfast Parcel ID</p>
+                    <p className="text-lg font-bold text-green-700">{steadfastParcelId}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Content Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Customer Information */}
+                <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                  <div className="flex items-center gap-2 mb-4">
+                    <User className="h-5 w-5 text-blue-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">Customer Information</h3>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <User className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Name</p>
+                        <p className="font-medium text-gray-900">{steadfastOrder.customer_name}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                        <Phone className="h-4 w-4 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Phone</p>
+                        <p className="font-medium text-gray-900">{steadfastOrder.customer_phone}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mt-1">
+                        <MapPin className="h-4 w-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Delivery Address</p>
+                        <p className="font-medium text-gray-900 whitespace-pre-wrap">{steadfastOrder.customer_address}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order Details */}
+                <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Package className="h-5 w-5 text-orange-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">Order Details</h3>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <Package className="h-4 w-4 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Product</p>
+                        <p className="font-medium text-gray-900">Ximpul Flow Water Bottle</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <FileText className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Edition</p>
+                        <p className="font-medium text-gray-900">{steadfastOrder.selected_edition}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                        <div className={`w-4 h-4 rounded-full ${steadfastOrder.selected_color === 'obsidian' ? 'bg-black' : 'bg-gray-500'}`}></div>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Color</p>
+                        <p className="font-medium text-gray-900">{steadfastOrder.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}</p>
+                      </div>
+                    </div>
+                    {steadfastOrder.engraving_text && (
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center mt-1">
+                          <FileText className="h-4 w-4 text-yellow-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Engraving</p>
+                          <p className="font-medium text-gray-900 italic">"{steadfastOrder.engraving_text}"</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment & Delivery Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Order Number */}
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Receipt className="h-5 w-5 text-blue-600" />
+                    <h3 className="text-lg font-semibold text-blue-900">Order Number</h3>
+                  </div>
+                  <p className="text-2xl font-bold text-blue-800">{steadfastOrder.order_id}</p>
+                </div>
+
+                {/* Amount Details */}
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CreditCard className="h-5 w-5 text-green-600" />
+                    <h3 className="text-lg font-semibold text-green-900">Payment Details</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-green-700">Total Amount:</span>
+                      <span className="font-bold text-green-800">{steadfastOrder.total_amount.toLocaleString()} BDT</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-green-700">COD Amount:</span>
+                      <span className="font-bold text-green-800">{steadfastOrder.payment_method === 'online' ? '0' : steadfastOrder.total_amount.toLocaleString()} BDT</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-green-700">Payment Method:</span>
+                      <span className="font-medium text-green-800">{steadfastOrder.payment_method === 'online' ? 'Online Payment' : 'Cash on Delivery'}</span>
+                    </div>
+                    {steadfastOrder.payment_method === 'online' && (
+                      <div className="mt-2 p-2 bg-green-200 rounded-lg">
+                        <p className="text-green-800 text-sm font-medium flex items-center gap-1">
+                          <CheckCircle className="h-4 w-4" />
+                          Payment Completed Online
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Footer */}
+              <div className="bg-gray-50 rounded-xl p-6 text-center border border-gray-200">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                    <Truck className="h-4 w-4 text-white" />
+                  </div>
+                  <p className="text-lg font-bold text-gray-900">Ximpul - Making Water Free Again</p>
+                </div>
+                <p className="text-gray-600">Parcel created via Steadfast Courier Service</p>
+                <p className="text-sm text-gray-500 mt-1">Track your delivery with Parcel ID: <span className="font-mono font-medium">{steadfastParcelId}</span></p>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 pt-4 border-t no-print">
+                <Button variant="outline" onClick={() => setSteadfastOrder(null)}>
+                  Close
+                </Button>
+                <Button onClick={() => {
+                  const barcodeDataUrl = generateBarcode(steadfastParcelId);
+                  const printWindow = window.open('', '_blank');
+                  if (printWindow) {
+                    printWindow.document.write(`
+                      <html>
+                        <head>
+                          <title>Sticker - ${steadfastOrder.order_id}</title>
+                          <style>
+                            body { 
+                              font-family: Arial, sans-serif; 
+                              margin: 0; 
+                              padding: 0;
+                              color: black;
+                              background: white;
+                            }
+                            .parcel-content { 
+                              width: 5cm;
+                              height: 7cm;
+                              padding: 0.2cm;
+                              border: 1px solid black;
+                              box-sizing: border-box;
+                            }
+                            .text-center { text-align: center; }
+                            .font-bold { font-weight: bold; }
+                            .font-extra-bold { font-weight: 900; }
+                            .text-xs { font-size: 10px; line-height: 1.2; }
+                            .text-xxs { font-size: 8px; line-height: 1.1; }
+                            .text-lg { font-size: 14px; line-height: 1.1; font-weight: 900; }
+                            .text-xl { font-size: 16px; line-height: 1.0; font-weight: 900; }
+                            .mb-1 { margin-bottom: 0.05in; }
+                            .barcode-img { width: 100%; height: auto; max-width: 4cm; }
+                            p { margin: 0; padding: 0; }
+                            h1 { font-size: 12px; margin: 0 0 0.05in 0; }
+                            @page { 
+                              size: 5cm 7cm; 
+                              margin: 0;
+                            }
+                          </style>
+                        </head>
+                        <body>
+                          <div class="parcel-content">
+                            <div class="text-center mb-1">
+                              <h1 class="font-bold">XIMPUL</h1>
+                            </div>
+                            
+                            <div class="mb-1">
+                              <p class="font-bold text-xs">Customer:</p>
+                              <p class="text-xxs">${steadfastOrder.customer_name}-${steadfastOrder.customer_phone}</p>
+                            </div>
+                            
+                            <div class="mb-1">
+                              <p class="text-xxs">${steadfastOrder.customer_address}</p>
+                            </div>
+                            
+                            <div class="mb-1">
+                              <p class="font-bold text-xs">Order Details:</p>
+                              <p class="text-xxs">Ximpul Flow Water Bottle</p>
+                              <p class="text-xxs">Edition: <span class="font-bold">${steadfastOrder.selected_edition}</span></p>
+                              <p class="text-xxs">Color: <span class="font-bold">${steadfastOrder.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}</span></p>
+                              ${steadfastOrder.selected_accessories && steadfastOrder.selected_accessories.length > 0 ? `<p class="text-xxs">Accessories: <span class="font-bold">${steadfastOrder.selected_accessories.join(', ')}</span></p>` : ''}
+                              ${steadfastOrder.engraving_text ? `<p class="text-xxs">Engraved: <span class="font-bold">${steadfastOrder.engraving_text}</span></p>` : ''}
+                            </div>
+                            
+                            <div class="mb-1">
+                              <p class="text-xs">Order ID: ${steadfastOrder.order_id}</p>
+                              <p class="font-bold text-xs">Steadfast ID:</p>
+                              <div style="border: 2px solid black; padding: 0.1cm; text-align: center; margin: 0.05cm 0;">
+                                <p class="text-xl font-bold">${steadfastParcelId}</p>
+                              </div>
+                              ${barcodeDataUrl ? `
+                              <div class="text-center" style="margin-top: 0.1cm;">
+                                <img src="${barcodeDataUrl}" class="barcode-img" alt="Barcode" />
+                              </div>` : ''}
+                            </div>
+                            
+
+                          </div>
+                        </body>
+                      </html>
+                    `);
+                    printWindow.document.close();
+                    printWindow.focus();
+                    setTimeout(() => {
+                      printWindow.print();
+                      printWindow.close();
+                    }, 250);
+                  }
+                }} className="flex items-center gap-2">
+                  <Printer className="h-4 w-4" />
+                  Print Parcel Details
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Entry Modal */}
+      <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Manual Order Entry
+            </DialogTitle>
+            <DialogDescription>Create a new order manually with customer and product details</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {/* Customer Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Customer Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="customer_name">Customer Name *</Label>
+                  <Input
+                    id="customer_name"
+                    value={manualOrderData.customer_name}
+                    onChange={(e) => setManualOrderData(prev => ({ ...prev, customer_name: e.target.value }))}
+                    placeholder="Enter customer name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="customer_phone">Phone Number *</Label>
+                  <Input
+                    id="customer_phone"
+                    value={manualOrderData.customer_phone}
+                    onChange={(e) => setManualOrderData(prev => ({ ...prev, customer_phone: e.target.value }))}
+                    placeholder="Enter phone number"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="customer_email">Email (Optional)</Label>
+                <Input
+                  id="customer_email"
+                  type="email"
+                  value={manualOrderData.customer_email}
+                  onChange={(e) => setManualOrderData(prev => ({ ...prev, customer_email: e.target.value }))}
+                  placeholder="Enter email address"
+                />
+              </div>
+              <div>
+                <Label htmlFor="customer_address">Address *</Label>
+                <Textarea
+                  id="customer_address"
+                  value={manualOrderData.customer_address}
+                  onChange={(e) => setManualOrderData(prev => ({ ...prev, customer_address: e.target.value }))}
+                  placeholder="Enter full address"
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            {/* Product Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Product Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="selected_edition">Edition *</Label>
+                  <Select value={manualOrderData.selected_edition} onValueChange={(value) => {
+                    const accessories = value === 'Lifestyle Edition' ? ['Carabiner Hook', 'Paracord Strap', 'Bottle Brush'] : [];
+                    setManualOrderData(prev => ({ ...prev, selected_edition: value, selected_accessories: accessories }));
+                    setTimeout(updateManualOrderPricing, 0);
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select edition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Base Edition">Base Edition (2,500 BDT)</SelectItem>
+                      <SelectItem value="Lifestyle Edition">Lifestyle Edition (3,500 BDT)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="quantity">Quantity *</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    min="1"
+                    value={manualOrderData.quantity}
+                    onChange={(e) => {
+                      setManualOrderData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }));
+                      setTimeout(updateManualOrderPricing, 0);
+                    }}
+                    placeholder="Enter quantity"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="selected_color">Color</Label>
+                  <Select value={manualOrderData.selected_color} onValueChange={(value) => setManualOrderData(prev => ({ ...prev, selected_color: value }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="obsidian">Obsidian Black</SelectItem>
+                      <SelectItem value="graphite">Graphite Grey</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="accessories">Accessories (Optional)</Label>
+                <div className="space-y-2">
+                  {['Carabiner Hook', 'Paracord Strap', 'Bottle Brush'].map((accessory) => (
+                    <div key={accessory} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={accessory}
+                        checked={manualOrderData.selected_accessories.includes(accessory)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setManualOrderData(prev => ({
+                              ...prev,
+                              selected_accessories: [...prev.selected_accessories, accessory]
+                            }));
+                          } else {
+                            setManualOrderData(prev => ({
+                              ...prev,
+                              selected_accessories: prev.selected_accessories.filter(a => a !== accessory)
+                            }));
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <Label htmlFor={accessory}>{accessory}</Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="engraving_text">Engraving Text (Optional)</Label>
+                <Input
+                  id="engraving_text"
+                  value={manualOrderData.engraving_text}
+                  onChange={(e) => setManualOrderData(prev => ({ ...prev, engraving_text: e.target.value }))}
+                  placeholder="Enter engraving text"
+                />
+              </div>
+            </div>
+
+            {/* Payment & Order Details */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Payment & Order Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="payment_method">Payment Method</Label>
+                  <Select value={manualOrderData.payment_method} onValueChange={(value) => {
+                    setManualOrderData(prev => ({ ...prev, payment_method: value }));
+                    setTimeout(updateManualOrderPricing, 0);
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cod">Cash on Delivery</SelectItem>
+                      <SelectItem value="online">Online Payment</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="privacy_preference"
+                    checked={manualOrderData.privacy_preference}
+                    onChange={(e) => setManualOrderData(prev => ({ ...prev, privacy_preference: e.target.checked }))}
+                    className="rounded"
+                  />
+                  <Label htmlFor="privacy_preference">Private Order</Label>
+                </div>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Subtotal (Qty: {manualOrderData.quantity}):</span>
+                    <span>{manualOrderData.subtotal.toLocaleString()} BDT</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Delivery Fee {manualOrderData.payment_method === 'cod' ? '(COD)' : '(Online)'}:</span>
+                    <span>{manualOrderData.delivery_fee.toLocaleString()} BDT</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-lg border-t pt-2">
+                    <span>Total:</span>
+                    <span>{manualOrderData.total_amount.toLocaleString()} BDT</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsManualEntryOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateManualOrder} disabled={isCreatingOrder}>
+              {isCreatingOrder ? 'Creating...' : 'Create Order'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

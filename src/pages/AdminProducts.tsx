@@ -347,6 +347,20 @@ export const AdminProducts = () => {
     }
   }, [showStockLogs]);
 
+  // Auto-refresh data every 30 seconds to show real-time stock updates from website orders
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('Auto-refreshing product data for real-time stock updates...');
+      refetchProducts();
+      refetchAccessories();
+      if (showStockLogs) {
+        fetchStockLogs();
+      }
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [refetchProducts, refetchAccessories, showStockLogs]);
+
   if (productsLoading || accessoriesLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -365,10 +379,14 @@ export const AdminProducts = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Product Management</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2"></h1>
               <p className="text-gray-600">Manage your products, accessories, and inventory efficiently</p>
             </div>
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-1 bg-green-50 border border-green-200 rounded-lg">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-xs text-green-700 font-medium">Auto-refresh: ON</span>
+              </div>
               <Button 
                 onClick={() => {
                   setShowStockLogs(!showStockLogs);

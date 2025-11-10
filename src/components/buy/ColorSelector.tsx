@@ -169,13 +169,13 @@ export const ColorSelector = ({ colors, selectedColor, selectedEdition, onColorC
               />
             </div>
             <div>
-              <Label htmlFor="notify-email">Email</Label>
+              <Label htmlFor="notify-email">Email *</Label>
               <Input
                 id="notify-email"
                 type="email"
                 value={notifyData.email}
                 onChange={(e) => setNotifyData({ ...notifyData, email: e.target.value })}
-                placeholder="Enter your email (optional)"
+                placeholder="Enter your email"
               />
             </div>
           </div>
@@ -184,7 +184,7 @@ export const ColorSelector = ({ colors, selectedColor, selectedEdition, onColorC
             <Button 
               disabled={isSubmitting}
               onClick={async () => {
-                if (notifyData.name && notifyData.phone) {
+                if (notifyData.name && notifyData.phone && notifyData.email) {
                   setIsSubmitting(true);
                   try {
                     // Save to database using Supabase admin client

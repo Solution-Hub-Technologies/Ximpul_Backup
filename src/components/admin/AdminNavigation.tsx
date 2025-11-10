@@ -6,7 +6,7 @@ import { getAdminNotifications, clearAdminNotifications, markNotificationsAsRead
 import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 import { 
   Package, Users, BarChart3, LogOut, ShoppingBag, 
-  Settings, Bell, ChevronDown, User, Key, UserPlus, Shield, TestTube, History
+  Settings, Bell, ChevronDown, User, Key, UserPlus, Shield, TestTube, History, Truck
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -295,6 +295,10 @@ export const AdminNavigation = () => {
                     <span>User Management</span>
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onClick={() => navigate('/admin/courier-management')}>
+                  <Truck className="mr-2 h-4 w-4" />
+                  <span>Courier Management</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate('/admin/smtp-config')}>
                   <TestTube className="mr-2 h-4 w-4" />
                   <span>Email Configuration</span>

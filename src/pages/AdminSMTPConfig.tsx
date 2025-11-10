@@ -62,6 +62,7 @@ export const AdminSMTPConfig = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [newEmail, setNewEmail] = useState('');
+  const [newEmailByConfig, setNewEmailByConfig] = useState<{[key: string]: string}>({});
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('test');
 
@@ -94,11 +95,13 @@ export const AdminSMTPConfig = () => {
     try {
       const { data, error } = await supabase
         .from('email_config')
-        .select('*');
+        .select('*')
+        .order('config_type');
       
       if (error) throw error;
       setEmailConfigs(data || []);
     } catch (error: any) {
+      console.error('Error fetching email configs:', error);
       toast.error('Failed to fetch email configs');
     }
   };
@@ -310,15 +313,17 @@ export const AdminSMTPConfig = () => {
       if (error) throw error;
       
       toast.success('Email configuration updated');
-      fetchEmailConfigs();
+      await fetchEmailConfigs();
     } catch (error: any) {
+      console.error('Error updating email config:', error);
       toast.error('Failed to update email configuration');
     }
   };
 
   const addEmailToConfig = (emails: string[], newEmail: string): string[] => {
-    if (newEmail && !emails.includes(newEmail)) {
-      return [...emails, newEmail];
+    const trimmedEmail = newEmail.trim();
+    if (trimmedEmail && !emails.includes(trimmedEmail)) {
+      return [...emails, trimmedEmail];
     }
     return emails;
   };
@@ -588,110 +593,92 @@ export const AdminSMTPConfig = () => {
         </TabsContent>
         
         <TabsContent value="config" className="space-y-6">
-          {emailConfigs.map(config => {
-            const isCustomer = config.config_type === 'customer';
-            return (
-            <Card key={config.id} className="shadow-lg border-0 bg-white/80 backdrop-blur">
-              <CardHeader className={`${isCustomer ? 'bg-gradient-to-r from-purple-500 to-pink-600' : 'bg-gradient-to-r from-blue-500 to-indigo-600'} text-white rounded-t-lg`}>
-                <CardTitle className="flex items-center gap-2 capitalize">
-                  <Mail className="w-5 h-5" />
-                  {config.config_type} Email Configuration
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 space-y-4">
+          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
+            <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-t-lg">
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="w-5 h-5" />
+                Admin Email Recipients
+              </CardTitle>
+              <p className="text-blue-100 text-sm mt-2">Manage who receives order notifications and admin alerts</p>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="space-y-6">
                 <div>
-                  <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                    To Emails {isCustomer && <span className="text-xs text-gray-500">(Read-only for customer emails)</span>}
+                  <Label className="text-lg font-semibold text-gray-800 mb-3 block">
+                    📧 Admin Email Addresses
                   </Label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {config.to_emails.map(email => (
-                      <Badge key={email} variant="secondary" className="flex items-center gap-1">
-                        {email}
+                  <p className="text-sm text-gray-600 mb-4">
+                    These emails will receive all order notifications, admin alerts, and system notifications.
+                  </p>
+                  
+                  <div className="flex flex-wrap gap-2 mb-4 p-4 bg-gray-50 rounded-lg border">
+                    {(emailConfigs.find(c => c.config_type === 'customer')?.to_emails || []).map(email => (
+                      <Badge key={email} variant="default" className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 border border-blue-200">
+                        <span>{email}</span>
                         <X 
-                          className="w-3 h-3 cursor-pointer" 
+                          className="w-4 h-4 cursor-pointer hover:text-red-600" 
                           onClick={() => {
-                            const newToEmails = removeEmailFromConfig(config.to_emails, email);
-                            updateEmailConfig(config.config_type, newToEmails, config.cc_emails);
+                            const config = emailConfigs.find(c => c.config_type === 'customer');
+                            if (config) {
+                              const newToEmails = removeEmailFromConfig(config.to_emails, email);
+                              updateEmailConfig('customer', newToEmails, config.cc_emails);
+                            }
                           }}
                         />
                       </Badge>
                     ))}
+                    {(emailConfigs.find(c => c.config_type === 'customer')?.to_emails || []).length === 0 && (
+                      <p className="text-gray-500 italic">No admin emails configured yet</p>
+                    )}
                   </div>
-                  <div className="flex gap-2">
+                  
+                  <div className="flex gap-3">
                     <Input
-                      value={newEmail}
-                      onChange={(e) => setNewEmail(e.target.value)}
-                      placeholder="Add new email"
-                      disabled={isCustomer}
-                      className={`border-gray-200 ${isCustomer ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500 focus:ring-purple-500'}`}
+                      value={newEmailByConfig['admin-emails'] || ''}
+                      onChange={(e) => setNewEmailByConfig({...newEmailByConfig, 'admin-emails': e.target.value})}
+                      placeholder="Enter admin email address (e.g., admin@ximpul.com)"
+                      className="flex-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                       onKeyPress={(e) => {
-                        if (e.key === 'Enter' && !isCustomer) {
-                          const newToEmails = addEmailToConfig(config.to_emails, newEmail);
-                          updateEmailConfig(config.config_type, newToEmails, config.cc_emails);
-                          setNewEmail('');
+                        if (e.key === 'Enter') {
+                          const email = newEmailByConfig['admin-emails'];
+                          if (email) {
+                            const config = emailConfigs.find(c => c.config_type === 'customer') || { to_emails: [], cc_emails: [] };
+                            const newToEmails = addEmailToConfig(config.to_emails, email);
+                            updateEmailConfig('customer', newToEmails, config.cc_emails);
+                            setNewEmailByConfig({...newEmailByConfig, 'admin-emails': ''});
+                          }
                         }
                       }}
                     />
                     <Button 
                       onClick={() => {
-                        if (!isCustomer) {
-                          const newToEmails = addEmailToConfig(config.to_emails, newEmail);
-                          updateEmailConfig(config.config_type, newToEmails, config.cc_emails);
-                          setNewEmail('');
+                        const email = newEmailByConfig['admin-emails'];
+                        if (email) {
+                          const config = emailConfigs.find(c => c.config_type === 'customer') || { to_emails: [], cc_emails: [] };
+                          const newToEmails = addEmailToConfig(config.to_emails, email);
+                          updateEmailConfig('customer', newToEmails, config.cc_emails);
+                          setNewEmailByConfig({...newEmailByConfig, 'admin-emails': ''});
                         }
                       }}
-                      disabled={isCustomer}
-                      className={isCustomer ? 'bg-gray-300 cursor-not-allowed' : 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white'}
+                      className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-6"
                     >
-                      Add
+                      Add Email
                     </Button>
                   </div>
                 </div>
                 
-                <div>
-                  <Label className="text-sm font-medium text-gray-700 mb-2 block">CC Emails</Label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {config.cc_emails.map(email => (
-                      <Badge key={email} variant="outline" className="flex items-center gap-1">
-                        {email}
-                        <X 
-                          className="w-3 h-3 cursor-pointer" 
-                          onClick={() => {
-                            const newCcEmails = removeEmailFromConfig(config.cc_emails, email);
-                            updateEmailConfig(config.config_type, config.to_emails, newCcEmails);
-                          }}
-                        />
-                      </Badge>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      value={newEmail}
-                      onChange={(e) => setNewEmail(e.target.value)}
-                      placeholder="Add new CC email"
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          const newCcEmails = addEmailToConfig(config.cc_emails, newEmail);
-                          updateEmailConfig(config.config_type, config.to_emails, newCcEmails);
-                          setNewEmail('');
-                        }
-                      }}
-                    />
-                    <Button 
-                      onClick={() => {
-                        const newCcEmails = addEmailToConfig(config.cc_emails, newEmail);
-                        updateEmailConfig(config.config_type, config.to_emails, newCcEmails);
-                        setNewEmail('');
-                      }}
-                    >
-                      Add CC
-                    </Button>
-                  </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-800 mb-2">📋 What emails will be sent here?</h4>
+                  <ul className="text-sm text-blue-700 space-y-1">
+                    <li>• New order notifications</li>
+                    <li>• Payment confirmations</li>
+                    <li>• System alerts and updates</li>
+                    <li>• Admin panel notifications</li>
+                  </ul>
                 </div>
-              </CardContent>
-            </Card>
-            );
-          })}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
       </div>

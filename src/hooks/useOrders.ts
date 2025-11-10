@@ -49,7 +49,7 @@ export const useOrders = () => {
       const { data, error } = await supabase
         .from('orders')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching orders:', sanitizeForLog(error?.message || 'Unknown error'));
@@ -149,6 +149,7 @@ export const useOrders = () => {
         .update({
           order_status: newStatus,
           admin_notes: notes || null,
+          updated_at: new Date().toISOString(),
           // Mark payment as completed for COD orders when shipped/delivered
           ...(shouldDeductStock && { payment_status: 'completed' })
         })
@@ -166,19 +167,22 @@ export const useOrders = () => {
         await restoreStockForOrder(currentOrder);
       }
 
-      // Update local state immediately
-      setOrders(prevOrders => 
-        prevOrders.map(order => 
+      // Update local state immediately and sort by updated_at
+      const now = new Date().toISOString();
+      setOrders(prevOrders => {
+        const updatedOrders = prevOrders.map(order => 
           order.id === orderId 
             ? { 
                 ...order, 
                 order_status: newStatus, 
                 admin_notes: notes || null,
+                updated_at: now,
                 ...(shouldDeductStock && { payment_status: 'completed' })
               }
             : order
-        )
-      );
+        );
+        return updatedOrders.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      });
       
       toast.success('Order status updated successfully');
       
@@ -205,7 +209,8 @@ export const useOrders = () => {
         .from('orders')
         .update({
           payment_status: newPaymentStatus,
-          admin_notes: notes || null
+          admin_notes: notes || null,
+          updated_at: new Date().toISOString()
         })
         .eq('id', orderId)
         .select();
@@ -222,14 +227,16 @@ export const useOrders = () => {
         await deductStockForOrder(currentOrder, `Online payment confirmed - Order ID: ${currentOrder.order_id}`);
       }
       
-      // Update local state immediately
-      setOrders(prevOrders => 
-        prevOrders.map(order => 
+      // Update local state immediately and sort by updated_at
+      const now = new Date().toISOString();
+      setOrders(prevOrders => {
+        const updatedOrders = prevOrders.map(order => 
           order.id === orderId 
-            ? { ...order, payment_status: newPaymentStatus, admin_notes: notes || null }
+            ? { ...order, payment_status: newPaymentStatus, admin_notes: notes || null, updated_at: now }
             : order
-        )
-      );
+        );
+        return updatedOrders.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      });
       
       toast.success('Payment status updated successfully');
       
@@ -247,7 +254,8 @@ export const useOrders = () => {
         .from('orders')
         .update({
           tracking_number: trackingNumber,
-          estimated_delivery: estimatedDelivery
+          estimated_delivery: estimatedDelivery,
+          updated_at: new Date().toISOString()
         })
         .eq('id', orderId);
 
@@ -256,14 +264,16 @@ export const useOrders = () => {
         throw error;
       }
       
-      // Update local state immediately
-      setOrders(prevOrders => 
-        prevOrders.map(order => 
+      // Update local state immediately and sort by updated_at
+      const now = new Date().toISOString();
+      setOrders(prevOrders => {
+        const updatedOrders = prevOrders.map(order => 
           order.id === orderId 
-            ? { ...order, tracking_number: trackingNumber, estimated_delivery: estimatedDelivery }
+            ? { ...order, tracking_number: trackingNumber, estimated_delivery: estimatedDelivery, updated_at: now }
             : order
-        )
-      );
+        );
+        return updatedOrders.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      });
       
       toast.success('Tracking information updated');
       

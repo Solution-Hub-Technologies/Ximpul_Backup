@@ -338,6 +338,35 @@ export const AdminNotifications = () => {
               <Label>Customer: {selectedNotification?.customer_name}</Label>
               <p className="text-sm text-gray-500">{selectedNotification?.customer_email}</p>
             </div>
+            
+            <div>
+              <Label className="text-sm font-medium">Quick Messages</Label>
+              <div className="grid grid-cols-1 gap-2 mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="justify-start text-left h-auto p-3 border-green-200 bg-green-50 hover:bg-green-100 text-green-800 hover:text-green-800"
+                  onClick={() => setNotifyMessage("Good news! This product is available.")}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span>Good news! This product is available.</span>
+                  </div>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="justify-start text-left h-auto p-3 border-red-200 bg-red-50 hover:bg-red-100 text-red-800 hover:text-red-800"
+                  onClick={() => setNotifyMessage("Unavailable — we'll notify you when it's back.")}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                    <span>Unavailable — we'll notify you when it's back.</span>
+                  </div>
+                </Button>
+              </div>
+            </div>
+            
             <div>
               <Label htmlFor="notify-message">Custom Message (Optional)</Label>
               <Textarea
