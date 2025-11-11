@@ -150,8 +150,7 @@ export const useOrders = () => {
           order_status: newStatus,
           admin_notes: notes || null,
           updated_at: new Date().toISOString(),
-          // Mark payment as completed for COD orders when shipped/delivered
-          ...(shouldDeductStock && { payment_status: 'completed' })
+          // Payment status remains manual for COD orders
         })
         .eq('id', orderId)
         .select();
@@ -177,7 +176,7 @@ export const useOrders = () => {
                 order_status: newStatus, 
                 admin_notes: notes || null,
                 updated_at: now,
-                ...(shouldDeductStock && { payment_status: 'completed' })
+                // Payment status updated manually only
               }
             : order
         );
