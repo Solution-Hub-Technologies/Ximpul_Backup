@@ -110,20 +110,19 @@ export const AdminNotifications = () => {
         .select('*')
         .eq('config_type', 'customer');
       
-      // Use configured emails or fallback to default
-      let adminEmails = 'ximpulshop@gmail.com';
-      let ccEmails = '';
+      if (!emailConfig || emailConfig.length === 0 || !emailConfig[0]?.to_emails?.length) {
+        console.log('⚠️ No admin email configuration found, skipping admin notification');
+        toast.error('No admin email configuration found. Please configure emails in SMTP settings.');
+        return;
+      }
       
-      if (emailConfig && emailConfig.length > 0) {
-        const config = emailConfig[0];
-        if (config?.to_emails?.length > 0) {
-          adminEmails = config.to_emails.join(',');
-          console.log('📧 Using configured TO emails for notification:', adminEmails);
-        }
-        if (config?.cc_emails?.length > 0) {
-          ccEmails = config.cc_emails.join(',');
-          console.log('📧 Using configured CC emails for notification:', ccEmails);
-        }
+      const config = emailConfig[0];
+      const adminEmails = config.to_emails.join(',');
+      const ccEmails = config.cc_emails?.length > 0 ? config.cc_emails.join(',') : '';
+      
+      console.log('📧 Using configured TO emails for notification:', adminEmails);
+      if (ccEmails) {
+        console.log('📧 Using configured CC emails for notification:', ccEmails);
       }
       
       // Send admin notification email
