@@ -18,7 +18,7 @@ if ($tran_id && $amount) {
     error_log("Payment Success Callback - tran_id: $tran_id, amount: $amount");
 
     // Get environment variables
-    $supabaseUrl = $_ENV['SUPABASE_URL'] ?? 'https://ximpul.com/api/rest/v1/orders';
+    $supabaseUrl = $_ENV['SUPABASE_URL'] ?? 'https://ximpul.com/api/rest/v1';
     $apiKey = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     
     if (empty($apiKey)) {
@@ -29,7 +29,7 @@ if ($tran_id && $amount) {
     
     // Get order by UUID with proper escaping
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '?select=*&id=eq.' . urlencode($tran_id));
+    curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/orders?select=*&id=eq.' . urlencode($tran_id));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'apikey: ' . $apiKey,
@@ -59,7 +59,7 @@ if ($tran_id && $amount) {
             ]);
             
             $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '?id=eq.' . urlencode($tran_id));
+            curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/orders?id=eq.' . urlencode($tran_id));
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
             curl_setopt($ch, CURLOPT_POSTFIELDS, $updateData);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -80,7 +80,7 @@ if ($tran_id && $amount) {
                 error_log("Deducting stock for online order: " . $order['order_id']);
                 
                 // Get product data to deduct stock
-                $productUrl = str_replace('/orders', '/products', $supabaseUrl) . '?select=*&edition=eq.' . urlencode($order['selected_edition']);
+                $productUrl = $supabaseUrl . '/products?select=*&edition=eq.' . urlencode($order['selected_edition']);
                 
                 $ch = curl_init();
                 curl_setopt($ch, CURLOPT_URL, $productUrl);
@@ -108,7 +108,7 @@ if ($tran_id && $amount) {
                             $stockUpdateData = json_encode([$stockField => $newStock]);
                             
                             $ch = curl_init();
-                            curl_setopt($ch, CURLOPT_URL, str_replace('/orders', '/products', $supabaseUrl) . '?edition=eq.' . urlencode($order['selected_edition']));
+                            curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/products?edition=eq.' . urlencode($order['selected_edition']));
                             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
                             curl_setopt($ch, CURLOPT_POSTFIELDS, $stockUpdateData);
                             curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -137,7 +137,7 @@ if ($tran_id && $amount) {
                             ]);
                             
                             $ch = curl_init();
-                            curl_setopt($ch, CURLOPT_URL, str_replace('/orders', '/stock_logs', $supabaseUrl));
+                            curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/stock_logs');
                             curl_setopt($ch, CURLOPT_POST, 1);
                             curl_setopt($ch, CURLOPT_POSTFIELDS, $stockLogData);
                             curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -160,7 +160,7 @@ if ($tran_id && $amount) {
                     
                     foreach ($order['selected_accessories'] as $accessoryName) {
                         // Get accessory data
-                        $accessoryUrl = str_replace('/orders', '/accessories', $supabaseUrl) . '?select=*&name=eq.' . urlencode($accessoryName);
+                        $accessoryUrl = $supabaseUrl . '/accessories?select=*&name=eq.' . urlencode($accessoryName);
                         
                         $ch = curl_init();
                         curl_setopt($ch, CURLOPT_URL, $accessoryUrl);
@@ -186,7 +186,7 @@ if ($tran_id && $amount) {
                                     $accessoryStockUpdateData = json_encode(['stock' => $newAccessoryStock]);
                                     
                                     $ch = curl_init();
-                                    curl_setopt($ch, CURLOPT_URL, str_replace('/orders', '/accessories', $supabaseUrl) . '?name=eq.' . urlencode($accessoryName));
+                                    curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/accessories?name=eq.' . urlencode($accessoryName));
                                     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
                                     curl_setopt($ch, CURLOPT_POSTFIELDS, $accessoryStockUpdateData);
                                     curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -213,7 +213,7 @@ if ($tran_id && $amount) {
                                     ]);
                                     
                                     $ch = curl_init();
-                                    curl_setopt($ch, CURLOPT_URL, str_replace('/orders', '/stock_logs', $supabaseUrl));
+                                    curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/stock_logs');
                                     curl_setopt($ch, CURLOPT_POST, 1);
                                     curl_setopt($ch, CURLOPT_POSTFIELDS, $accessoryLogData);
                                     curl_setopt($ch, CURLOPT_HTTPHEADER, [
