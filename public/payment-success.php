@@ -54,7 +54,7 @@ if ($tran_id && $amount) {
             
             // Update order status
             $updateData = json_encode([
-                'order_status' => 'pending',
+                'order_status' => 'processing',
                 'payment_status' => 'completed'
             ]);
             
@@ -95,12 +95,19 @@ if ($tran_id && $amount) {
                 $productCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 curl_close($ch);
                 
+                error_log("Product API Response Code: $productCode");
+                error_log("Product API Response: $productResponse");
+                error_log("Looking for edition: " . $order['selected_edition']);
+                
                 if ($productCode === 200) {
                     $products = json_decode($productResponse, true);
+                    error_log("Products found: " . count($products ?? []));
                     if ($products && count($products) > 0) {
                         $product = $products[0];
+                        error_log("Product found: " . json_encode($product));
                         $stockField = $order['selected_color'] === 'obsidian' ? 'stock_black' : 'stock_grey';
                         $currentStock = $product[$stockField] ?? 0;
+                        error_log("Stock field: $stockField, Current stock: $currentStock");
                         
                         if ($currentStock > 0) {
                             // Update stock
@@ -122,6 +129,7 @@ if ($tran_id && $amount) {
                             curl_close($ch);
                             
                             error_log("Stock update response code: $stockUpdateCode");
+                            error_log("Stock update response: $stockUpdateResponse");
                             error_log("Stock deducted: $currentStock -> $newStock for " . $order['selected_color']);
                             
                             // Log stock change
@@ -247,34 +255,6 @@ if ($tran_id && $amount) {
                         }
                     }
                 }
-            }
-            
-            // Deduct stock for successful online payment
-            if ($updateCode === 200 || $updateCode === 204) {
-                error_log("Deducting stock for online order: $tran_id");
-                
-                // Call stock deduction function
-                $stockData = json_encode([
-                    'orderId' => $tran_id,
-                    'newStatus' => 'confirmed'
-                ]);
-                
-                $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/functions/v1/deduct-stock');
-                curl_setopt($ch, CURLOPT_POST, 1);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, $stockData);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'apikey: ' . $apiKey,
-                    'Authorization: Bearer ' . $apiKey,
-                    'Content-Type: application/json'
-                ]);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                $stockResponse = curl_exec($ch);
-                $stockCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-                
-                error_log("Stock Deduction Response Code: $stockCode");
-                error_log("Stock Deduction Response: $stockResponse");
             }
             
             // Send customer email with same format as COD
