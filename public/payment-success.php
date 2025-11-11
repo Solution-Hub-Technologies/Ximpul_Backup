@@ -53,19 +53,18 @@ if ($tran_id && $amount) {
             $order = $orders[0];
             error_log("Order details: " . print_r($order, true));
             
-            // Check if stock has already been deducted to prevent duplicate deduction
-            if (isset($order['stock_deducted']) && $order['stock_deducted'] === true) {
-                error_log("Stock already deducted for order: " . $order['order_id']);
-                // Redirect to thank you page without processing stock again
+            // Check if order is already processed to prevent duplicate stock deduction
+            if ($order['order_status'] === 'processing' && $order['payment_status'] === 'completed') {
+                error_log("Order already processed, skipping stock deduction: " . $order['order_id']);
+                // Redirect to thank you page without processing again
                 header("Location: https://ximpul.com/thank-you?orderId=" . urlencode($order['order_id']) . "&totalAmount=" . urlencode($order['total_amount']) . "&paymentMethod=online");
                 exit;
             }
             
-            // Update order status and mark stock as deducted
+            // Update order status
             $updateData = json_encode([
                 'order_status' => 'processing',
-                'payment_status' => 'completed',
-                'stock_deducted' => true
+                'payment_status' => 'completed'
             ]);
             
             $ch = curl_init();
