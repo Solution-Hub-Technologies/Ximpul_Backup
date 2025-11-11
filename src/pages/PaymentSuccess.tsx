@@ -30,115 +30,10 @@ export const PaymentSuccess = () => {
 
         if (error) throw error;
 
-        // 2. Deduct stock for successful online payment
-        console.log('Deducting stock for order:', order.order_id, 'Edition:', order.selected_edition, 'Color:', order.selected_color);
-        console.log('Full order data:', order);
-        
-        const { data: editionData, error: editionError } = await supabaseAdmin
-          .from('products')
-          .select('*')
-          .eq('edition', order.selected_edition)
-          .single();
+        // 2. Stock deduction is handled by payment-success.php to avoid double deduction
+        console.log('Stock deduction handled by payment-success.php for order:', order.order_id);
 
-        console.log('Edition data:', editionData, 'Error:', editionError);
-
-        if (!editionError && editionData) {
-          const stockField = order.selected_color === 'obsidian' ? 'stock_black' : 'stock_grey';
-          const currentStock = editionData[stockField] || 0;
-          
-          console.log('Current stock for', stockField, ':', currentStock);
-          
-          if (currentStock > 0) {
-            const { error: updateError } = await supabaseAdmin
-              .from('products')
-              .update({ [stockField]: currentStock - 1 })
-              .eq('edition', order.selected_edition);
-            
-            console.log('Stock update error:', updateError);
-            
-            // Log stock change
-            const { error: logError } = await supabaseAdmin
-              .from('stock_logs')
-              .insert({
-                item_id: editionData.id,
-                item_type: 'product',
-                item_name: order.selected_edition,
-                color: order.selected_color,
-                change_amount: -1,
-                reason: `Online payment completed - Order ID: ${order.order_id}`,
-                previous_stock: currentStock,
-                new_stock: currentStock - 1
-              });
-            
-            if (logError) {
-              console.error('Stock log error:', logError);
-            } else {
-              console.log('Stock log created successfully for product:', order.selected_edition);
-              console.log('Stock log data inserted:', {
-                item_id: editionData.id,
-                item_type: 'product',
-                item_name: order.selected_edition,
-                color: order.selected_color,
-                change_amount: -1,
-                reason: `Online payment completed - Order ID: ${order.order_id}`,
-                previous_stock: currentStock,
-                new_stock: currentStock - 1
-              });
-            }
-          } else {
-            console.log('Stock is 0 or negative, not deducting');
-          }
-        } else {
-          console.log('Failed to fetch edition data or no data found');
-        }
-
-        // 3. Deduct accessory stock
-        if (order.selected_accessories && order.selected_accessories.length > 0) {
-          for (const accessoryName of order.selected_accessories) {
-            const { data: accessoryData, error: accessoryError } = await supabaseAdmin
-              .from('accessories')
-              .select('*')
-              .eq('name', accessoryName)
-              .single();
-
-            if (!accessoryError && accessoryData) {
-              let stockField = 'stock_default';
-              if (accessoryName.toLowerCase() === 'straw cap') {
-                stockField = order.selected_color === 'obsidian' ? 'stock_black' : 'stock_grey';
-              }
-              
-              const currentStock = accessoryData[stockField] || 0;
-              if (currentStock > 0) {
-                await supabaseAdmin
-                  .from('accessories')
-                  .update({ [stockField]: currentStock - 1 })
-                  .eq('name', accessoryName);
-                
-                // Log accessory stock change
-                const { error: accessoryLogError } = await supabaseAdmin
-                  .from('stock_logs')
-                  .insert({
-                    item_id: accessoryData.id,
-                    item_type: 'accessory',
-                    item_name: accessoryName,
-                    color: accessoryName.toLowerCase() === 'straw cap' ? order.selected_color : 'default',
-                    change_amount: -1,
-                    reason: `Online payment completed - Order ID: ${order.order_id}`,
-                    previous_stock: currentStock,
-                    new_stock: currentStock - 1
-                  });
-                
-                if (accessoryLogError) {
-                  console.error('Accessory stock log error:', accessoryLogError);
-                } else {
-                  console.log('Accessory stock log created successfully for:', accessoryName);
-                }
-              }
-            }
-          }
-        }
-
-        // 4. Send confirmation emails using direct API
+        // 3. Send confirmation emails using direct API
         console.log('📧 Sending order emails for online payment...');
         try {
           const response = await fetch('https://ximpul.com:3002/send-order-email', {
@@ -168,7 +63,7 @@ export const PaymentSuccess = () => {
           console.error('❌ Email sending error:', error);
         }
 
-        // 5. Redirect to thank you page
+        // 4. Redirect to thank you page
         const searchParams = new URLSearchParams({
           orderId: order.id,
           paymentMethod: 'online',
