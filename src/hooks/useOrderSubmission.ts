@@ -180,8 +180,8 @@ export const useOrderSubmission = () => {
             .select('*');
           console.log('📧 All email configs in database:', JSON.stringify(allEmailConfigs, null, 2));
           
-          // Use configured emails or fallback to default
-          let adminEmails = 'ximpulshop@gmail.com'; // Default fallback
+          // Use configured emails only
+          let adminEmails = '';
           let ccEmails = '';
           
           if (emailConfig && emailConfig.length > 0) {
@@ -300,6 +300,13 @@ export const useOrderSubmission = () => {
           // Add CC emails if configured
           if (ccEmails) {
             emailParams.cc = ccEmails;
+          }
+          
+          // Skip email if no admin emails configured
+          if (!adminEmails) {
+            console.log('⚠️ No admin emails configured, skipping admin notification');
+            console.log('⚠️ Please configure admin emails in Admin > SMTP Config > Email Recipients');
+            return;
           }
           
           console.log('📧 STEP 3.2: Sending admin email with params:', emailParams);

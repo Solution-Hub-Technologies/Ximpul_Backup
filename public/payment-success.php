@@ -296,21 +296,66 @@ if ($tran_id && $amount) {
             // Send admin emails with same format as COD
             $adminEmailHTML = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>New Order Alert - Ximpul Admin</title></head><body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f1f5f9;"><div style="max-width: 650px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"><div style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); padding: 30px; text-align: center;"><div style="background-color: rgba(255,255,255,0.2); width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 24px;">!</span></div><h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 0 0 5px 0;">New Order Alert</h1><p style="color: #fecaca; font-size: 14px; margin: 0;">Immediate attention required</p></div><div style="padding: 30px;"><div style="background: linear-gradient(135deg, #1f2937 0%, #374151 100%); border-radius: 12px; padding: 20px; margin-bottom: 25px; text-align: center;"><h2 style="color: #ffffff; font-size: 20px; font-weight: 600; margin: 0 0 10px 0;">Order #' . htmlspecialchars($order['order_id']) . '</h2><p style="color: #d1d5db; font-size: 14px; margin: 0;">Total: <span style="font-size: 18px; font-weight: 700; color: #10b981;">' . htmlspecialchars($order['total_amount']) . ' BDT</span></p></div><div style="background-color: #f8fafc; border-radius: 12px; padding: 25px; margin-bottom: 25px;"><h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Customer Information</h3><div style="display: grid; gap: 12px;"><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Name:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['customer_name']) . '</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Phone:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['customer_phone']) . '</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Email:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['customer_email']) . '</span></div><div style="padding: 8px 0;"><span style="color: #64748b; font-weight: 500; display: block; margin-bottom: 5px;">Address:</span><span style="color: #1f2937; font-weight: 600; background-color: #ffffff; padding: 10px; border-radius: 6px; display: block;">' . htmlspecialchars($order['customer_address']) . '</span></div></div></div><div style="background-color: #f0f9ff; border-radius: 12px; padding: 25px; margin-bottom: 25px;"><h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px;">Product Details</h3><div style="display: grid; gap: 12px;"><div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Edition:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['selected_edition']) . '</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Color:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['selected_color']) . '</span></div>' . (!empty($order['engraving_text']) ? '<div style="padding: 8px 0;"><span style="color: #1e40af; font-weight: 500; display: block; margin-bottom: 5px;">Engraving:</span><span style="color: #1f2937; font-weight: 600; background-color: #ffffff; padding: 10px; border-radius: 6px; display: block; font-style: italic;">' . htmlspecialchars($order['engraving_text']) . '</span></div>' : '') . '<div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Payment Method:</span><span style="color: #1f2937; font-weight: 600;">Online Payment</span></div></div></div><div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 12px; padding: 20px; text-align: center;"><h4 style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0 0 10px 0;">Action Required</h4><p style="color: #fef3c7; margin: 0 0 15px 0; font-size: 14px;">Please process this order in the admin dashboard</p><a href="https://ximpul.com/admin/orders" style="display: inline-block; background-color: #ffffff; color: #d97706; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">View in Dashboard</a></div></div><div style="background-color: #1f2937; padding: 20px; text-align: center;"><p style="color: #9ca3af; font-size: 12px; margin: 0;">Ximpul Admin Panel | Order Management System</p><p style="color: #6b7280; font-size: 11px; margin: 5px 0 0 0;">This is an automated notification</p></div></div></body></html>';
             
+            // Fetch admin email configuration from database
+            $emailConfigUrl = $supabaseUrl . '/email_config?select=*&config_type=eq.customer';
+            
             $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, 'https://ximpul.com/smtp-mailer.php');
-            curl_setopt($ch, CURLOPT_POST, 1);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-                'to' => 'ximpulshop@gmail.com',
-                'cc' => 'nahid@sohub.com.bd,shariar@sohub.com.bd,sadiq.shahrior19@gmail.com,sunnyat@sohub.com.bd',
+            curl_setopt($ch, CURLOPT_URL, $emailConfigUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'apikey: ' . $apiKey,
+                'Authorization: Bearer ' . $apiKey,
+                'Content-Type: application/json'
+            ]);
+            
+            $emailConfigResponse = curl_exec($ch);
+            $emailConfigCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            // Use configured emails only
+            $adminEmails = '';
+            $ccEmails = '';
+            
+            if ($emailConfigCode === 200) {
+                $emailConfigs = json_decode($emailConfigResponse, true);
+                if ($emailConfigs && count($emailConfigs) > 0) {
+                    $config = $emailConfigs[0];
+                    if (!empty($config['to_emails']) && is_array($config['to_emails'])) {
+                        $adminEmails = implode(',', $config['to_emails']);
+                    }
+                    if (!empty($config['cc_emails']) && is_array($config['cc_emails'])) {
+                        $ccEmails = implode(',', $config['cc_emails']);
+                    }
+                }
+            }
+            
+            $emailParams = [
+                'to' => $adminEmails,
                 'subject' => 'Payment Received - Order #' . $order['order_id'],
                 'message' => $adminEmailHTML,
                 'from_name' => 'Ximpul Shop'
-            ]));
+            ];
+            
+            // Add CC emails if configured
+            if (!empty($ccEmails)) {
+                $emailParams['cc'] = $ccEmails;
+            }
+            
+            // Skip email if no admin emails configured
+            if (empty($adminEmails)) {
+                error_log("Warning: No admin emails configured, skipping admin notification");
+                error_log("Please configure admin emails in Admin > SMTP Config > Email Recipients");
+            } else {
+                $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, 'https://ximpul.com/smtp-mailer.php');
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($emailParams));
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             $emailResponse = curl_exec($ch);
             curl_close($ch);
             
             error_log("Admin Email Response: $emailResponse");
+            }
             
             // Auto-create Steadfast parcel for online orders
             try {
