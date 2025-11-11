@@ -21,6 +21,12 @@ export const useBuySection = () => {
   const { data: accessories = [], isLoading: loadingAccessories, error: accessoriesError } = useAccessories();
   const orderMutation = useOrderSubmission();
 
+  // Reset accessories when edition changes
+  const handleEditionChange = (edition: string) => {
+    setSelectedEdition(edition);
+    setSelectedAccessories([]); // Clear accessories when edition changes
+  };
+
   const handleAccessoryToggle = (accessory: string) => {
     if (!selectedColor) return;
     setSelectedAccessories(prev => 
@@ -109,7 +115,7 @@ export const useBuySection = () => {
     accessoriesError,
     orderMutation,
     // Actions
-    setSelectedEdition,
+    setSelectedEdition: handleEditionChange,
     setSelectedColor,
     handleEngravingChange,
     setCustomerName,
