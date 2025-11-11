@@ -13,6 +13,12 @@ interface AccessoriesCarouselProps {
 export const AccessoriesCarousel = ({ accessories, selectedAccessories, selectedColor, selectedEdition, onAccessoryToggle }: AccessoriesCarouselProps) => {
   const isDisabled = !selectedColor || selectedEdition !== 'base';
   
+  console.log('AccessoriesCarousel render:', {
+    selectedEdition,
+    selectedAccessories,
+    isDisabled
+  });
+  
   // Check if accessory is out of stock based on selected color
   const isOutOfStock = (accessory: Accessory) => {
     if (accessory.name.toLowerCase() === 'straw cap') {

@@ -23,8 +23,11 @@ export const useBuySection = () => {
 
   // Reset accessories when edition changes
   const handleEditionChange = (edition: string) => {
+    console.log('Edition changing from', selectedEdition, 'to', edition);
+    console.log('Clearing accessories:', selectedAccessories);
     setSelectedEdition(edition);
     setSelectedAccessories([]); // Clear accessories when edition changes
+    console.log('Accessories cleared');
   };
 
   const handleAccessoryToggle = (accessory: string) => {
