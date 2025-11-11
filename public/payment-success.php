@@ -75,6 +75,192 @@ if ($tran_id && $amount) {
             error_log("Update Response Code: $updateCode");
             error_log("Update Response: $updateResponse");
             
+            // Deduct stock for successful online payment
+            if ($updateCode === 200 || $updateCode === 204) {
+                error_log("Deducting stock for online order: " . $order['order_id']);
+                
+                // Get product data to deduct stock
+                $productUrl = str_replace('/orders', '/products', $supabaseUrl) . '?select=*&edition=eq.' . urlencode($order['selected_edition']);
+                
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $productUrl);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'apikey: ' . $apiKey,
+                    'Authorization: Bearer ' . $apiKey,
+                    'Content-Type: application/json'
+                ]);
+                
+                $productResponse = curl_exec($ch);
+                $productCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                
+                if ($productCode === 200) {
+                    $products = json_decode($productResponse, true);
+                    if ($products && count($products) > 0) {
+                        $product = $products[0];
+                        $stockField = $order['selected_color'] === 'obsidian' ? 'stock_black' : 'stock_grey';
+                        $currentStock = $product[$stockField] ?? 0;
+                        
+                        if ($currentStock > 0) {
+                            // Update stock
+                            $newStock = $currentStock - 1;
+                            $stockUpdateData = json_encode([$stockField => $newStock]);
+                            
+                            $ch = curl_init();
+                            curl_setopt($ch, CURLOPT_URL, str_replace('/orders', '/products', $supabaseUrl) . '?edition=eq.' . urlencode($order['selected_edition']));
+                            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+                            curl_setopt($ch, CURLOPT_POSTFIELDS, $stockUpdateData);
+                            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                'apikey: ' . $apiKey,
+                                'Authorization: Bearer ' . $apiKey,
+                                'Content-Type: application/json'
+                            ]);
+                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                            $stockUpdateResponse = curl_exec($ch);
+                            $stockUpdateCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                            curl_close($ch);
+                            
+                            error_log("Stock update response code: $stockUpdateCode");
+                            error_log("Stock deducted: $currentStock -> $newStock for " . $order['selected_color']);
+                            
+                            // Log stock change
+                            $stockLogData = json_encode([
+                                'item_id' => $product['id'],
+                                'item_type' => 'product',
+                                'item_name' => $order['selected_edition'],
+                                'color' => $order['selected_color'],
+                                'change_amount' => -1,
+                                'reason' => 'Online payment confirmed - Order ID: ' . $order['order_id'],
+                                'previous_stock' => $currentStock,
+                                'new_stock' => $newStock
+                            ]);
+                            
+                            $ch = curl_init();
+                            curl_setopt($ch, CURLOPT_URL, str_replace('/orders', '/stock_logs', $supabaseUrl));
+                            curl_setopt($ch, CURLOPT_POST, 1);
+                            curl_setopt($ch, CURLOPT_POSTFIELDS, $stockLogData);
+                            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                'apikey: ' . $apiKey,
+                                'Authorization: Bearer ' . $apiKey,
+                                'Content-Type: application/json'
+                            ]);
+                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                            curl_exec($ch);
+                            curl_close($ch);
+                        } else {
+                            error_log("Warning: No stock available for " . $order['selected_color'] . " - Order: " . $order['order_id']);
+                        }
+                    }
+                }
+                
+                // Deduct accessories stock
+                if (!empty($order['selected_accessories']) && is_array($order['selected_accessories'])) {
+                    error_log("Deducting accessories stock: " . json_encode($order['selected_accessories']));
+                    
+                    foreach ($order['selected_accessories'] as $accessoryName) {
+                        // Get accessory data
+                        $accessoryUrl = str_replace('/orders', '/accessories', $supabaseUrl) . '?select=*&name=eq.' . urlencode($accessoryName);
+                        
+                        $ch = curl_init();
+                        curl_setopt($ch, CURLOPT_URL, $accessoryUrl);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                            'apikey: ' . $apiKey,
+                            'Authorization: Bearer ' . $apiKey,
+                            'Content-Type: application/json'
+                        ]);
+                        
+                        $accessoryResponse = curl_exec($ch);
+                        $accessoryCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
+                        
+                        if ($accessoryCode === 200) {
+                            $accessories = json_decode($accessoryResponse, true);
+                            if ($accessories && count($accessories) > 0) {
+                                $accessory = $accessories[0];
+                                $currentAccessoryStock = $accessory['stock'] ?? 0;
+                                
+                                if ($currentAccessoryStock > 0) {
+                                    $newAccessoryStock = $currentAccessoryStock - 1;
+                                    $accessoryStockUpdateData = json_encode(['stock' => $newAccessoryStock]);
+                                    
+                                    $ch = curl_init();
+                                    curl_setopt($ch, CURLOPT_URL, str_replace('/orders', '/accessories', $supabaseUrl) . '?name=eq.' . urlencode($accessoryName));
+                                    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+                                    curl_setopt($ch, CURLOPT_POSTFIELDS, $accessoryStockUpdateData);
+                                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                        'apikey: ' . $apiKey,
+                                        'Authorization: Bearer ' . $apiKey,
+                                        'Content-Type: application/json'
+                                    ]);
+                                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                    curl_exec($ch);
+                                    curl_close($ch);
+                                    
+                                    error_log("Accessory stock deducted: $accessoryName ($currentAccessoryStock -> $newAccessoryStock)");
+                                    
+                                    // Log accessory stock change
+                                    $accessoryLogData = json_encode([
+                                        'item_id' => $accessory['id'],
+                                        'item_type' => 'accessory',
+                                        'item_name' => $accessoryName,
+                                        'color' => null,
+                                        'change_amount' => -1,
+                                        'reason' => 'Online payment confirmed - Order ID: ' . $order['order_id'],
+                                        'previous_stock' => $currentAccessoryStock,
+                                        'new_stock' => $newAccessoryStock
+                                    ]);
+                                    
+                                    $ch = curl_init();
+                                    curl_setopt($ch, CURLOPT_URL, str_replace('/orders', '/stock_logs', $supabaseUrl));
+                                    curl_setopt($ch, CURLOPT_POST, 1);
+                                    curl_setopt($ch, CURLOPT_POSTFIELDS, $accessoryLogData);
+                                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                        'apikey: ' . $apiKey,
+                                        'Authorization: Bearer ' . $apiKey,
+                                        'Content-Type: application/json'
+                                    ]);
+                                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                    curl_exec($ch);
+                                    curl_close($ch);
+                                } else {
+                                    error_log("Warning: No stock available for accessory: $accessoryName - Order: " . $order['order_id']);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Deduct stock for successful online payment
+            if ($updateCode === 200 || $updateCode === 204) {
+                error_log("Deducting stock for online order: $tran_id");
+                
+                // Call stock deduction function
+                $stockData = json_encode([
+                    'orderId' => $tran_id,
+                    'newStatus' => 'confirmed'
+                ]);
+                
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/functions/v1/deduct-stock');
+                curl_setopt($ch, CURLOPT_POST, 1);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $stockData);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'apikey: ' . $apiKey,
+                    'Authorization: Bearer ' . $apiKey,
+                    'Content-Type: application/json'
+                ]);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                $stockResponse = curl_exec($ch);
+                $stockCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                
+                error_log("Stock Deduction Response Code: $stockCode");
+                error_log("Stock Deduction Response: $stockResponse");
+            }
+            
             // Send customer email with same format as COD
             if (!empty($order['customer_email'])) {
                 // Build secure email template
