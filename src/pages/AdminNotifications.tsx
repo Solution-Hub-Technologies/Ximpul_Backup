@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 import { Bell, Mail, Phone, Calendar, Check, X, Send, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import Swal from 'sweetalert2';
 
 interface StockNotification {
   id: string;
@@ -50,140 +51,176 @@ export const AdminNotifications = () => {
     fetchStockNotifications();
   }, []);
 
-  const handleNotifyCustomer = async () => {
-    if (!selectedNotification) return;
+  const handleNotifyAll = async () => {
+    const pendingWithEmail = pendingNotifications.filter(n => n.customer_email);
     
+    if (pendingWithEmail.length === 0) {
+      toast.error('No pending notifications with email addresses found');
+      return;
+    }
+
+    const result = await Swal.fire({
+      title: 'Notify All Customers?',
+      text: `This will send notifications to ${pendingWithEmail.length} customers with email addresses. Are you sure?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, notify all!',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!result.isConfirmed) return;
+
     setIsSubmitting(true);
-    try {
-      // Send emails using same system as orders and contacts
-      const { supabase } = await import('@/integrations/supabase/client');
-      
-      const defaultMessage = `Your requested ${selectedNotification.color_requested} is now available for immediate purchase. Don't wait - limited stock available!`;
-      const finalMessage = notifyMessage || defaultMessage;
-      
-      // Send customer notification email
-      if (selectedNotification.customer_email) {
-        // Fetch customer email template
-        const { data: customerTemplate } = await supabase
-          .from('email_templates')
-          .select('*')
-          .eq('type', 'notify_customer')
-          .single();
-        
-        let customerEmailHTML = '';
-        let customerSubject = `Good News! ${selectedNotification.color_requested} is Available - Ximpul`;
-        
-        if (customerTemplate) {
-          console.log('✅ Using notify customer template:', customerTemplate.name);
-          customerEmailHTML = customerTemplate.template
-            .replace(/\$\{customerName\}/g, selectedNotification.customer_name)
-            .replace(/\$\{color\}/g, selectedNotification.color_requested)
-            .replace(/\$\{customMessage\}/g, finalMessage)
-            .replace(/{{customerName}}/g, selectedNotification.customer_name)
-            .replace(/{{color}}/g, selectedNotification.color_requested)
-            .replace(/{{customMessage}}/g, finalMessage);
-          
-          customerSubject = customerTemplate.subject
-            .replace(/\$\{color\}/g, selectedNotification.color_requested)
-            .replace(/{{color}}/g, selectedNotification.color_requested);
-        } else {
-          console.log('⚠️ No notify customer template found, using fallback');
-          customerEmailHTML = `<h2>Good News!</h2><p>Dear ${selectedNotification.customer_name},</p><p>${finalMessage}</p><p>Visit our website to place your order now!</p><p>Best regards,<br>Team Ximpul</p>`;
-        }
-        
-        await fetch('https://ximpul.com/smtp-mailer.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            to: selectedNotification.customer_email,
-            subject: customerSubject,
-            message: customerEmailHTML,
-            from_name: 'Ximpul Shop'
-          })
-        });
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const notification of pendingWithEmail) {
+      try {
+        await notifyCustomer(notification, 'Good news! Your requested product is now available.');
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to notify ${notification.customer_name}:`, error);
+        errorCount++;
       }
-      
-      // Fetch admin email configuration
-      console.log('📧 Fetching admin email configuration for notification...');
-      const { data: emailConfig } = await supabase
-        .from('email_config')
-        .select('*')
-        .eq('config_type', 'customer');
-      
-      if (!emailConfig || emailConfig.length === 0 || !emailConfig[0]?.to_emails?.length) {
-        console.log('⚠️ No admin email configuration found, skipping admin notification');
-        toast.error('No admin email configuration found. Please configure emails in SMTP settings.');
-        return;
-      }
-      
-      const config = emailConfig[0];
-      const adminEmails = config.to_emails.join(',');
-      const ccEmails = config.cc_emails?.length > 0 ? config.cc_emails.join(',') : '';
-      
-      console.log('📧 Using configured TO emails for notification:', adminEmails);
-      if (ccEmails) {
-        console.log('📧 Using configured CC emails for notification:', ccEmails);
-      }
-      
-      // Send admin notification email
-      const { data: adminTemplate } = await supabase
+    }
+
+    setIsSubmitting(false);
+    
+    if (errorCount === 0) {
+      toast.success(`Successfully notified all ${successCount} customers!`);
+    } else {
+      toast.warning(`Notified ${successCount} customers, ${errorCount} failed`);
+    }
+    
+    fetchStockNotifications();
+  };
+
+  const notifyCustomer = async (notification: StockNotification, message: string) => {
+    const { supabase } = await import('@/integrations/supabase/client');
+    
+    const defaultMessage = `Your requested ${notification.color_requested} is now available for immediate purchase. Don't wait - limited stock available!`;
+    const finalMessage = message || defaultMessage;
+    
+    // Send customer notification email
+    if (notification.customer_email) {
+      const { data: customerTemplate } = await supabase
         .from('email_templates')
         .select('*')
-        .eq('type', 'notify_admin')
+        .eq('type', 'notify_customer')
         .single();
       
-      let adminEmailHTML = '';
-      let adminSubject = `Customer Notified - ${selectedNotification.color_requested}`;
+      let customerEmailHTML = '';
+      let customerSubject = `Good News! ${notification.color_requested} is Available - Ximpul`;
       
-      if (adminTemplate) {
-        console.log('✅ Using notify admin template:', adminTemplate.name);
-        adminEmailHTML = adminTemplate.template
-          .replace(/\$\{customerName\}/g, selectedNotification.customer_name)
-          .replace(/\$\{customerEmail\}/g, selectedNotification.customer_email || 'Not provided')
-          .replace(/\$\{customerPhone\}/g, selectedNotification.customer_phone)
-          .replace(/\$\{color\}/g, selectedNotification.color_requested)
+      if (customerTemplate) {
+        customerEmailHTML = customerTemplate.template
+          .replace(/\$\{customerName\}/g, notification.customer_name)
+          .replace(/\$\{color\}/g, notification.color_requested)
           .replace(/\$\{customMessage\}/g, finalMessage)
-          .replace(/{{customerName}}/g, selectedNotification.customer_name)
-          .replace(/{{customerEmail}}/g, selectedNotification.customer_email || 'Not provided')
-          .replace(/{{customerPhone}}/g, selectedNotification.customer_phone)
-          .replace(/{{color}}/g, selectedNotification.color_requested)
+          .replace(/{{customerName}}/g, notification.customer_name)
+          .replace(/{{color}}/g, notification.color_requested)
           .replace(/{{customMessage}}/g, finalMessage);
         
-        adminSubject = adminTemplate.subject
-          .replace(/\$\{color\}/g, selectedNotification.color_requested)
-          .replace(/{{color}}/g, selectedNotification.color_requested);
+        customerSubject = customerTemplate.subject
+          .replace(/\$\{color\}/g, notification.color_requested)
+          .replace(/{{color}}/g, notification.color_requested);
       } else {
-        console.log('⚠️ No notify admin template found, using fallback');
-        adminEmailHTML = `<h2>Customer Notification Sent</h2><p><strong>Customer:</strong> ${selectedNotification.customer_name}</p><p><strong>Email:</strong> ${selectedNotification.customer_email}</p><p><strong>Phone:</strong> ${selectedNotification.customer_phone}</p><p><strong>Color:</strong> ${selectedNotification.color_requested}</p><p><strong>Message Sent:</strong> ${finalMessage}</p><p>Customer has been notified about stock availability.</p>`;
-      }
-      
-      const adminEmailParams: any = {
-        to: adminEmails,
-        subject: adminSubject,
-        message: adminEmailHTML,
-        from_name: 'Ximpul Shop'
-      };
-      
-      if (ccEmails) {
-        adminEmailParams.cc = ccEmails;
+        customerEmailHTML = `<h2>Good News!</h2><p>Dear ${notification.customer_name},</p><p>${finalMessage}</p><p>Visit our website to place your order now!</p><p>Best regards,<br>Team Ximpul</p>`;
       }
       
       await fetch('https://ximpul.com/smtp-mailer.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams(adminEmailParams)
-      });
-
-      // Update notification status
-      const { error } = await supabaseAdmin
-        .from('stock_notifications')
-        .update({ 
-          is_notified: true, 
-          notified_at: new Date().toISOString() 
+        body: new URLSearchParams({
+          to: notification.customer_email,
+          subject: customerSubject,
+          message: customerEmailHTML,
+          from_name: 'Ximpul Shop'
         })
-        .eq('id', selectedNotification.id);
+      });
+    }
+    
+    // Fetch admin email configuration
+    const { data: emailConfig } = await supabase
+      .from('email_config')
+      .select('*')
+      .eq('config_type', 'customer');
+    
+    if (!emailConfig || emailConfig.length === 0 || !emailConfig[0]?.to_emails?.length) {
+      throw new Error('No admin email configuration found');
+    }
+    
+    const config = emailConfig[0];
+    const adminEmails = config.to_emails.join(',');
+    const ccEmails = config.cc_emails?.length > 0 ? config.cc_emails.join(',') : '';
+    
+    // Send admin notification email
+    const { data: adminTemplate } = await supabase
+      .from('email_templates')
+      .select('*')
+      .eq('type', 'notify_admin')
+      .single();
+    
+    let adminEmailHTML = '';
+    let adminSubject = `Customer Notified - ${notification.color_requested}`;
+    
+    if (adminTemplate) {
+      adminEmailHTML = adminTemplate.template
+        .replace(/\$\{customerName\}/g, notification.customer_name)
+        .replace(/\$\{customerEmail\}/g, notification.customer_email || 'Not provided')
+        .replace(/\$\{customerPhone\}/g, notification.customer_phone)
+        .replace(/\$\{color\}/g, notification.color_requested)
+        .replace(/\$\{customMessage\}/g, finalMessage)
+        .replace(/{{customerName}}/g, notification.customer_name)
+        .replace(/{{customerEmail}}/g, notification.customer_email || 'Not provided')
+        .replace(/{{customerPhone}}/g, notification.customer_phone)
+        .replace(/{{color}}/g, notification.color_requested)
+        .replace(/{{customMessage}}/g, finalMessage);
+      
+      adminSubject = adminTemplate.subject
+        .replace(/\$\{color\}/g, notification.color_requested)
+        .replace(/{{color}}/g, notification.color_requested);
+    } else {
+      adminEmailHTML = `<h2>Customer Notification Sent</h2><p><strong>Customer:</strong> ${notification.customer_name}</p><p><strong>Email:</strong> ${notification.customer_email}</p><p><strong>Phone:</strong> ${notification.customer_phone}</p><p><strong>Color:</strong> ${notification.color_requested}</p><p><strong>Message Sent:</strong> ${finalMessage}</p><p>Customer has been notified about stock availability.</p>`;
+    }
+    
+    const adminEmailParams: any = {
+      to: adminEmails,
+      subject: adminSubject,
+      message: adminEmailHTML,
+      from_name: 'Ximpul Shop'
+    };
+    
+    if (ccEmails) {
+      adminEmailParams.cc = ccEmails;
+    }
+    
+    await fetch('https://ximpul.com/smtp-mailer.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(adminEmailParams)
+    });
 
-      if (error) throw error;
+    // Update notification status
+    await supabaseAdmin
+      .from('stock_notifications')
+      .update({ 
+        is_notified: true, 
+        notified_at: new Date().toISOString() 
+      })
+      .eq('id', notification.id);
+  };
+
+  const handleNotifyCustomer = async () => {
+    if (!selectedNotification) return;
+    
+    setIsSubmitting(true);
+    try {
+      const finalMessage = notifyMessage || `Your requested ${selectedNotification.color_requested} is now available for immediate purchase. Don't wait - limited stock available!`;
+      
+      await notifyCustomer(selectedNotification, finalMessage);
 
       toast.success('Customer and admin notified successfully!');
       setIsNotifyModalOpen(false);
@@ -282,10 +319,23 @@ export const AdminNotifications = () => {
       {pendingNotifications.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-red-500" />
-              Pending Notifications ({pendingNotifications.length})
-            </CardTitle>
+            <div className="flex justify-between items-center">
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-red-500" />
+                Pending Notifications ({pendingNotifications.length})
+              </CardTitle>
+              {pendingNotifications.filter(n => n.customer_email).length > 0 && (
+                <Button
+                  onClick={handleNotifyAll}
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2"
+                  size="sm"
+                >
+                  <Send className="h-4 w-4" />
+                  {isSubmitting ? 'Notifying...' : 'Notify All'}
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
