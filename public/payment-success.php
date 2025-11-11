@@ -179,14 +179,28 @@ if ($tran_id && $amount) {
                             $accessories = json_decode($accessoryResponse, true);
                             if ($accessories && count($accessories) > 0) {
                                 $accessory = $accessories[0];
-                                $currentAccessoryStock = $accessory['stock'] ?? 0;
+                                
+                                // Straw Cap uses color-based stock, others use stock_default
+                                $isStrawCap = strtolower($accessoryName) === 'straw cap';
+                                
+                                if ($isStrawCap) {
+                                    // For Straw Cap, use color-based stock matching the bottle color
+                                    $accessoryStockField = $order['selected_color'] === 'obsidian' ? 'stock_black' : 'stock_grey';
+                                    $currentAccessoryStock = $accessory[$accessoryStockField] ?? 0;
+                                    $colorName = $order['selected_color'];
+                                } else {
+                                    // For other accessories, use stock_default
+                                    $accessoryStockField = 'stock_default';
+                                    $currentAccessoryStock = $accessory['stock_default'] ?? 0;
+                                    $colorName = 'default';
+                                }
                                 
                                 if ($currentAccessoryStock > 0) {
                                     $newAccessoryStock = $currentAccessoryStock - 1;
-                                    $accessoryStockUpdateData = json_encode(['stock' => $newAccessoryStock]);
+                                    $accessoryStockUpdateData = json_encode([$accessoryStockField => $newAccessoryStock]);
                                     
                                     $ch = curl_init();
-                                    curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/accessories?name=eq.' . urlencode($accessoryName));
+                                    curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/accessories?id=eq.' . urlencode($accessory['id']));
                                     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
                                     curl_setopt($ch, CURLOPT_POSTFIELDS, $accessoryStockUpdateData);
                                     curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -195,17 +209,19 @@ if ($tran_id && $amount) {
                                         'Content-Type: application/json'
                                     ]);
                                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                                    curl_exec($ch);
+                                    $accessoryUpdateResponse = curl_exec($ch);
+                                    $accessoryUpdateCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                                     curl_close($ch);
                                     
-                                    error_log("Accessory stock deducted: $accessoryName ($currentAccessoryStock -> $newAccessoryStock)");
+                                    error_log("Accessory stock update response code: $accessoryUpdateCode");
+                                    error_log("Accessory stock deducted: $accessoryName ($currentAccessoryStock -> $newAccessoryStock) - Field: $accessoryStockField");
                                     
                                     // Log accessory stock change
                                     $accessoryLogData = json_encode([
                                         'item_id' => $accessory['id'],
                                         'item_type' => 'accessory',
                                         'item_name' => $accessoryName,
-                                        'color' => null,
+                                        'color' => $colorName,
                                         'change_amount' => -1,
                                         'reason' => 'Online payment confirmed - Order ID: ' . $order['order_id'],
                                         'previous_stock' => $currentAccessoryStock,
@@ -225,7 +241,7 @@ if ($tran_id && $amount) {
                                     curl_exec($ch);
                                     curl_close($ch);
                                 } else {
-                                    error_log("Warning: No stock available for accessory: $accessoryName - Order: " . $order['order_id']);
+                                    error_log("Warning: No stock available for accessory: $accessoryName ($accessoryStockField) - Order: " . $order['order_id']);
                                 }
                             }
                         }
