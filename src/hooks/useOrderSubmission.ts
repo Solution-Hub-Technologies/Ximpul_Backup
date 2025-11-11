@@ -68,6 +68,7 @@ export const useOrderSubmission = () => {
           delivery_fee: orderData.deliveryFee,
           total_amount: orderData.totalAmount,
           order_status: orderData.paymentMethod === 'online' ? 'pending_payment' : 'pending',
+          payment_status: orderData.paymentMethod === 'online' ? 'pending' : 'pending',
           privacy_preference: orderData.privacyPreference
         }])
         .select()
