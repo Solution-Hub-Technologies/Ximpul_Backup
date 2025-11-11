@@ -312,6 +312,90 @@ if ($tran_id && $amount) {
             
             error_log("Admin Email Response: $emailResponse");
             
+            // Auto-create Steadfast parcel for online orders
+            try {
+                // Fetch Steadfast credentials from database
+                $steadfastUrl = $supabaseUrl . '/courier_vendors?select=*&type=eq.steadfast&status=eq.active&limit=1';
+                
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $steadfastUrl);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'apikey: ' . $apiKey,
+                    'Authorization: Bearer ' . $apiKey,
+                    'Content-Type: application/json'
+                ]);
+                
+                $steadfastResponse = curl_exec($ch);
+                $steadfastCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                
+                if ($steadfastCode === 200) {
+                    $steadfastVendors = json_decode($steadfastResponse, true);
+                    
+                    if ($steadfastVendors && count($steadfastVendors) > 0) {
+                        $steadfastVendor = $steadfastVendors[0];
+                        
+                        if (!empty($steadfastVendor['api_key']) && !empty($steadfastVendor['secret_key'])) {
+                            // Prepare Steadfast data (COD amount = 0 for online orders)
+                            $steadfastData = [
+                                'invoice' => $order['order_id'],
+                                'recipient_name' => $order['customer_name'],
+                                'recipient_phone' => $order['customer_phone'],
+                                'recipient_address' => $order['customer_address'],
+                                'cod_amount' => 0, // Online payment already completed
+                                'note' => 'Ximpul Flow - ' . $order['selected_edition'] . ' - ' . ($order['selected_color'] === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey') . (!empty($order['engraving_text']) ? ' - Engraved: "' . $order['engraving_text'] . '"' : '')
+                            ];
+                            
+                            $apiUrl = rtrim($steadfastVendor['base_url'], '/') . '/create_order';
+                            
+                            $ch = curl_init();
+                            curl_setopt($ch, CURLOPT_URL, $apiUrl);
+                            curl_setopt($ch, CURLOPT_POST, 1);
+                            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($steadfastData));
+                            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                'Api-Key: ' . $steadfastVendor['api_key'],
+                                'Secret-Key: ' . $steadfastVendor['secret_key'],
+                                'Content-Type: application/json'
+                            ]);
+                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                            
+                            $steadfastResult = curl_exec($ch);
+                            $steadfastResultCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                            curl_close($ch);
+                            
+                            $steadfastResultData = json_decode($steadfastResult, true);
+                            
+                            if ($steadfastResultCode === 200 && isset($steadfastResultData['status']) && $steadfastResultData['status'] === 200 && isset($steadfastResultData['consignment'])) {
+                                // Update order with tracking number
+                                $trackingUpdateData = json_encode([
+                                    'tracking_number' => $steadfastResultData['consignment']['consignment_id']
+                                ]);
+                                
+                                $ch = curl_init();
+                                curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/orders?id=eq.' . urlencode($tran_id));
+                                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+                                curl_setopt($ch, CURLOPT_POSTFIELDS, $trackingUpdateData);
+                                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                    'apikey: ' . $apiKey,
+                                    'Authorization: Bearer ' . $apiKey,
+                                    'Content-Type: application/json'
+                                ]);
+                                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                curl_exec($ch);
+                                curl_close($ch);
+                                
+                                error_log("Steadfast parcel created successfully for online order: " . $steadfastResultData['consignment']['consignment_id']);
+                            } else {
+                                error_log("Failed to create Steadfast parcel: " . $steadfastResult);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                error_log("Steadfast integration error: " . $e->getMessage());
+            }
+            
             // Redirect with order_id, amount and payment method
             header("Location: https://ximpul.com/thank-you?orderId=" . urlencode($order['order_id']) . "&totalAmount=" . urlencode($order['total_amount']) . "&paymentMethod=online");
             exit;

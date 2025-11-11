@@ -323,68 +323,7 @@ export const AdminOrders = () => {
       // Show success message with admin info
       toast.success(`Order status updated to ${pendingStatusUpdate.newStatus} by ${adminUser.name || adminUser.username}`);
       
-      // Auto-send to Steadfast when status changes to processing
-      if (pendingStatusUpdate.newStatus === 'processing') {
-        const order = orders.find(o => o.id === pendingStatusUpdate.orderId);
-        if (order && !order.tracking_number) {
-          try {
-            // Fetch SteadFast credentials from database
-            const { data: vendors, error } = await supabaseAdmin
-              .from('courier_vendors')
-              .select('*')
-              .eq('type', 'steadfast')
-              .eq('status', 'active')
-              .limit(1);
-
-            if (error || !vendors || vendors.length === 0) {
-              throw new Error('No active SteadFast vendor found.');
-            }
-
-            const steadfastVendor = vendors[0];
-            if (!steadfastVendor.api_key || !steadfastVendor.secret_key) {
-              throw new Error('SteadFast API credentials not configured.');
-            }
-
-            const codAmount = order.payment_method === 'online' ? 0 : order.total_amount;
-            
-            const steadfastData = {
-              invoice: order.order_id,
-              recipient_name: order.customer_name,
-              recipient_phone: order.customer_phone,
-              recipient_address: order.customer_address,
-              cod_amount: codAmount,
-              note: `Ximpul Flow - ${order.selected_edition} - ${order.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}${order.engraving_text ? ` - Engraved: "${order.engraving_text}"` : ''}`
-            };
-
-            const apiUrl = steadfastVendor.base_url.endsWith('/') 
-              ? `${steadfastVendor.base_url}create_order` 
-              : `${steadfastVendor.base_url}/create_order`;
-
-            const response = await fetch(apiUrl, {
-              method: 'POST',
-              headers: {
-                'Api-Key': steadfastVendor.api_key,
-                'Secret-Key': steadfastVendor.secret_key,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(steadfastData)
-            });
-
-            const result = await response.json();
-            
-            if (result.status === 200 && result.consignment) {
-              // Update order with tracking number
-              await updateTrackingInfo(order.id, result.consignment.consignment_id, 'Order sent to Steadfast');
-              toast.success('Order sent to Steadfast successfully!');
-            } else {
-              throw new Error(result.message || 'Failed to send to Steadfast');
-            }
-          } catch (error) {
-            console.error('Error sending to Steadfast:', error);
-            toast.error(`Failed to send order to Steadfast: ${error.message}`);
-          }
-        }
-      }
+      // Steadfast parcel creation is handled automatically for online orders only
       
       setStatusUpdateNotes('');
       setIsStatusDialogOpen(false);
