@@ -118,22 +118,22 @@ export const useOrders = () => {
         throw new Error('Order not found');
       }
 
-      // Check if stock should be deducted (COD orders shipped/delivered)
+      // Check if stock should be deducted (COD orders when moving to processing)
       const shouldDeductStock = currentOrder.payment_method === 'cod' && 
-                               (newStatus === 'shipped' || newStatus === 'delivered') && 
-                               !['shipped', 'delivered'].includes(currentOrder.order_status) &&
+                               newStatus === 'processing' && 
+                               currentOrder.order_status === 'pending' &&
                                currentOrder.payment_status !== 'completed';
 
       // Check if stock should be restored (any order cancelled that had stock deducted)
-      // For online orders: payment_status = 'completed' AND order_status = 'confirmed'
-      // For COD orders: order_status in ['shipped', 'delivered'] AND payment_status = 'completed'
+      // For online orders: payment_status = 'completed'
+      // For COD orders: order_status = 'processing' or later
       const shouldRestoreStock = newStatus === 'cancelled' && 
                                 currentOrder.order_status !== 'cancelled' &&
                                 (
                                   // Online orders that were confirmed (stock was deducted)
                                   (currentOrder.payment_method === 'online' && currentOrder.payment_status === 'completed') ||
-                                  // COD orders that were shipped/delivered (stock was deducted)
-                                  (currentOrder.payment_method === 'cod' && ['shipped', 'delivered'].includes(currentOrder.order_status))
+                                  // COD orders that were processed (stock was deducted)
+                                  (currentOrder.payment_method === 'cod' && ['processing', 'shipped', 'delivered'].includes(currentOrder.order_status))
                                 );
       
       console.log('Stock restoration check:', {
@@ -162,7 +162,7 @@ export const useOrders = () => {
 
       // Handle stock operations
       if (shouldDeductStock) {
-        await deductStockForOrder(currentOrder, 'COD order shipped/delivered');
+        await deductStockForOrder(currentOrder, `COD order confirmed - Order ID: ${currentOrder.order_id}`);
       } else if (shouldRestoreStock) {
         await restoreStockForOrder(currentOrder);
       }
