@@ -17,12 +17,13 @@ if ($tran_id && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
 if ($tran_id && $amount) {
     error_log("Payment Success Callback - tran_id: $tran_id, amount: $amount");
 
-    // Get environment variables
-    $supabaseUrl = $_ENV['SUPABASE_URL'] ?? 'https://ximpul.com/api/rest/v1';
-    $apiKey = $_ENV['SUPABASE_ANON_KEY'] ?? '';
+    // Load Supabase configuration
+    $config = require_once __DIR__ . '/payment-config.php';
+    $supabaseUrl = $config['url'];
+    $apiKey = $config['key'];
     
-    if (empty($apiKey)) {
-        error_log("Missing Supabase API key");
+    if (empty($apiKey) || $apiKey === 'your-service-role-key-here') {
+        error_log("Missing or invalid Supabase API key in payment-config.php");
         header("Location: https://ximpul.com/");
         exit;
     }
