@@ -54,7 +54,7 @@ if ($tran_id && $amount) {
             
             // Update order status
             $updateData = json_encode([
-                'order_status' => 'confirmed',
+                'order_status' => 'pending',
                 'payment_status' => 'completed'
             ]);
             
