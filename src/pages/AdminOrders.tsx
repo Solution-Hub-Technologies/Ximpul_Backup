@@ -82,6 +82,60 @@ export const AdminOrders = () => {
   });
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [manualOrders, setManualOrders] = useState<Order[]>([]);
+  const [deletionReason, setDeletionReason] = useState('');
+  const [showDeletedOrders, setShowDeletedOrders] = useState(false);
+  const [deletedOrders, setDeletedOrders] = useState([]);
+
+  // Function to backup order before deletion
+  const backupOrderBeforeDelete = async (order: Order, reason: string = '') => {
+    try {
+      await supabaseAdmin.from('deleted_orders').insert({
+        original_order_id: order.order_id,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        customer_email: order.customer_email,
+        customer_address: order.customer_address,
+        selected_edition: order.selected_edition,
+        selected_color: order.selected_color,
+        selected_accessories: order.selected_accessories,
+        engraving_text: order.engraving_text,
+        payment_method: order.payment_method,
+        quantity: order.quantity,
+        subtotal: order.subtotal,
+        delivery_fee: order.delivery_fee,
+        total_amount: order.total_amount,
+        order_status: order.order_status,
+        payment_status: order.payment_status,
+        privacy_preference: order.privacy_preference,
+        steadfast_parcel_id: order.steadfast_parcel_id,
+        tracking_number: order.tracking_number,
+        original_created_at: order.created_at,
+        deleted_by: adminUser.id,
+        deleted_by_name: adminUser.name,
+        deleted_by_email: adminUser.email,
+        deletion_reason: reason
+      });
+    } catch (error) {
+      console.error('Error backing up order:', error);
+      throw error;
+    }
+  };
+
+  // Function to fetch deleted orders
+  const fetchDeletedOrders = async () => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('deleted_orders')
+        .select('*')
+        .order('deleted_at', { ascending: false });
+      
+      if (error) throw error;
+      setDeletedOrders(data || []);
+    } catch (error) {
+      console.error('Error fetching deleted orders:', error);
+      toast.error('Failed to fetch deleted orders');
+    }
+  };
 
   // Order statistics
   const orderStats = {
@@ -154,12 +208,15 @@ export const AdminOrders = () => {
   };
   const filteredOrders = getFilteredOrdersWithManual(activeTab);
   
-  // Show popup if no results found with search filters
+  // Show popup if no results found with search filters (debounced)
   useEffect(() => {
-    if (searchTerm && filteredOrders.length === 0 && orders.length > 0) {
-      const sanitizedSearchTerm = searchTerm.replace(/[<>"'&]/g, '');
-      toast.error(`No orders found matching "${sanitizedSearchTerm}". Please recheck your search filters.`);
-    }
+    const timer = setTimeout(() => {
+      if (searchTerm && filteredOrders.length === 0 && orders.length > 0) {
+        const sanitizedSearchTerm = searchTerm.replace(/[<>"'&]/g, '');
+        toast.error(`No orders found matching "${sanitizedSearchTerm}". Please recheck your search filters.`);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
   }, [searchTerm, filteredOrders.length, orders.length]);
   
   // Pagination logic
@@ -318,12 +375,18 @@ export const AdminOrders = () => {
 
   const confirmStatusUpdate = async () => {
     if (adminUser && pendingStatusUpdate) {
+      const order = orders.find(o => o.id === pendingStatusUpdate.orderId);
+      
       await updateOrderStatus(pendingStatusUpdate.orderId, pendingStatusUpdate.newStatus, adminUser.id, statusUpdateNotes);
       
       // Show success message with admin info
       toast.success(`Order status updated to ${pendingStatusUpdate.newStatus} by ${adminUser.name || adminUser.username}`);
       
-      // Steadfast parcel creation is handled automatically for online orders only
+      // Auto create Steadfast parcel when status changes from pending to processing
+      if (order && pendingStatusUpdate.newStatus === 'processing' && order.order_status === 'pending' && !order.tracking_number) {
+        toast.info('Creating Steadfast parcel automatically...');
+        await handleSendToSteadfast(order);
+      }
       
       setStatusUpdateNotes('');
       setIsStatusDialogOpen(false);
@@ -354,10 +417,22 @@ export const AdminOrders = () => {
   };
 
   const confirmDeleteOrder = async () => {
-    if (orderToDelete) {
+    if (!orderToDelete || !adminUser) return;
+    
+    try {
+      // First backup the order
+      await backupOrderBeforeDelete(orderToDelete, deletionReason);
+      
+      // Then delete the order
       await deleteOrder(orderToDelete.id);
+      
+      toast.success('Order deleted and backed up successfully');
       setIsDeleteDialogOpen(false);
       setOrderToDelete(null);
+      setDeletionReason('');
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      toast.error('Failed to delete order');
     }
   };
 
@@ -409,8 +484,13 @@ export const AdminOrders = () => {
       const result = await response.json();
       
       if (result.status === 200 && result.consignment) {
-        setSteadfastParcelId(result.consignment.consignment_id);
+        const parcelId = result.consignment.consignment_id;
+        setSteadfastParcelId(parcelId);
         setSteadfastOrder(order);
+        
+        // Update tracking number in database
+        await updateTrackingInfo(order.id, parcelId, '');
+        
         toast.success('Order sent to Steadfast successfully!');
       } else {
         throw new Error(result.message || 'Failed to send to Steadfast');
@@ -626,6 +706,17 @@ export const AdminOrders = () => {
               <p className="text-gray-600">Manage and track all customer orders efficiently</p>
             </div>
             <div className="flex gap-2">
+              <Button 
+                onClick={() => {
+                  setShowDeletedOrders(true);
+                  fetchDeletedOrders();
+                }} 
+                variant="outline"
+                className="flex items-center gap-2 h-10 px-4 border-red-300 text-red-700 hover:bg-black hover:text-white"
+              >
+                <Trash2 className="h-4 w-4" />
+                View Deleted Orders
+              </Button>
               <Button 
                 onClick={() => setIsManualEntryOpen(true)} 
                 className="flex items-center gap-2 h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white"
@@ -1194,14 +1285,16 @@ export const AdminOrders = () => {
                                   })}
                                 </p>
                                 {/* Admin Update Info */}
-                                {adminUser && (
+                                {order.updated_by_name && (
                                   <div className="mt-2 pt-2 border-t border-gray-100">
-                                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                                      <User className="h-3 w-3" />
-                                      <span>{order.order_status === 'processing' ? 'Processed by:' : order.order_status === 'shipped' ? 'Shipped by:' : order.order_status === 'delivered' ? 'Delivered by:' : order.order_status === 'cancelled' ? 'Cancelled by:' : 'Last updated by:'} <span className="font-medium text-gray-700">{adminUser?.name || adminUser?.username || 'System'}</span></span>
-                                    </div>
-                                    <div className="text-xs text-gray-400 mt-1">
-                                      {new Date(order.updated_at).toLocaleString()}
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                                      <div className="flex items-center gap-2 text-xs text-blue-700">
+                                        <User className="h-3 w-3" />
+                                        <span>Last updated by: <span className="font-semibold text-blue-900">{order.updated_by_name}</span></span>
+                                      </div>
+                                      <div className="text-xs text-blue-600 mt-1 ml-5">
+                                        {new Date(order.updated_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                      </div>
                                     </div>
                                   </div>
                                 )}
@@ -1613,6 +1706,7 @@ export const AdminOrders = () => {
           setIsDeleteDialogOpen(open);
           if (!open) {
             setOrderToDelete(null);
+            setDeletionReason('');
           }
         }}
       >
@@ -1620,11 +1714,11 @@ export const AdminOrders = () => {
           <DialogHeader>
             <DialogTitle>Delete Order</DialogTitle>
             <DialogDescription>
-              Are you sure you want to permanently delete this order? This action cannot be undone.
+              This order will be backed up before deletion. Please provide a reason for deletion.
             </DialogDescription>
           </DialogHeader>
           {orderToDelete && (
-            <div className="py-4">
+            <div className="py-4 space-y-4">
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <AlertTriangle className="h-5 w-5 text-red-600" />
@@ -1637,13 +1731,111 @@ export const AdminOrders = () => {
                   <p><strong>Status:</strong> {orderToDelete.order_status}</p>
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="deletionReason">Reason for Deletion</Label>
+                <Textarea
+                  id="deletionReason"
+                  placeholder="Please explain why this order is being deleted..."
+                  value={deletionReason}
+                  onChange={(e) => setDeletionReason(e.target.value)}
+                  rows={3}
+                />
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-sm text-blue-700">
+                  <Shield className="h-4 w-4" />
+                  <span>Order data will be backed up to deleted_orders table before deletion</span>
+                </div>
+              </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
             <Button variant="destructive" onClick={confirmDeleteOrder}>
               <Trash2 className="w-4 h-4 mr-2" />
-              Delete Permanently
+              Delete & Backup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deleted Orders Dialog */}
+      <Dialog open={showDeletedOrders} onOpenChange={setShowDeletedOrders}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-600" />
+              Deleted Orders ({deletedOrders.length})
+            </DialogTitle>
+            <DialogDescription>
+              View all orders that have been deleted and backed up
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {deletedOrders.length === 0 ? (
+              <div className="text-center py-12">
+                <Trash2 className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <h3 className="text-lg font-medium text-gray-900">No deleted orders</h3>
+                <p className="text-gray-500">No orders have been deleted yet</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 font-medium text-gray-600">Order ID</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600">Customer</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600">Amount</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600">Status</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600">Deleted By</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600">Deletion Reason</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600">Deleted At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deletedOrders.map((order) => (
+                      <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-3 px-4 font-mono text-xs">{order.original_order_id}</td>
+                        <td className="py-3 px-4">
+                          <div>
+                            <p className="font-medium">{order.customer_name}</p>
+                            <p className="text-gray-500 text-xs">{order.customer_phone}</p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-medium">{order.total_amount?.toLocaleString()} BDT</td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {order.order_status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div>
+                            <p className="font-medium text-xs">{order.deleted_by_name}</p>
+                            <p className="text-gray-500 text-xs">{order.deleted_by_email}</p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-gray-600 max-w-xs truncate" title={order.deletion_reason}>
+                          {order.deletion_reason || 'No reason provided'}
+                        </td>
+                        <td className="py-3 px-4 text-gray-500 text-xs">
+                          {new Date(order.deleted_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeletedOrders(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

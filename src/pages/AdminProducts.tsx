@@ -9,9 +9,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from 'sonner';
 import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 import { useProducts, useAccessories } from '@/hooks/useProducts';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { Package, ShoppingBag, Edit, RefreshCw, Plus, Trash2, History, TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
 
 export const AdminProducts = () => {
+  const { adminUser } = useAdminAuth();
   const { data: products, isLoading: productsLoading, refetch: refetchProducts } = useProducts();
   const { data: accessories, isLoading: accessoriesLoading, refetch: refetchAccessories } = useAccessories();
   const [activeTab, setActiveTab] = useState('products');
@@ -44,7 +46,28 @@ export const AdminProducts = () => {
   const [stockOperation, setStockOperation] = useState<'add' | 'subtract'>('add');
   const [stockReason, setStockReason] = useState('');
   const [stockLogs, setStockLogs] = useState([]);
+  const [manualLogs, setManualLogs] = useState([]);
   const [showStockLogs, setShowStockLogs] = useState(false);
+  const [showManualLogs, setShowManualLogs] = useState(false);
+
+  // Manual logging function
+  const logManualChange = async (actionType, productId, productName, oldValue, newValue, changeAmount = null, reason = '') => {
+    try {
+      await supabaseAdmin.from('manual_logs').insert({
+        user_id: adminUser.id,
+        user_email: adminUser.email,
+        action_type: actionType,
+        product_id: productId,
+        product_name: productName,
+        old_value: oldValue,
+        new_value: newValue,
+        change_amount: changeAmount,
+        reason: reason
+      });
+    } catch (error) {
+      console.error('Error logging manual change:', error);
+    }
+  };
 
   const handleRefresh = async () => {
     await Promise.all([refetchProducts(), refetchAccessories()]);
@@ -81,7 +104,7 @@ export const AdminProducts = () => {
   };
 
   const handleUpdate = async () => {
-    if (!editItem) return;
+    if (!editItem || !adminUser) return;
     
     setIsSubmitting(true);
     
@@ -90,7 +113,18 @@ export const AdminProducts = () => {
       
       if (isNaN(newPrice)) {
         toast.error('Please enter a valid price');
+        setIsSubmitting(false);
         return;
+      }
+      
+      // Get old data for audit log
+      let oldData;
+      if (editItem.type === 'product') {
+        const product = products?.find(p => p.id === editItem.id);
+        oldData = { name: product?.name, price: product?.price, description: product?.description };
+      } else {
+        const accessory = accessories?.find(a => a.id === editItem.id);
+        oldData = { name: accessory?.name, price: accessory?.price, description: accessory?.note };
       }
       
       if (editItem.type === 'product') {
@@ -104,6 +138,43 @@ export const AdminProducts = () => {
           .eq('id', editItem.id);
           
         if (error) throw error;
+        
+        // Log changes to both audit logs and manual logs
+        const changes = [];
+        if (oldData.name !== editItem.name) changes.push({ field: 'name', old: oldData.name, new: editItem.name });
+        if (oldData.price !== newPrice) changes.push({ field: 'price', old: oldData.price, new: newPrice });
+        if (oldData.description !== editItem.description) changes.push({ field: 'description', old: oldData.description, new: editItem.description });
+        
+        for (const change of changes) {
+          // Existing audit log
+          await supabaseAdmin.from('product_audit_logs').insert({
+            item_id: editItem.id,
+            item_type: 'product',
+            item_name: editItem.name,
+            action_type: change.field === 'price' ? 'price_change' : 'update',
+            field_changed: change.field,
+            old_value: String(change.old || ''),
+            new_value: String(change.new || ''),
+            previous_price: change.field === 'price' ? change.old : null,
+            new_price: change.field === 'price' ? change.new : null,
+            admin_id: adminUser.id,
+            admin_name: adminUser.name,
+            admin_email: adminUser.email,
+            admin_role: adminUser.role
+          });
+          
+          // Manual log
+          await logManualChange(
+            change.field === 'price' ? 'PRICE_CHANGE' : 'UPDATE_PRODUCT',
+            editItem.id,
+            editItem.name,
+            String(change.old || ''),
+            String(change.new || ''),
+            change.field === 'price' ? (change.new - change.old) : null,
+            `Manual ${change.field} update`
+          );
+        }
+        
         toast.success('Product updated successfully');
         refetchProducts();
       } else {
@@ -117,6 +188,43 @@ export const AdminProducts = () => {
           .eq('id', editItem.id);
           
         if (error) throw error;
+        
+        // Log changes to both audit logs and manual logs
+        const changes = [];
+        if (oldData.name !== editItem.name) changes.push({ field: 'name', old: oldData.name, new: editItem.name });
+        if (oldData.price !== newPrice) changes.push({ field: 'price', old: oldData.price, new: newPrice });
+        if (oldData.description !== editItem.description) changes.push({ field: 'note', old: oldData.description, new: editItem.description });
+        
+        for (const change of changes) {
+          // Existing audit log
+          await supabaseAdmin.from('product_audit_logs').insert({
+            item_id: editItem.id,
+            item_type: 'accessory',
+            item_name: editItem.name,
+            action_type: change.field === 'price' ? 'price_change' : 'update',
+            field_changed: change.field,
+            old_value: String(change.old || ''),
+            new_value: String(change.new || ''),
+            previous_price: change.field === 'price' ? change.old : null,
+            new_price: change.field === 'price' ? change.new : null,
+            admin_id: adminUser.id,
+            admin_name: adminUser.name,
+            admin_email: adminUser.email,
+            admin_role: adminUser.role
+          });
+          
+          // Manual log
+          await logManualChange(
+            change.field === 'price' ? 'PRICE_CHANGE' : 'UPDATE_ACCESSORY',
+            editItem.id,
+            editItem.name,
+            String(change.old || ''),
+            String(change.new || ''),
+            change.field === 'price' ? (change.new - change.old) : null,
+            `Manual ${change.field} update`
+          );
+        }
+        
         toast.success('Accessory updated successfully');
         refetchAccessories();
       }
@@ -131,7 +239,7 @@ export const AdminProducts = () => {
   };
 
   const handleAdd = async () => {
-    if (!newItem.name || !newItem.price || (newItem.type === 'product' && !newItem.edition)) {
+    if (!newItem.name || !newItem.price || (newItem.type === 'product' && !newItem.edition) || !adminUser) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -143,13 +251,14 @@ export const AdminProducts = () => {
       
       if (isNaN(price)) {
         toast.error('Please enter a valid price');
+        setIsSubmitting(false);
         return;
       }
       
       if (newItem.type === 'product') {
         const stockBlack = parseInt(newItem.stock_black) || 0;
         const stockGrey = parseInt(newItem.stock_grey) || 0;
-        const { error } = await supabaseAdmin
+        const { data, error } = await supabaseAdmin
           .from('products')
           .insert({ 
             name: newItem.name,
@@ -158,9 +267,38 @@ export const AdminProducts = () => {
             edition: newItem.edition,
             stock_black: stockBlack,
             stock_grey: stockGrey
-          });
+          })
+          .select()
+          .single();
           
         if (error) throw error;
+        
+        // Log creation
+        await supabaseAdmin.from('product_audit_logs').insert({
+          item_id: data.id,
+          item_type: 'product',
+          item_name: newItem.name,
+          action_type: 'create',
+          new_value: `Price: ${price}, Edition: ${newItem.edition}`,
+          new_price: price,
+          admin_id: adminUser.id,
+          admin_name: adminUser.name,
+          admin_email: adminUser.email,
+          admin_role: adminUser.role,
+          notes: `Initial stock - Black: ${stockBlack}, Grey: ${stockGrey}`
+        });
+        
+        // Manual log for product creation
+        await logManualChange(
+          'ADD_PRODUCT',
+          data.id,
+          newItem.name,
+          '',
+          `Price: ৳${price}, Edition: ${newItem.edition}`,
+          null,
+          `Created new product with initial stock - Black: ${stockBlack}, Grey: ${stockGrey}`
+        );
+        
         toast.success('Product added successfully');
         refetchProducts();
       } else {
@@ -177,11 +315,40 @@ export const AdminProducts = () => {
           insertData.stock_grey = parseInt(newItem.stock_grey) || 0;
         }
         
-        const { error } = await supabaseAdmin
+        const { data, error } = await supabaseAdmin
           .from('accessories')
-          .insert(insertData);
+          .insert(insertData)
+          .select()
+          .single();
           
         if (error) throw error;
+        
+        // Log creation
+        await supabaseAdmin.from('product_audit_logs').insert({
+          item_id: data.id,
+          item_type: 'accessory',
+          item_name: newItem.name,
+          action_type: 'create',
+          new_value: `Price: ${price}`,
+          new_price: price,
+          admin_id: adminUser.id,
+          admin_name: adminUser.name,
+          admin_email: adminUser.email,
+          admin_role: adminUser.role,
+          notes: hasColors ? `Initial stock - Black: ${insertData.stock_black}, Grey: ${insertData.stock_grey}` : `Initial stock: ${insertData.stock_default}`
+        });
+        
+        // Manual log for accessory creation
+        await logManualChange(
+          'ADD_ACCESSORY',
+          data.id,
+          newItem.name,
+          '',
+          `Price: ৳${price}`,
+          null,
+          hasColors ? `Created new accessory with initial stock - Black: ${insertData.stock_black}, Grey: ${insertData.stock_grey}` : `Created new accessory with initial stock: ${insertData.stock_default}`
+        );
+        
         toast.success('Accessory added successfully');
         refetchAccessories();
       }
@@ -197,23 +364,83 @@ export const AdminProducts = () => {
   };
 
   const confirmDelete = async () => {
+    if (!adminUser) return;
+    
     try {
       if (deleteDialog.type === 'product') {
+        const product = products?.find(p => p.id === deleteDialog.id);
+        
         const { error } = await supabaseAdmin
           .from('products')
           .delete()
           .eq('id', deleteDialog.id);
           
         if (error) throw error;
+        
+        // Log deletion
+        await supabaseAdmin.from('product_audit_logs').insert({
+          item_id: deleteDialog.id,
+          item_type: 'product',
+          item_name: deleteDialog.name,
+          action_type: 'delete',
+          old_value: `Price: ${product?.price}, Edition: ${product?.edition}`,
+          previous_price: product?.price,
+          admin_id: adminUser.id,
+          admin_name: adminUser.name,
+          admin_email: adminUser.email,
+          admin_role: adminUser.role,
+          notes: `Deleted product with stock - Black: ${product?.stock_black}, Grey: ${product?.stock_grey}`
+        });
+        
+        // Manual log for product deletion
+        await logManualChange(
+          'REMOVE_PRODUCT',
+          deleteDialog.id,
+          deleteDialog.name,
+          `Price: ৳${product?.price}, Edition: ${product?.edition}`,
+          '',
+          null,
+          `Deleted product with remaining stock - Black: ${product?.stock_black}, Grey: ${product?.stock_grey}`
+        );
+        
         toast.success('Product deleted successfully');
         refetchProducts();
       } else {
+        const accessory = accessories?.find(a => a.id === deleteDialog.id);
+        
         const { error } = await supabaseAdmin
           .from('accessories')
           .delete()
           .eq('id', deleteDialog.id);
           
         if (error) throw error;
+        
+        // Log deletion
+        await supabaseAdmin.from('product_audit_logs').insert({
+          item_id: deleteDialog.id,
+          item_type: 'accessory',
+          item_name: deleteDialog.name,
+          action_type: 'delete',
+          old_value: `Price: ${accessory?.price}`,
+          previous_price: accessory?.price,
+          admin_id: adminUser.id,
+          admin_name: adminUser.name,
+          admin_email: adminUser.email,
+          admin_role: adminUser.role,
+          notes: `Deleted accessory with stock - Default: ${accessory?.stock_default}, Black: ${accessory?.stock_black}, Grey: ${accessory?.stock_grey}`
+        });
+        
+        // Manual log for accessory deletion
+        await logManualChange(
+          'REMOVE_ACCESSORY',
+          deleteDialog.id,
+          deleteDialog.name,
+          `Price: ৳${accessory?.price}`,
+          '',
+          null,
+          `Deleted accessory with remaining stock - Default: ${accessory?.stock_default}, Black: ${accessory?.stock_black}, Grey: ${accessory?.stock_grey}`
+        );
+        
         toast.success('Accessory deleted successfully');
         refetchAccessories();
       }
@@ -291,7 +518,17 @@ export const AdminProducts = () => {
         if (error) throw error;
       }
       
-      // Log the stock change
+      // Get item price
+      let itemPrice = 0;
+      if (type === 'product') {
+        const product = products?.find(p => p.id === id);
+        itemPrice = product?.price || 0;
+      } else {
+        const accessory = accessories?.find(a => a.id === id);
+        itemPrice = accessory?.price || 0;
+      }
+      
+      // Log the stock change in stock_logs
       const { error: logError } = await supabaseAdmin
         .from('stock_logs')
         .insert({
@@ -302,10 +539,42 @@ export const AdminProducts = () => {
           change_amount: change,
           previous_stock: currentStock,
           new_stock: newStock,
-          reason: stockReason || `Stock ${stockOperation === 'add' ? 'added' : 'removed'}`
+          reason: stockReason || `Stock ${stockOperation === 'add' ? 'added' : 'removed'}`,
+          changed_by: adminUser?.id,
+          changed_by_name: adminUser?.name,
+          item_price: itemPrice
         });
         
       if (logError) console.error('Failed to log stock change:', logError);
+      
+      // Log in product_audit_logs for comprehensive audit trail
+      await supabaseAdmin.from('product_audit_logs').insert({
+        item_id: id,
+        item_type: type,
+        item_name: name,
+        action_type: stockOperation === 'add' ? 'stock_add' : 'stock_remove',
+        color: color === 'default' ? 'default' : color,
+        stock_change: change,
+        previous_stock: currentStock,
+        new_stock: newStock,
+        admin_id: adminUser.id,
+        admin_name: adminUser.name,
+        admin_email: adminUser.email,
+        admin_role: adminUser.role,
+        reason: stockReason || `Manual stock ${stockOperation === 'add' ? 'addition' : 'removal'}`,
+        notes: `${color.toUpperCase()} - Changed from ${currentStock} to ${newStock} (${change > 0 ? '+' : ''}${change})`
+      });
+      
+      // Manual log for tracking user activities
+      await logManualChange(
+        stockOperation === 'add' ? 'ADD_QUANTITY' : 'REMOVE_QUANTITY',
+        id,
+        name,
+        currentStock.toString(),
+        newStock.toString(),
+        change,
+        stockReason || `Manual stock ${stockOperation === 'add' ? 'addition' : 'removal'} - ${color.toUpperCase()}`
+      );
       
       if (type === 'product') refetchProducts();
       else refetchAccessories();
@@ -328,16 +597,56 @@ export const AdminProducts = () => {
         .order('created_at', { ascending: false })
         .limit(50);
         
-      if (error) {
-        console.error('Error fetching stock logs:', error);
-        throw error;
-      }
+      if (error) throw error;
       
-      console.log('Stock logs fetched:', data?.length || 0, 'entries');
-      setStockLogs(data || []);
+      const logsWithNames = await Promise.all((data || []).map(async (log) => {
+        if (!log.changed_by_name && log.changed_by) {
+          const { data: adminData } = await supabaseAdmin
+            .from('admin_users')
+            .select('name')
+            .eq('id', log.changed_by)
+            .single();
+          return { ...log, changed_by_name: adminData?.name || 'System' };
+        }
+        return log;
+      }));
+      
+      setStockLogs(logsWithNames || []);
     } catch (error) {
       console.error('Error fetching stock logs:', error);
       toast.error('Failed to fetch stock logs');
+    }
+  };
+
+  const fetchManualLogs = async () => {
+    try {
+      console.log('Fetching manual logs...');
+      const { data, error } = await supabaseAdmin
+        .from('manual_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+        
+      if (error) throw error;
+      
+      // Fetch admin names for logs
+      const logsWithNames = await Promise.all((data || []).map(async (log) => {
+        if (log.user_id) {
+          const { data: adminData } = await supabaseAdmin
+            .from('admin_users')
+            .select('name')
+            .eq('id', log.user_id)
+            .single();
+          return { ...log, user_name: adminData?.name || log.user_email };
+        }
+        return { ...log, user_name: log.user_email };
+      }));
+      
+      console.log('Manual logs fetched:', logsWithNames?.length || 0, 'entries');
+      setManualLogs(logsWithNames || []);
+    } catch (error) {
+      console.error('Error fetching manual logs:', error);
+      toast.error('Failed to fetch manual logs');
     }
   };
 
@@ -346,6 +655,12 @@ export const AdminProducts = () => {
       fetchStockLogs();
     }
   }, [showStockLogs]);
+
+  useEffect(() => {
+    if (showManualLogs) {
+      fetchManualLogs();
+    }
+  }, [showManualLogs]);
 
   // Auto-refresh data every 30 seconds to show real-time stock updates from website orders
   useEffect(() => {
@@ -356,10 +671,13 @@ export const AdminProducts = () => {
       if (showStockLogs) {
         fetchStockLogs();
       }
+      if (showManualLogs) {
+        fetchManualLogs();
+      }
     }, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
-  }, [refetchProducts, refetchAccessories, showStockLogs]);
+  }, [refetchProducts, refetchAccessories, showStockLogs, showManualLogs]);
 
   if (productsLoading || accessoriesLoading) {
     return (
@@ -389,38 +707,112 @@ export const AdminProducts = () => {
               </div>
               <Button 
                 onClick={() => {
-                  setShowStockLogs(!showStockLogs);
-                  if (!showStockLogs) {
+                  const newShowStockLogs = !showStockLogs;
+                  setShowStockLogs(newShowStockLogs);
+                  if (newShowStockLogs) {
                     fetchStockLogs();
                   }
                 }} 
-                variant="outline" 
-                className="flex items-center gap-2 h-10 px-4 border-gray-300 hover:bg-gray-50"
+                variant={showStockLogs ? "default" : "outline"}
+                className="flex items-center gap-2 h-10 px-4 border-gray-300"
               >
                 <History className="h-4 w-4" />
                 {showStockLogs ? 'Hide' : 'Show'} Stock Logs
               </Button>
-              {showStockLogs && (
-                <Button 
-                  onClick={fetchStockLogs} 
-                  variant="outline" 
-                  className="flex items-center gap-2 h-10 px-4 border-gray-300 hover:bg-gray-50"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Refresh Logs
-                </Button>
-              )}
               <Button 
-                onClick={handleRefresh} 
-                variant="outline" 
-                className="flex items-center gap-2 h-10 px-4 border-gray-300 hover:bg-gray-50"
+                onClick={() => {
+                  const newShowManualLogs = !showManualLogs;
+                  setShowManualLogs(newShowManualLogs);
+                  if (newShowManualLogs) {
+                    fetchManualLogs();
+                  }
+                }} 
+                variant={showManualLogs ? "default" : "outline"}
+                className="flex items-center gap-2 h-10 px-4 border-gray-300"
               >
-                <RefreshCw className="h-4 w-4" />
-                Refresh
+                <BarChart3 className="h-4 w-4" />
+                {showManualLogs ? 'Hide' : 'Show'} Manual Logs
               </Button>
             </div>
           </div>
         </div>
+
+        {/* Manual Logs Section */}
+        {showManualLogs && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="h-5 w-5 text-gray-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Manual Activity Logs</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Action</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Product</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Old Value</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">New Value</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Change</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Reason</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">User</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {manualLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="text-center py-8 text-gray-500">
+                        No manual activities recorded yet
+                      </td>
+                    </tr>
+                  ) : (
+                    manualLogs.map((log) => (
+                      <tr key={log.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            log.action_type.includes('ADD') ? 'bg-green-100 text-green-800' :
+                            log.action_type.includes('REMOVE') ? 'bg-red-100 text-red-800' :
+                            log.action_type.includes('PRICE') ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {log.action_type.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-medium">{log.product_name}</td>
+                        <td className="py-3 px-4 text-gray-600">{log.old_value || '-'}</td>
+                        <td className="py-3 px-4 text-gray-600">{log.new_value || '-'}</td>
+                        <td className="py-3 px-4">
+                          {log.change_amount && (
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                              log.change_amount > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {log.change_amount > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                              {log.change_amount > 0 ? '+' : ''}{log.change_amount}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-gray-600">{log.reason}</td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
+                            {log.user_name || log.user_email}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-gray-500">
+                          {new Date(log.created_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Stock Logs Section */}
         {showStockLogs && (
@@ -434,17 +826,20 @@ export const AdminProducts = () => {
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-3 px-4 font-medium text-gray-600">Item</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Type</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Price</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600">Color</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600">Change</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600">Stock</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600">Reason</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Changed By</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600">Date</th>
                   </tr>
                 </thead>
                 <tbody>
                   {stockLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-8 text-gray-500">
+                      <td colSpan={9} className="text-center py-8 text-gray-500">
                         No stock changes recorded yet
                       </td>
                     </tr>
@@ -452,6 +847,12 @@ export const AdminProducts = () => {
                     stockLogs.map((log) => (
                       <tr key={log.id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="py-3 px-4 font-medium">{log.item_name}</td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            {log.item_type === 'product' ? 'Product' : 'Accessory'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-medium text-gray-900">৳{log.item_price?.toLocaleString() || 0}</td>
                         <td className="py-3 px-4">
                           <div 
                             className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium text-white"
@@ -484,6 +885,17 @@ export const AdminProducts = () => {
                           <span className="font-medium">{log.new_stock}</span>
                         </td>
                         <td className="py-3 px-4 text-gray-600">{log.reason}</td>
+                        <td className="py-3 px-4">
+                          {log.changed_by_name ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
+                              {log.changed_by_name}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
+                              System ({log.reason?.includes('COD') ? 'COD' : log.reason?.includes('Online') ? 'Online' : 'Order'})
+                            </span>
+                          )}
+                        </td>
                         <td className="py-3 px-4 text-gray-500">
                           {new Date(log.created_at).toLocaleDateString('en-US', {
                             month: 'short',

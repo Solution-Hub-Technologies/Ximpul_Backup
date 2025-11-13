@@ -33,6 +33,7 @@ export interface Order {
   privacy_preference: boolean;
   created_at: string;
   updated_at: string;
+  updated_by_name?: string;
 }
 
 export const useOrders = () => {
@@ -58,13 +59,33 @@ export const useOrders = () => {
       
       console.log('Orders fetched successfully:', sanitizeForLog(String(data?.length || 0)), 'orders');
       
+      // Fetch admin names for orders with processed_by
+      const orderIds = (data || []).filter(o => o.processed_by).map(o => o.processed_by);
+      const uniqueAdminIds = [...new Set(orderIds)];
+      
+      let adminNames: Record<string, string> = {};
+      if (uniqueAdminIds.length > 0) {
+        const { data: adminData } = await supabase
+          .from('admin_users')
+          .select('id, name')
+          .in('id', uniqueAdminIds);
+        
+        if (adminData) {
+          adminNames = adminData.reduce((acc, admin) => {
+            acc[admin.id] = admin.name;
+            return acc;
+          }, {} as Record<string, string>);
+        }
+      }
+      
       const transformedOrders: Order[] = (data || []).map(order => ({
         ...order,
         selected_accessories: Array.isArray(order.selected_accessories) 
           ? order.selected_accessories as string[]
           : [],
         payment_status: order.payment_status || 'pending',
-        customer_email: order.customer_email || null
+        customer_email: order.customer_email || null,
+        updated_by_name: order.processed_by ? adminNames[order.processed_by] : undefined
       }));
       
       setOrders(transformedOrders);
@@ -150,7 +171,8 @@ export const useOrders = () => {
           order_status: newStatus,
           admin_notes: notes || null,
           updated_at: new Date().toISOString(),
-          // Payment status remains manual for COD orders
+          processed_by: adminId,
+          processed_at: new Date().toISOString()
         })
         .eq('id', orderId)
         .select();
@@ -166,6 +188,13 @@ export const useOrders = () => {
         await restoreStockForOrder(currentOrder);
       }
 
+      // Fetch admin name
+      const { data: adminData } = await supabase
+        .from('admin_users')
+        .select('name')
+        .eq('id', adminId)
+        .single();
+
       // Update local state immediately and sort by updated_at
       const now = new Date().toISOString();
       setOrders(prevOrders => {
@@ -176,7 +205,9 @@ export const useOrders = () => {
                 order_status: newStatus, 
                 admin_notes: notes || null,
                 updated_at: now,
-                // Payment status updated manually only
+                processed_by: adminId,
+                processed_at: now,
+                updated_by_name: adminData?.name
               }
             : order
         );
@@ -209,7 +240,9 @@ export const useOrders = () => {
         .update({
           payment_status: newPaymentStatus,
           admin_notes: notes || null,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          processed_by: adminId,
+          processed_at: new Date().toISOString()
         })
         .eq('id', orderId)
         .select();
@@ -226,12 +259,19 @@ export const useOrders = () => {
         await deductStockForOrder(currentOrder, `Online payment confirmed - Order ID: ${currentOrder.order_id}`);
       }
       
+      // Fetch admin name
+      const { data: adminData } = await supabase
+        .from('admin_users')
+        .select('name')
+        .eq('id', adminId)
+        .single();
+      
       // Update local state immediately and sort by updated_at
       const now = new Date().toISOString();
       setOrders(prevOrders => {
         const updatedOrders = prevOrders.map(order => 
           order.id === orderId 
-            ? { ...order, payment_status: newPaymentStatus, admin_notes: notes || null, updated_at: now }
+            ? { ...order, payment_status: newPaymentStatus, admin_notes: notes || null, updated_at: now, processed_by: adminId, processed_at: now, updated_by_name: adminData?.name }
             : order
         );
         return updatedOrders.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
