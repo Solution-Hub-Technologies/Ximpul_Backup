@@ -69,19 +69,20 @@ export const AdminOrders = () => {
     customer_phone: '',
     customer_email: '',
     customer_address: '',
-    selected_edition: '',
-    selected_color: 'obsidian',
     selected_accessories: [] as string[],
+    accessory_quantities: {} as Record<string, number>,
     engraving_text: '',
     payment_method: 'cod',
-    quantity: 1,
+    base_black: 0,
+    base_grey: 0,
+    lifestyle_black: 0,
+    lifestyle_grey: 0,
     subtotal: 0,
     delivery_fee: 100,
     total_amount: 100,
     privacy_preference: false
   });
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
-  const [manualOrders, setManualOrders] = useState<Order[]>([]);
   const [deletionReason, setDeletionReason] = useState('');
   const [showDeletedOrders, setShowDeletedOrders] = useState(false);
   const [deletedOrders, setDeletedOrders] = useState([]);
@@ -152,8 +153,8 @@ export const AdminOrders = () => {
   // Filter orders based on tab, privacy, search term, and date range
   const getFilteredOrders = (tabFilter: string) => {
     return orders.filter(order => {
-      // Exclude pending and pending_payment from 'all' tab
-      if (tabFilter === 'all' && (order.order_status === 'pending' || order.order_status === 'pending_payment')) {
+      // Exclude orders with pending payment from 'all' tab, but include pending orders with completed payment
+      if (tabFilter === 'all' && (order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending'))) {
         return false;
       }
       
@@ -178,35 +179,7 @@ export const AdminOrders = () => {
     });
   };
 
-  const allOrders = [...manualOrders, ...orders];
-  const getFilteredOrdersWithManual = (tabFilter: string) => {
-    return allOrders.filter(order => {
-      // Exclude pending and pending_payment from 'all' tab
-      if (tabFilter === 'all' && (order.order_status === 'pending' || order.order_status === 'pending_payment')) {
-        return false;
-      }
-      
-      const matchesStatus = tabFilter === 'all' || order.order_status === tabFilter;
-      const matchesPrivacy = privacyFilter === 'all' || 
-        (privacyFilter === 'private' && order.privacy_preference) ||
-        (privacyFilter === 'public' && !order.privacy_preference);
-      const searchLower = searchTerm.toLowerCase();
-      const matchesSearch = 
-        order.customer_name.toLowerCase().includes(searchLower) ||
-        order.customer_phone.includes(searchTerm) ||
-        String(order.order_id).toLowerCase().includes(searchLower) ||
-        (order.customer_email && order.customer_email.toLowerCase().includes(searchLower));
-      
-      // Date filtering
-      const orderDate = new Date(order.created_at);
-      const fromDate = dateFrom ? new Date(dateFrom) : null;
-      const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
-      const matchesDateRange = (!fromDate || orderDate >= fromDate) && (!toDate || orderDate <= toDate);
-      
-      return matchesStatus && matchesPrivacy && matchesSearch && matchesDateRange;
-    });
-  };
-  const filteredOrders = getFilteredOrdersWithManual(activeTab);
+  const filteredOrders = getFilteredOrders(activeTab);
   
   // Show popup if no results found with search filters (debounced)
   useEffect(() => {
@@ -538,73 +511,136 @@ export const AdminOrders = () => {
   };
 
   const handleCreateManualOrder = async () => {
-    if (!manualOrderData.customer_name || !manualOrderData.customer_phone || !manualOrderData.customer_address || !manualOrderData.selected_edition) {
+    if (!manualOrderData.customer_name || !manualOrderData.customer_phone || !manualOrderData.customer_address) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+
+    const totalQty = manualOrderData.base_black + manualOrderData.base_grey + manualOrderData.lifestyle_black + manualOrderData.lifestyle_grey;
+    if (totalQty === 0) {
+      toast.error('Please select at least one edition with quantity');
       return;
     }
 
     setIsCreatingOrder(true);
     try {
-      const newOrder: Order = {
-        id: `manual_${Date.now()}`,
-        order_id: `M${Date.now().toString().slice(-6)}`,
-        customer_name: manualOrderData.customer_name,
-        customer_phone: manualOrderData.customer_phone,
-        customer_email: manualOrderData.customer_email || null,
-        customer_address: manualOrderData.customer_address,
-        selected_edition: manualOrderData.selected_edition,
-        selected_color: manualOrderData.selected_color,
-        selected_accessories: manualOrderData.selected_accessories,
-        engraving_text: manualOrderData.engraving_text || null,
-        payment_method: manualOrderData.payment_method,
-        subtotal: manualOrderData.subtotal,
-        delivery_fee: manualOrderData.delivery_fee,
-        total_amount: manualOrderData.total_amount,
-        privacy_preference: manualOrderData.privacy_preference,
-        order_status: 'pending',
-        payment_status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        tracking_number: null
-      };
+      // Get max order_id to avoid duplicate key constraint
+      const { data: maxOrder } = await supabaseAdmin
+        .from('orders')
+        .select('order_id')
+        .order('order_id', { ascending: false })
+        .limit(1)
+        .single();
 
-      setManualOrders(prev => [newOrder, ...prev]);
+      const nextOrderId = maxOrder ? maxOrder.order_id + 1 : 1;
+
+      // Build edition string with quantities and colors
+      const editions = [];
+      if (manualOrderData.base_black > 0) {
+        editions.push(`Base Edition (Black) × ${manualOrderData.base_black}`);
+      }
+      if (manualOrderData.base_grey > 0) {
+        editions.push(`Base Edition (Grey) × ${manualOrderData.base_grey}`);
+      }
+      if (manualOrderData.lifestyle_black > 0) {
+        editions.push(`Lifestyle Edition (Black) × ${manualOrderData.lifestyle_black}`);
+      }
+      if (manualOrderData.lifestyle_grey > 0) {
+        editions.push(`Lifestyle Edition (Grey) × ${manualOrderData.lifestyle_grey}`);
+      }
+      const editionString = editions.join(', ');
+      const colorString = (manualOrderData.base_black + manualOrderData.lifestyle_black) > 0 && (manualOrderData.base_grey + manualOrderData.lifestyle_grey) > 0 ? 'mixed' : (manualOrderData.base_black + manualOrderData.lifestyle_black) > 0 ? 'obsidian' : 'graphite';
+
+      // Encode quantities in accessory names
+      const accessoriesWithQty = manualOrderData.selected_accessories.map(acc => {
+        const qty = manualOrderData.accessory_quantities[acc] || 1;
+        return qty > 1 ? `${acc} × ${qty}` : acc;
+      });
+
+      const timestamp = new Date().toISOString();
+      const { data, error } = await supabaseAdmin
+        .from('orders')
+        .insert({
+          order_id: nextOrderId,
+          customer_name: manualOrderData.customer_name,
+          customer_phone: manualOrderData.customer_phone,
+          customer_email: manualOrderData.customer_email || null,
+          customer_address: manualOrderData.customer_address,
+          selected_edition: editionString,
+          selected_color: colorString,
+          selected_accessories: accessoriesWithQty,
+          engraving_text: manualOrderData.engraving_text || null,
+          payment_method: manualOrderData.payment_method,
+          subtotal: manualOrderData.subtotal,
+          delivery_fee: manualOrderData.delivery_fee,
+          total_amount: manualOrderData.total_amount,
+          privacy_preference: manualOrderData.privacy_preference,
+          order_status: 'pending',
+          payment_status: manualOrderData.payment_method === 'online' ? 'completed' : 'pending',
+          processed_by: adminUser.id,
+          processed_at: timestamp,
+          created_at: timestamp
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Order creation error:', error);
+        toast.error(`Failed to create order: ${error.message}`);
+        return;
+      }
+
       toast.success('Manual order created successfully!');
+      await fetchOrders();
       setIsManualEntryOpen(false);
       setManualOrderData({
         customer_name: '',
         customer_phone: '',
         customer_email: '',
         customer_address: '',
-        selected_edition: '',
-        selected_color: 'obsidian',
         selected_accessories: [],
+        accessory_quantities: {},
         engraving_text: '',
         payment_method: 'cod',
-        quantity: 1,
+        base_black: 0,
+        base_grey: 0,
+        lifestyle_black: 0,
+        lifestyle_grey: 0,
         subtotal: 0,
         delivery_fee: 100,
         total_amount: 100,
         privacy_preference: false
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating manual order:', error);
-      toast.error('Failed to create order. Please try again.');
+      toast.error(`Failed to create order: ${error.message || 'Please try again'}`);
     } finally {
       setIsCreatingOrder(false);
     }
   };
 
   const updateManualOrderPricing = () => {
-    let unitPrice = 0;
-    if (manualOrderData.selected_edition === 'Base Edition') unitPrice = 2500;
-    else if (manualOrderData.selected_edition === 'Lifestyle Edition') unitPrice = 3500;
-    
-    const subtotal = unitPrice * manualOrderData.quantity;
-    const deliveryFee = manualOrderData.payment_method === 'cod' ? 100 : 0;
-    const total = subtotal + deliveryFee;
-    
-    setManualOrderData(prev => ({ ...prev, subtotal, delivery_fee: deliveryFee, total_amount: total }));
+    setManualOrderData(prev => {
+      const baseTotal = 1190 * (prev.base_black + prev.base_grey);
+      const lifestyleTotal = 1650 * (prev.lifestyle_black + prev.lifestyle_grey);
+      
+      const accessoryPrices = {
+        'Straw Cap': 350,
+        'Cleaning Brush': 90,
+        'Straw Cleaning Brush': 50,
+        'Aluminimum Hook': 90
+      };
+      
+      const accessoriesTotal = prev.selected_accessories.reduce((sum, acc) => {
+        const qty = prev.accessory_quantities[acc] || 1;
+        return sum + (accessoryPrices[acc] || 0) * qty;
+      }, 0);
+      const subtotal = baseTotal + lifestyleTotal + accessoriesTotal;
+      const deliveryFee = prev.payment_method === 'cod' ? 100 : 0;
+      const total = subtotal + deliveryFee;
+      
+      return { ...prev, subtotal, delivery_fee: deliveryFee, total_amount: total };
+    });
   };
 
   const OrderStatusBadge = ({ status }: { status: string }) => {
@@ -948,16 +984,16 @@ export const AdminOrders = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid grid-cols-4 w-full bg-white border border-gray-200 p-1 rounded-lg">
             <TabsTrigger value="all" className="data-[state=active]:bg-gray-900 data-[state=active]:text-white">
-              All Orders ({orders.filter(o => o.order_status !== 'pending_payment' && o.order_status !== 'pending').length})
+              All Orders ({orders.filter(o => !(o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending'))).length})
             </TabsTrigger>
             <TabsTrigger value="online" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
-              Online Payment ({orders.filter(o => o.payment_method === 'online' && o.order_status !== 'pending_payment' && o.order_status !== 'pending').length})
+              Online Payment ({orders.filter(o => o.payment_method === 'online' && !(o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending'))).length})
             </TabsTrigger>
             <TabsTrigger value="cod" className="data-[state=active]:bg-green-500 data-[state=active]:text-white">
-              Cash on Delivery ({orders.filter(o => o.payment_method === 'cod' && o.order_status !== 'pending_payment' && o.order_status !== 'pending').length})
+              Cash on Delivery ({orders.filter(o => o.payment_method === 'cod' && !(o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending'))).length})
             </TabsTrigger>
             <TabsTrigger value="leads" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white">
-              Leads ({orders.filter(o => o.order_status === 'pending_payment' || o.order_status === 'pending').length})
+              Leads ({orders.filter(o => o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending')).length})
             </TabsTrigger>
           </TabsList>
           
@@ -1048,13 +1084,13 @@ export const AdminOrders = () => {
         {[activeTab].map((tab) => {
           let baseOrders;
           if (tab === 'online') {
-            baseOrders = orders.filter(order => order.payment_method === 'online' && order.order_status !== 'pending_payment' && order.order_status !== 'pending');
+            baseOrders = orders.filter(order => order.payment_method === 'online' && !(order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending')));
           } else if (tab === 'cod') {
-            baseOrders = orders.filter(order => order.payment_method === 'cod' && order.order_status !== 'pending_payment' && order.order_status !== 'pending');
+            baseOrders = orders.filter(order => order.payment_method === 'cod' && !(order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending')));
           } else if (tab === 'leads') {
-            baseOrders = orders.filter(order => order.order_status === 'pending_payment' || order.order_status === 'pending');
+            baseOrders = orders.filter(order => order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending'));
           } else {
-            baseOrders = orders.filter(order => order.order_status !== 'pending_payment' && order.order_status !== 'pending');
+            baseOrders = orders.filter(order => !(order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending')));
           }
           
           // Apply additional filters (search, privacy, date)
@@ -1186,7 +1222,7 @@ export const AdminOrders = () => {
                           <div className="flex flex-col gap-4">
                             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b">
                               <div className="flex flex-col gap-3">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 flex-wrap">
                                   <h3 className="font-semibold text-xl text-gray-900">{order.customer_name}</h3>
                                   <span className="text-gray-600 text-sm">
                                     Order ID: 
@@ -1197,6 +1233,17 @@ export const AdminOrders = () => {
                                       {order.order_id}
                                     </button>
                                   </span>
+                                  {order.is_manual_order ? (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-purple-600 text-white">
+                                      <Package className="w-3 h-3 mr-1" />
+                                      MANUAL ORDER
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-green-600 text-white">
+                                      <Smartphone className="w-3 h-3 mr-1" />
+                                      WEBSITE ORDER
+                                    </span>
+                                  )}
                                 </div>
                                 
                                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
@@ -1284,18 +1331,30 @@ export const AdminOrders = () => {
                                     minute: '2-digit'
                                   })}
                                 </p>
-                                {/* Admin Update Info */}
-                                {order.updated_by_name && (
+                                {/* Admin Creation/Update Info */}
+                                {order.processed_by && (
                                   <div className="mt-2 pt-2 border-t border-gray-100">
-                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
-                                      <div className="flex items-center gap-2 text-xs text-blue-700">
-                                        <User className="h-3 w-3" />
-                                        <span>Last updated by: <span className="font-semibold text-blue-900">{order.updated_by_name}</span></span>
+                                    {order.is_manual_order && (order.order_status === 'pending' || order.order_status === 'pending_payment') ? (
+                                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-2">
+                                        <div className="flex items-center gap-2 text-xs text-purple-700">
+                                          <Package className="h-3 w-3" />
+                                          <span>Manually created by: <span className="font-semibold text-purple-900">{order.updated_by_name}</span></span>
+                                        </div>
+                                        <div className="text-xs text-purple-600 mt-1 ml-5">
+                                          {new Date(order.created_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                        </div>
                                       </div>
-                                      <div className="text-xs text-blue-600 mt-1 ml-5">
-                                        {new Date(order.updated_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                    ) : order.updated_by_name ? (
+                                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                                        <div className="flex items-center gap-2 text-xs text-blue-700">
+                                          <User className="h-3 w-3" />
+                                          <span>Last updated by: <span className="font-semibold text-blue-900">{order.updated_by_name}</span></span>
+                                        </div>
+                                        <div className="text-xs text-blue-600 mt-1 ml-5">
+                                          {new Date(order.updated_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                        </div>
                                       </div>
-                                    </div>
+                                    ) : null}
                                   </div>
                                 )}
                               </div>
@@ -1510,10 +1569,12 @@ export const AdminOrders = () => {
                         <span className="text-gray-500">Edition:</span>
                         <span>{selectedOrder.selected_edition}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Color:</span>
-                        <ColorBadge color={selectedOrder.selected_color} />
-                      </div>
+                      {!selectedOrder.selected_edition.includes('(') && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Color:</span>
+                          <ColorBadge color={selectedOrder.selected_color} />
+                        </div>
+                      )}
                       {selectedOrder.selected_accessories && selectedOrder.selected_accessories.length > 0 && (
                         <div>
                           <span className="text-gray-500">Accessories:</span>
@@ -1884,7 +1945,7 @@ export const AdminOrders = () => {
                       year: 'numeric', month: 'long', day: 'numeric' 
                     })}</p>
                     <p><span className="font-medium">Order Status:</span> <OrderStatusBadge status={invoiceOrder.order_status} /></p>
-                    <p><span className="font-medium">Payment Status:</span> <PaymentStatusBadge status={invoiceOrder.payment_status} /></p>
+                    <p><span className="font-medium">Payment Status:</span> <PaymentStatusBadge status={invoiceOrder.payment_method === 'online' ? 'completed' : invoiceOrder.payment_status} /></p>
                     <p className="flex items-center gap-2"><span className="font-medium">Payment Method:</span> <PaymentMethodBadge method={invoiceOrder.payment_method} /></p>
                   </div>
                 </div>
@@ -1898,7 +1959,7 @@ export const AdminOrders = () => {
                     <tr className="bg-gray-50">
                       <th className="border border-gray-300 p-3 text-left">Product</th>
                       <th className="border border-gray-300 p-3 text-left">Edition</th>
-                      <th className="border border-gray-300 p-3 text-left">Color</th>
+                      {!invoiceOrder.selected_edition.includes('(') && <th className="border border-gray-300 p-3 text-left">Color</th>}
                       <th className="border border-gray-300 p-3 text-left">Engraving</th>
                       <th className="border border-gray-300 p-3 text-right">Amount</th>
                     </tr>
@@ -1907,19 +1968,58 @@ export const AdminOrders = () => {
                     <tr>
                       <td className="border border-gray-300 p-3">Ximpul Flow Water Bottle</td>
                       <td className="border border-gray-300 p-3">{invoiceOrder.selected_edition}</td>
-                      <td className="border border-gray-300 p-3">
-                        <ColorBadge color={invoiceOrder.selected_color} />
-                      </td>
+                      {!invoiceOrder.selected_edition.includes('(') && (
+                        <td className="border border-gray-300 p-3">
+                          <ColorBadge color={invoiceOrder.selected_color} />
+                        </td>
+                      )}
                       <td className="border border-gray-300 p-3">{invoiceOrder.engraving_text || 'None'}</td>
                       <td className="border border-gray-300 p-3 text-right font-medium">{invoiceOrder.subtotal.toLocaleString()} BDT</td>
                     </tr>
-                    {invoiceOrder.selected_accessories && invoiceOrder.selected_accessories.length > 0 && (
-                      <tr>
-                        <td className="border border-gray-300 p-3">Accessories</td>
-                        <td className="border border-gray-300 p-3" colSpan={3}>{invoiceOrder.selected_accessories.join(', ')}</td>
-                        <td className="border border-gray-300 p-3 text-right font-medium">Included</td>
-                      </tr>
-                    )}
+                    {invoiceOrder.selected_accessories && invoiceOrder.selected_accessories.length > 0 && (() => {
+                      const hasLifestyle = invoiceOrder.selected_edition.toLowerCase().includes('lifestyle');
+                      const hasBase = invoiceOrder.selected_edition.toLowerCase().includes('base');
+                      const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminimum Hook': 90 };
+                      
+                      // Parse accessory name and quantity
+                      const parseAccessory = (accStr) => {
+                        const match = accStr.match(/^(.+?)\s*×\s*(\d+)$/);
+                        if (match) {
+                          return { name: match[1], qty: parseInt(match[2]) };
+                        }
+                        return { name: accStr, qty: 1 };
+                      };
+                      
+                      // Only show accessories for Base Edition
+                      if (hasBase && !hasLifestyle) {
+                        return invoiceOrder.selected_accessories.map((accStr, idx) => {
+                          const { name, qty } = parseAccessory(accStr);
+                          return (
+                            <tr key={idx}>
+                              <td className="border border-gray-300 p-3">{name}</td>
+                              <td className="border border-gray-300 p-3" colSpan={invoiceOrder.selected_edition.includes('(') ? 1 : 2}>Qty: {qty}</td>
+                              <td className="border border-gray-300 p-3">{prices[name]} BDT each</td>
+                              <td className="border border-gray-300 p-3 text-right font-medium">{(prices[name] * qty).toLocaleString()} BDT</td>
+                            </tr>
+                          );
+                        });
+                      } else if (hasLifestyle && hasBase) {
+                        // Show only Base Edition accessories (charged)
+                        return invoiceOrder.selected_accessories.map((accStr, idx) => {
+                          const { name, qty } = parseAccessory(accStr);
+                          return (
+                            <tr key={idx}>
+                              <td className="border border-gray-300 p-3">{name} (for Base Edition)</td>
+                              <td className="border border-gray-300 p-3" colSpan={invoiceOrder.selected_edition.includes('(') ? 1 : 2}>Qty: {qty}</td>
+                              <td className="border border-gray-300 p-3">{prices[name]} BDT each</td>
+                              <td className="border border-gray-300 p-3 text-right font-medium">{(prices[name] * qty).toLocaleString()} BDT</td>
+                            </tr>
+                          );
+                        });
+                      }
+                      // Lifestyle only: don't show accessories at all
+                      return null;
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -2065,7 +2165,7 @@ export const AdminOrders = () => {
                                 <div class="info-line"><strong>Invoice #:</strong> ${invoiceOrder.order_id}</div>
                                 <div class="info-line"><strong>Date:</strong> ${new Date(invoiceOrder.created_at).toLocaleDateString()}</div>
                                 <div class="info-line"><strong>Status:</strong> ${invoiceOrder.order_status}</div>
-                                <div class="info-line"><strong>Payment:</strong> ${invoiceOrder.payment_status}</div>
+                                <div class="info-line"><strong>Payment:</strong> ${invoiceOrder.payment_method === 'online' ? 'completed' : invoiceOrder.payment_status}</div>
                                 <div class="info-line"><strong>Method:</strong> ${invoiceOrder.payment_method}</div>
                               </div>
                             </div>
@@ -2074,9 +2174,9 @@ export const AdminOrders = () => {
                               <thead>
                                 <tr>
                                   <th>Product</th>
-                                  <th>Edition</th>
-                                  <th>Color</th>
-                                  <th>Engraving</th>
+                                  <th>Details</th>
+                                  ${!invoiceOrder.selected_edition.includes('(') ? '<th>Color</th>' : ''}
+                                  <th>Notes</th>
                                   <th style="text-align: right;">Amount</th>
                                 </tr>
                               </thead>
@@ -2084,16 +2184,56 @@ export const AdminOrders = () => {
                                 <tr>
                                   <td>Ximpul Flow Water Bottle</td>
                                   <td>${invoiceOrder.selected_edition}</td>
-                                  <td>${invoiceOrder.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}</td>
-                                  <td>${invoiceOrder.engraving_text || 'None'}</td>
+                                  ${!invoiceOrder.selected_edition.includes('(') ? `<td>${invoiceOrder.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}</td>` : ''}
+                                  <td>${invoiceOrder.engraving_text ? `Engraved: "${invoiceOrder.engraving_text}"` : 'No engraving'}</td>
                                   <td style="text-align: right;">${invoiceOrder.subtotal.toLocaleString()} BDT</td>
                                 </tr>
-                                ${invoiceOrder.selected_accessories && invoiceOrder.selected_accessories.length > 0 ? `
-                                <tr>
-                                  <td>Accessories</td>
-                                  <td colspan="3">${invoiceOrder.selected_accessories.join(', ')}</td>
-                                  <td style="text-align: right;">Included</td>
-                                </tr>` : ''}
+                                ${invoiceOrder.selected_accessories && invoiceOrder.selected_accessories.length > 0 ? (() => {
+                                  const hasLifestyle = invoiceOrder.selected_edition.toLowerCase().includes('lifestyle');
+                                  const hasBase = invoiceOrder.selected_edition.toLowerCase().includes('base');
+                                  const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminimum Hook': 90 };
+                                  let rows = '';
+                                  
+                                  const parseAccessory = (accStr) => {
+                                    const match = accStr.match(/^(.+?)\s*×\s*(\d+)$/);
+                                    if (match) {
+                                      return { name: match[1], qty: parseInt(match[2]) };
+                                    }
+                                    return { name: accStr, qty: 1 };
+                                  };
+                                  
+                                  // Only show accessories for Base Edition
+                                  if (hasBase && !hasLifestyle) {
+                                    invoiceOrder.selected_accessories.forEach(accStr => {
+                                      const { name, qty } = parseAccessory(accStr);
+                                      rows += `
+                                        <tr>
+                                          <td>${name}</td>
+                                          <td>Qty: ${qty}</td>
+                                          ${!invoiceOrder.selected_edition.includes('(') ? '<td></td>' : ''}
+                                          <td>${prices[name]} BDT each</td>
+                                          <td style="text-align: right;">${(prices[name] * qty).toLocaleString()} BDT</td>
+                                        </tr>
+                                      `;
+                                    });
+                                  } else if (hasLifestyle && hasBase) {
+                                    // Show only Base Edition accessories (charged)
+                                    invoiceOrder.selected_accessories.forEach(accStr => {
+                                      const { name, qty } = parseAccessory(accStr);
+                                      rows += `
+                                        <tr>
+                                          <td>${name} (for Base Edition)</td>
+                                          <td>Qty: ${qty}</td>
+                                          ${!invoiceOrder.selected_edition.includes('(') ? '<td></td>' : ''}
+                                          <td>${prices[name]} BDT each</td>
+                                          <td style="text-align: right;">${(prices[name] * qty).toLocaleString()} BDT</td>
+                                        </tr>
+                                      `;
+                                    });
+                                  }
+                                  // Lifestyle only: don't show accessories at all
+                                  return rows;
+                                })() : ''}
                               </tbody>
                             </table>
                             
@@ -2270,15 +2410,17 @@ export const AdminOrders = () => {
                         <p className="font-medium text-gray-900">{steadfastOrder.selected_edition}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <div className={`w-4 h-4 rounded-full ${steadfastOrder.selected_color === 'obsidian' ? 'bg-black' : 'bg-gray-500'}`}></div>
+                    {!steadfastOrder.selected_edition.includes('(') && (
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                          <div className={`w-4 h-4 rounded-full ${steadfastOrder.selected_color === 'obsidian' ? 'bg-black' : 'bg-gray-500'}`}></div>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Color</p>
+                          <p className="font-medium text-gray-900">{steadfastOrder.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Color</p>
-                        <p className="font-medium text-gray-900">{steadfastOrder.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}</p>
-                      </div>
-                    </div>
+                    )}
                     {steadfastOrder.engraving_text && (
                       <div className="flex items-start gap-3">
                         <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center mt-1">
@@ -2412,7 +2554,7 @@ export const AdminOrders = () => {
                               <p class="font-bold text-xs">Order Details:</p>
                               <p class="text-xxs">Ximpul Flow Water Bottle</p>
                               <p class="text-xxs">Edition: <span class="font-bold">${steadfastOrder.selected_edition}</span></p>
-                              <p class="text-xxs">Color: <span class="font-bold">${steadfastOrder.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}</span></p>
+                              ${!steadfastOrder.selected_edition.includes('(') ? `<p class="text-xxs">Color: <span class="font-bold">${steadfastOrder.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}</span></p>` : ''}
                               ${steadfastOrder.selected_accessories && steadfastOrder.selected_accessories.length > 0 ? `<p class="text-xxs">Accessories: <span class="font-bold">${steadfastOrder.selected_accessories.join(', ')}</span></p>` : ''}
                               ${steadfastOrder.engraving_text ? `<p class="text-xxs">Engraved: <span class="font-bold">${steadfastOrder.engraving_text}</span></p>` : ''}
                             </div>
@@ -2510,77 +2652,140 @@ export const AdminOrders = () => {
             {/* Product Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Product Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="selected_edition">Edition *</Label>
-                  <Select value={manualOrderData.selected_edition} onValueChange={(value) => {
-                    const accessories = value === 'Lifestyle Edition' ? ['Carabiner Hook', 'Paracord Strap', 'Bottle Brush'] : [];
-                    setManualOrderData(prev => ({ ...prev, selected_edition: value, selected_accessories: accessories }));
-                    setTimeout(updateManualOrderPricing, 0);
-                  }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select edition" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Base Edition">Base Edition (2,500 BDT)</SelectItem>
-                      <SelectItem value="Lifestyle Edition">Lifestyle Edition (3,500 BDT)</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="space-y-4">
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <h4 className="font-semibold text-blue-900 mb-3">Base Edition (1,190 BDT each)</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="base_black">Obsidian Black</Label>
+                      <Input
+                        id="base_black"
+                        type="number"
+                        min="0"
+                        value={manualOrderData.base_black}
+                        onChange={(e) => {
+                          setManualOrderData(prev => ({ ...prev, base_black: parseInt(e.target.value) || 0 }));
+                          setTimeout(updateManualOrderPricing, 0);
+                        }}
+                        placeholder="Qty"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="base_grey">Graphite Grey</Label>
+                      <Input
+                        id="base_grey"
+                        type="number"
+                        min="0"
+                        value={manualOrderData.base_grey}
+                        onChange={(e) => {
+                          setManualOrderData(prev => ({ ...prev, base_grey: parseInt(e.target.value) || 0 }));
+                          setTimeout(updateManualOrderPricing, 0);
+                        }}
+                        placeholder="Qty"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="quantity">Quantity *</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    min="1"
-                    value={manualOrderData.quantity}
-                    onChange={(e) => {
-                      setManualOrderData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }));
-                      setTimeout(updateManualOrderPricing, 0);
-                    }}
-                    placeholder="Enter quantity"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="selected_color">Color</Label>
-                  <Select value={manualOrderData.selected_color} onValueChange={(value) => setManualOrderData(prev => ({ ...prev, selected_color: value }))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="obsidian">Obsidian Black</SelectItem>
-                      <SelectItem value="graphite">Graphite Grey</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                  <h4 className="font-semibold text-purple-900 mb-3">Lifestyle Edition (1,650 BDT each)</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="lifestyle_black">Obsidian Black</Label>
+                      <Input
+                        id="lifestyle_black"
+                        type="number"
+                        min="0"
+                        value={manualOrderData.lifestyle_black}
+                        onChange={(e) => {
+                          const qty = parseInt(e.target.value) || 0;
+                          setManualOrderData(prev => ({ ...prev, lifestyle_black: qty }));
+                          setTimeout(updateManualOrderPricing, 0);
+                        }}
+                        placeholder="Qty"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="lifestyle_grey">Graphite Grey</Label>
+                      <Input
+                        id="lifestyle_grey"
+                        type="number"
+                        min="0"
+                        value={manualOrderData.lifestyle_grey}
+                        onChange={(e) => {
+                          const qty = parseInt(e.target.value) || 0;
+                          setManualOrderData(prev => ({ ...prev, lifestyle_grey: qty }));
+                          setTimeout(updateManualOrderPricing, 0);
+                        }}
+                        placeholder="Qty"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
               <div>
-                <Label htmlFor="accessories">Accessories (Optional)</Label>
-                <div className="space-y-2">
-                  {['Carabiner Hook', 'Paracord Strap', 'Bottle Brush'].map((accessory) => (
-                    <div key={accessory} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id={accessory}
-                        checked={manualOrderData.selected_accessories.includes(accessory)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setManualOrderData(prev => ({
-                              ...prev,
-                              selected_accessories: [...prev.selected_accessories, accessory]
-                            }));
-                          } else {
-                            setManualOrderData(prev => ({
-                              ...prev,
-                              selected_accessories: prev.selected_accessories.filter(a => a !== accessory)
-                            }));
-                          }
-                        }}
-                        className="rounded"
-                      />
-                      <Label htmlFor={accessory}>{accessory}</Label>
-                    </div>
-                  ))}
+                <Label htmlFor="accessories">Accessories (Only for Base Edition)</Label>
+                {(manualOrderData.lifestyle_black + manualOrderData.lifestyle_grey) > 0 && (manualOrderData.base_black + manualOrderData.base_grey) > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">Note: Lifestyle Edition includes all accessories. Selections below will be charged for Base Edition only.</p>
+                )}
+                {(manualOrderData.lifestyle_black + manualOrderData.lifestyle_grey) > 0 && (manualOrderData.base_black + manualOrderData.base_grey) === 0 && (
+                  <p className="text-xs text-orange-600 mt-1 font-medium">Note: Lifestyle Edition includes all accessories. No additional charges apply.</p>
+                )}
+                {(manualOrderData.base_black + manualOrderData.base_grey) > 0 && (manualOrderData.lifestyle_black + manualOrderData.lifestyle_grey) === 0 && (
+                  <p className="text-xs text-blue-600 mt-1">Select accessories for Base Edition (charges apply).</p>
+                )}
+                <div className="space-y-2 mt-2">
+                  {['Straw Cap', 'Cleaning Brush', 'Straw Cleaning Brush', 'Aluminimum Hook'].map((accessory) => {
+                    const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminimum Hook': 90 };
+                    const isChecked = manualOrderData.selected_accessories.includes(accessory);
+                    const qty = manualOrderData.accessory_quantities[accessory] || 1;
+                    return (
+                      <div key={accessory} className="flex items-center justify-between space-x-2">
+                        <div className="flex items-center space-x-2 flex-1">
+                          <input
+                            type="checkbox"
+                            id={accessory}
+                            checked={isChecked}
+                            disabled={(manualOrderData.lifestyle_black + manualOrderData.lifestyle_grey) > 0 && (manualOrderData.base_black + manualOrderData.base_grey) === 0}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setManualOrderData(prev => ({
+                                  ...prev,
+                                  selected_accessories: [...prev.selected_accessories, accessory],
+                                  accessory_quantities: { ...prev.accessory_quantities, [accessory]: 1 }
+                                }));
+                              } else {
+                                setManualOrderData(prev => ({
+                                  ...prev,
+                                  selected_accessories: prev.selected_accessories.filter(a => a !== accessory),
+                                  accessory_quantities: { ...prev.accessory_quantities, [accessory]: 0 }
+                                }));
+                              }
+                              setTimeout(updateManualOrderPricing, 0);
+                            }}
+                            className="rounded"
+                          />
+                          <Label htmlFor={accessory} className="flex-1">{accessory}</Label>
+                        </div>
+                        {isChecked && (
+                          <Input
+                            type="number"
+                            min="1"
+                            value={qty}
+                            onChange={(e) => {
+                              const newQty = parseInt(e.target.value) || 1;
+                              setManualOrderData(prev => ({
+                                ...prev,
+                                accessory_quantities: { ...prev.accessory_quantities, [accessory]: newQty }
+                              }));
+                              setTimeout(updateManualOrderPricing, 0);
+                            }}
+                            className="w-16 h-8 text-center"
+                          />
+                        )}
+                        <span className="text-sm text-gray-600 w-20 text-right">{prices[accessory]} BDT{isChecked && qty > 1 ? ` × ${qty}` : ''}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               <div>
@@ -2626,8 +2831,74 @@ export const AdminOrders = () => {
               </div>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Subtotal (Qty: {manualOrderData.quantity}):</span>
+                  {manualOrderData.base_black > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span>Base Edition (Black) × {manualOrderData.base_black}:</span>
+                      <span>{(1190 * manualOrderData.base_black).toLocaleString()} BDT</span>
+                    </div>
+                  )}
+                  {manualOrderData.base_grey > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span>Base Edition (Grey) × {manualOrderData.base_grey}:</span>
+                      <span>{(1190 * manualOrderData.base_grey).toLocaleString()} BDT</span>
+                    </div>
+                  )}
+                  {manualOrderData.lifestyle_black > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span>Lifestyle Edition (Black) × {manualOrderData.lifestyle_black}:</span>
+                      <span>{(1650 * manualOrderData.lifestyle_black).toLocaleString()} BDT</span>
+                    </div>
+                  )}
+                  {manualOrderData.lifestyle_grey > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span>Lifestyle Edition (Grey) × {manualOrderData.lifestyle_grey}:</span>
+                      <span>{(1650 * manualOrderData.lifestyle_grey).toLocaleString()} BDT</span>
+                    </div>
+                  )}
+                  {manualOrderData.selected_accessories.length > 0 && (() => {
+                    const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminimum Hook': 90 };
+                    const hasLifestyle = (manualOrderData.lifestyle_black + manualOrderData.lifestyle_grey) > 0;
+                    const hasBase = (manualOrderData.base_black + manualOrderData.base_grey) > 0;
+                    
+                    if (hasLifestyle && hasBase) {
+                      return (
+                        <>
+                          <div className="flex justify-between text-sm text-gray-500 italic">
+                            <span>Accessories (Included with Lifestyle):</span>
+                            <span>0 BDT</span>
+                          </div>
+                          {manualOrderData.selected_accessories.map((acc) => {
+                            const qty = manualOrderData.accessory_quantities[acc] || 1;
+                            return (
+                              <div key={acc} className="flex justify-between text-sm text-gray-600">
+                                <span>{acc} × {qty} (for Base Edition):</span>
+                                <span>{(prices[acc] * qty).toLocaleString()} BDT</span>
+                              </div>
+                            );
+                          })}
+                        </>
+                      );
+                    } else if (hasLifestyle) {
+                      return (
+                        <div className="flex justify-between text-sm text-gray-500 italic">
+                          <span>Accessories (Included with Lifestyle):</span>
+                          <span>0 BDT</span>
+                        </div>
+                      );
+                    } else {
+                      return manualOrderData.selected_accessories.map((acc) => {
+                        const qty = manualOrderData.accessory_quantities[acc] || 1;
+                        return (
+                          <div key={acc} className="flex justify-between text-sm text-gray-600">
+                            <span>{acc} × {qty}:</span>
+                            <span>{(prices[acc] * qty).toLocaleString()} BDT</span>
+                          </div>
+                        );
+                      });
+                    }
+                  })()}
+                  <div className="flex justify-between font-medium border-t pt-2">
+                    <span>Subtotal:</span>
                     <span>{manualOrderData.subtotal.toLocaleString()} BDT</span>
                   </div>
                   <div className="flex justify-between">

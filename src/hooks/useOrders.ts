@@ -34,6 +34,7 @@ export interface Order {
   created_at: string;
   updated_at: string;
   updated_by_name?: string;
+  is_manual_order?: boolean;
 }
 
 export const useOrders = () => {
@@ -78,15 +79,24 @@ export const useOrders = () => {
         }
       }
       
-      const transformedOrders: Order[] = (data || []).map(order => ({
-        ...order,
-        selected_accessories: Array.isArray(order.selected_accessories) 
-          ? order.selected_accessories as string[]
-          : [],
-        payment_status: order.payment_status || 'pending',
-        customer_email: order.customer_email || null,
-        updated_by_name: order.processed_by ? adminNames[order.processed_by] : undefined
-      }));
+      const transformedOrders: Order[] = (data || []).map(order => {
+        // Check if order was manually created by comparing created_at with processed_at
+        // Manual orders have processed_by set at creation time, so created_at should be very close to processed_at
+        const createdDate = order.created_at ? new Date(order.created_at).toISOString().slice(0, 19) : null;
+        const processedDate = order.processed_at ? new Date(order.processed_at).toISOString().slice(0, 19) : null;
+        const isManualOrder = order.processed_by && createdDate && processedDate && createdDate === processedDate;
+        
+        return {
+          ...order,
+          selected_accessories: Array.isArray(order.selected_accessories) 
+            ? order.selected_accessories as string[]
+            : [],
+          payment_status: order.payment_status || 'pending',
+          customer_email: order.customer_email || null,
+          updated_by_name: order.processed_by ? adminNames[order.processed_by] : undefined,
+          is_manual_order: isManualOrder
+        };
+      });
       
       setOrders(transformedOrders);
     } catch (err: any) {
@@ -165,15 +175,21 @@ export const useOrders = () => {
         shouldRestoreStock
       });
       
+      // Only set processed_at if it doesn't exist (first time processing)
+      const updateData: any = {
+        order_status: newStatus,
+        admin_notes: notes || null,
+        updated_at: new Date().toISOString(),
+        processed_by: adminId
+      };
+      
+      if (!currentOrder.processed_at) {
+        updateData.processed_at = new Date().toISOString();
+      }
+      
       const { data, error } = await supabaseAdmin
         .from('orders')
-        .update({
-          order_status: newStatus,
-          admin_notes: notes || null,
-          updated_at: new Date().toISOString(),
-          processed_by: adminId,
-          processed_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', orderId)
         .select();
 
@@ -206,8 +222,9 @@ export const useOrders = () => {
                 admin_notes: notes || null,
                 updated_at: now,
                 processed_by: adminId,
-                processed_at: now,
-                updated_by_name: adminData?.name
+                processed_at: order.processed_at || now,
+                updated_by_name: adminData?.name,
+                is_manual_order: order.is_manual_order
               }
             : order
         );
@@ -235,15 +252,21 @@ export const useOrders = () => {
       // Don't deduct stock here for online orders - it's already handled in PaymentSuccess.tsx
       const shouldDeductStock = false;
 
+      // Only set processed_at if it doesn't exist (first time processing)
+      const updateData: any = {
+        payment_status: newPaymentStatus,
+        admin_notes: notes || null,
+        updated_at: new Date().toISOString(),
+        processed_by: adminId
+      };
+      
+      if (!currentOrder.processed_at) {
+        updateData.processed_at = new Date().toISOString();
+      }
+      
       const { data, error } = await supabaseAdmin
         .from('orders')
-        .update({
-          payment_status: newPaymentStatus,
-          admin_notes: notes || null,
-          updated_at: new Date().toISOString(),
-          processed_by: adminId,
-          processed_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', orderId)
         .select();
 
@@ -271,7 +294,7 @@ export const useOrders = () => {
       setOrders(prevOrders => {
         const updatedOrders = prevOrders.map(order => 
           order.id === orderId 
-            ? { ...order, payment_status: newPaymentStatus, admin_notes: notes || null, updated_at: now, processed_by: adminId, processed_at: now, updated_by_name: adminData?.name }
+            ? { ...order, payment_status: newPaymentStatus, admin_notes: notes || null, updated_at: now, processed_by: adminId, processed_at: order.processed_at || now, updated_by_name: adminData?.name, is_manual_order: order.is_manual_order }
             : order
         );
         return updatedOrders.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
@@ -308,7 +331,7 @@ export const useOrders = () => {
       setOrders(prevOrders => {
         const updatedOrders = prevOrders.map(order => 
           order.id === orderId 
-            ? { ...order, tracking_number: trackingNumber, estimated_delivery: estimatedDelivery, updated_at: now }
+            ? { ...order, tracking_number: trackingNumber, estimated_delivery: estimatedDelivery, updated_at: now, is_manual_order: order.is_manual_order }
             : order
         );
         return updatedOrders.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
