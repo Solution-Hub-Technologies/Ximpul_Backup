@@ -511,7 +511,7 @@ export const AdminOrders = () => {
   };
 
   const handleCreateManualOrder = async () => {
-    if (!manualOrderData.customer_name || !manualOrderData.customer_phone || !manualOrderData.customer_address) {
+    if (!manualOrderData.customer_name || !manualOrderData.customer_phone || !manualOrderData.customer_address || !manualOrderData.customer_email) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -635,7 +635,8 @@ export const AdminOrders = () => {
         const qty = prev.accessory_quantities[acc] || 1;
         return sum + (accessoryPrices[acc] || 0) * qty;
       }, 0);
-      const subtotal = baseTotal + lifestyleTotal + accessoriesTotal;
+      const engravingFee = prev.engraving_text ? 150 : 0;
+      const subtotal = baseTotal + lifestyleTotal + accessoriesTotal + engravingFee;
       const deliveryFee = prev.payment_method === 'cod' ? 100 : 0;
       const total = subtotal + deliveryFee;
       
@@ -2628,7 +2629,7 @@ export const AdminOrders = () => {
                 </div>
               </div>
               <div>
-                <Label htmlFor="customer_email">Email (Optional)</Label>
+                <Label htmlFor="customer_email">Email *</Label>
                 <Input
                   id="customer_email"
                   type="email"
@@ -2789,11 +2790,14 @@ export const AdminOrders = () => {
                 </div>
               </div>
               <div>
-                <Label htmlFor="engraving_text">Engraving Text (Optional)</Label>
+                <Label htmlFor="engraving_text">Engraving Text (150 BDT)</Label>
                 <Input
                   id="engraving_text"
                   value={manualOrderData.engraving_text}
-                  onChange={(e) => setManualOrderData(prev => ({ ...prev, engraving_text: e.target.value }))}
+                  onChange={(e) => {
+                    setManualOrderData(prev => ({ ...prev, engraving_text: e.target.value }));
+                    setTimeout(updateManualOrderPricing, 0);
+                  }}
                   placeholder="Enter engraving text"
                 />
               </div>
@@ -2897,6 +2901,12 @@ export const AdminOrders = () => {
                       });
                     }
                   })()}
+                  {manualOrderData.engraving_text && (
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Engraving:</span>
+                      <span>150 BDT</span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-medium border-t pt-2">
                     <span>Subtotal:</span>
                     <span>{manualOrderData.subtotal.toLocaleString()} BDT</span>
