@@ -98,8 +98,8 @@ export const useOrderSubmission = () => {
           
           console.log('📧 Customer template result:', { customerTemplate, customerTemplateError });
 
-          // Send customer email if provided
-          if (orderData.customerEmail) {
+          // Send customer email only for COD orders
+          if (orderData.customerEmail && orderData.paymentMethod === 'cod') {
             console.log('📧 Sending customer email to:', orderData.customerEmail);
             const paymentMethod = orderData.paymentMethod === 'cod' ? 'Cash on Delivery' : (orderData.paymentMethod === 'online' ? 'Online Payment' : orderData.paymentMethod || 'Not specified');
             
@@ -160,8 +160,10 @@ export const useOrderSubmission = () => {
             } else {
               console.log('✅ Customer email sent successfully');
             }
-          } else {
+          } else if (!orderData.customerEmail) {
             console.log('📧 No customer email provided, skipping customer notification');
+          } else {
+            console.log('📧 Skipping customer email for online payment - will be sent after payment confirmation');
           }
           
           // Send admin email only for COD orders
