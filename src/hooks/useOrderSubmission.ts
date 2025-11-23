@@ -164,170 +164,113 @@ export const useOrderSubmission = () => {
             console.log('📧 No customer email provided, skipping customer notification');
           }
           
-          // Fetch admin email configuration from database
-          console.log('📧 STEP 3.1: Fetching admin email configuration...');
-          const { data: emailConfig, error: emailConfigError } = await supabase
-            .from('email_config')
-            .select('*')
-            .eq('config_type', 'customer');
-          
-          console.log('📧 Email config query result:', { emailConfig, emailConfigError });
-          console.log('📧 Email config raw data:', JSON.stringify(emailConfig, null, 2));
-          
-          // Also fetch all email configs for debugging
-          const { data: allEmailConfigs } = await supabase
-            .from('email_config')
-            .select('*');
-          console.log('📧 All email configs in database:', JSON.stringify(allEmailConfigs, null, 2));
-          
-          // Use configured emails only
-          let adminEmails = '';
-          let ccEmails = '';
-          
-          if (emailConfig && emailConfig.length > 0) {
-            const config = emailConfig[0];
-            if (config?.to_emails?.length > 0) {
-              adminEmails = config.to_emails.join(',');
-              console.log('📧 Using configured TO emails:', adminEmails);
-            }
-            if (config?.cc_emails?.length > 0) {
-              ccEmails = config.cc_emails.join(',');
-              console.log('📧 Using configured CC emails:', ccEmails);
-            }
-          } else {
-            console.log('📧 No email config found, using fallback:', adminEmails);
-            console.log('📧 Attempting to create default email config...');
-            // If no config exists, try to create one with default email
-            try {
-              const { data: insertResult, error: insertError } = await supabase
-                .from('email_config')
-                .insert({
-                  config_type: 'customer',
-                  to_emails: ['ximpulshop@gmail.com'],
-                  cc_emails: []
-                })
-                .select();
-              console.log('📧 Insert result:', { insertResult, insertError });
-              if (!insertError) {
-                console.log('📧 Created default email config successfully');
-                adminEmails = 'ximpulshop@gmail.com';
+          // Send admin email only for COD orders
+          if (orderData.paymentMethod === 'cod') {
+            console.log('📧 STEP 3.1: Fetching admin email configuration for COD order...');
+            const { data: emailConfig, error: emailConfigError } = await supabase
+              .from('email_config')
+              .select('*')
+              .eq('config_type', 'customer');
+            
+            console.log('📧 Email config query result:', { emailConfig, emailConfigError });
+            
+            // Use configured emails only
+            let adminEmails = '';
+            let ccEmails = '';
+            
+            if (emailConfig && emailConfig.length > 0) {
+              const config = emailConfig[0];
+              if (config?.to_emails?.length > 0) {
+                adminEmails = config.to_emails.join(',');
+                console.log('📧 Using configured TO emails:', adminEmails);
               }
-            } catch (insertError) {
-              console.log('📧 Could not create default config:', insertError);
+              if (config?.cc_emails?.length > 0) {
+                ccEmails = config.cc_emails.join(',');
+                console.log('📧 Using configured CC emails:', ccEmails);
+              }
             }
-          }
-          
-          console.log('📧 Final TO emails:', adminEmails);
-          console.log('📧 Final CC emails:', ccEmails);
-          console.log('📧 Email config used:', emailConfig?.[0] || 'No config found');
-          
-          // Fetch admin email template
-          console.log('📧 Fetching admin email template...');
-          const { data: adminTemplate, error: adminTemplateError } = await supabase
-            .from('email_templates')
-            .select('*')
-            .eq('type', 'order_admin')
-            .single();
-          
-          console.log('📧 Admin template result:', { adminTemplate, adminTemplateError });
-          
-          // If no order_admin template found, try any template
-          let finalAdminTemplate = adminTemplate;
-          if (!adminTemplate) {
-            console.log('📧 No order_admin template found, trying any template...');
-            const { data: anyTemplate } = await supabase
+            
+            // Fetch admin email template
+            console.log('📧 Fetching admin email template...');
+            const { data: adminTemplate } = await supabase
               .from('email_templates')
               .select('*')
-              .limit(1)
+              .eq('type', 'order_admin')
               .single();
-            finalAdminTemplate = anyTemplate;
-            console.log('📧 Using any available template:', finalAdminTemplate);
             
-            if (!finalAdminTemplate) {
-              console.log('⚠️ No email templates found in admin portal! Using fallback template.');
-              console.log('⚠️ Please create "order_admin" template in Admin > SMTP Config > Templates tab');
+            // Send admin emails
+            const paymentStatus = 'Cash on Delivery';
+            
+            let adminEmailHTML = '';
+            let adminSubject = `New Ximpul Order - ${(order as any).order_id}`;
+            
+            if (adminTemplate) {
+              console.log('✅ Using admin portal template:', adminTemplate.name);
+              adminEmailHTML = adminTemplate.template
+                .replace(/\$\{customerName\}/g, orderData.customerName)
+                .replace(/\$\{customerPhone\}/g, orderData.customerPhone || 'Not provided')
+                .replace(/\$\{customerEmail\}/g, orderData.customerEmail || 'Not provided')
+                .replace(/\$\{customerAddress\}/g, orderData.customerAddress || 'Not provided')
+                .replace(/\$\{orderId\}/g, (order as any).order_id)
+                .replace(/\$\{selectedEdition\}/g, orderData.selectedEdition || 'Not specified')
+                .replace(/\$\{selectedColor\}/g, orderData.selectedColor || 'Not specified')
+                .replace(/\$\{engravingText\}/g, orderData.engravingText || '')
+                .replace(/\$\{paymentMethod\}/g, paymentStatus)
+                .replace(/\$\{totalAmount\}/g, orderData.totalAmount?.toString() || 'Not specified')
+                .replace(/{{customerName}}/g, orderData.customerName)
+                .replace(/{{customerPhone}}/g, orderData.customerPhone || 'Not provided')
+                .replace(/{{customerEmail}}/g, orderData.customerEmail || 'Not provided')
+                .replace(/{{customerAddress}}/g, orderData.customerAddress || 'Not provided')
+                .replace(/{{orderId}}/g, (order as any).order_id)
+                .replace(/{{selectedEdition}}/g, orderData.selectedEdition || 'Not specified')
+                .replace(/{{selectedColor}}/g, orderData.selectedColor || 'Not specified')
+                .replace(/{{engravingText}}/g, orderData.engravingText || '')
+                .replace(/{{paymentMethod}}/g, paymentStatus)
+                .replace(/{{totalAmount}}/g, orderData.totalAmount?.toString() || 'Not specified');
+              
+              adminSubject = adminTemplate.subject
+                .replace(/\$\{orderId\}/g, (order as any).order_id)
+                .replace(/{{orderId}}/g, (order as any).order_id);
+            } else {
+              console.log('⚠️ No admin portal templates available - using fallback template');
+              adminEmailHTML = `<h2>New Order Alert</h2><p><strong>Order #${(order as any).order_id}</strong><br>Total: ${orderData.totalAmount} BDT</p><br><h3>Customer Information</h3><strong>Name:</strong><br>${orderData.customerName}<br><strong>Phone:</strong><br>${orderData.customerPhone || 'Not provided'}<br><strong>Email:</strong><br>${orderData.customerEmail || 'Not provided'}<br><strong>Address:</strong><br>${orderData.customerAddress || 'Not provided'}<br><br><h3>Product Details</h3><strong>Edition:</strong><br>${orderData.selectedEdition || 'Not specified'}<br><strong>Color:</strong><br>${orderData.selectedColor || 'Not specified'}<br>${orderData.engravingText ? `<strong>Engraving:</strong><br>${orderData.engravingText}<br>` : ''}<strong>Payment Method:</strong><br>${paymentStatus}<br><br><p>Please process this order.</p>`;
             }
-          }
-
-          // Send admin emails
-          const paymentStatus = orderData.paymentMethod === 'cod' ? 'Cash on Delivery' : (orderData.paymentMethod === 'online' ? 'Online Payment' : orderData.paymentMethod || 'Not specified');
-          
-          let adminEmailHTML = '';
-          let adminSubject = `New Ximpul Order - ${(order as any).order_id}`;
-          
-          if (finalAdminTemplate) {
-            console.log('✅ Using admin portal template:', finalAdminTemplate.name);
-            // Use template from admin panel - support both ${} and {{}} syntax
-            adminEmailHTML = finalAdminTemplate.template
-              .replace(/\$\{customerName\}/g, orderData.customerName)
-              .replace(/\$\{customerPhone\}/g, orderData.customerPhone || 'Not provided')
-              .replace(/\$\{customerEmail\}/g, orderData.customerEmail || 'Not provided')
-              .replace(/\$\{customerAddress\}/g, orderData.customerAddress || 'Not provided')
-              .replace(/\$\{orderId\}/g, (order as any).order_id)
-              .replace(/\$\{selectedEdition\}/g, orderData.selectedEdition || 'Not specified')
-              .replace(/\$\{selectedColor\}/g, orderData.selectedColor || 'Not specified')
-              .replace(/\$\{engravingText\}/g, orderData.engravingText || '')
-              .replace(/\$\{paymentMethod\}/g, paymentStatus)
-              .replace(/\$\{totalAmount\}/g, orderData.totalAmount?.toString() || 'Not specified')
-              .replace(/{{customerName}}/g, orderData.customerName)
-              .replace(/{{customerPhone}}/g, orderData.customerPhone || 'Not provided')
-              .replace(/{{customerEmail}}/g, orderData.customerEmail || 'Not provided')
-              .replace(/{{customerAddress}}/g, orderData.customerAddress || 'Not provided')
-              .replace(/{{orderId}}/g, (order as any).order_id)
-              .replace(/{{selectedEdition}}/g, orderData.selectedEdition || 'Not specified')
-              .replace(/{{selectedColor}}/g, orderData.selectedColor || 'Not specified')
-              .replace(/{{engravingText}}/g, orderData.engravingText || '')
-              .replace(/{{paymentMethod}}/g, paymentStatus)
-              .replace(/{{totalAmount}}/g, orderData.totalAmount?.toString() || 'Not specified');
             
-            adminSubject = finalAdminTemplate.subject
-              .replace(/\$\{orderId\}/g, (order as any).order_id)
-              .replace(/{{orderId}}/g, (order as any).order_id);
+            const emailParams: any = {
+              to: adminEmails,
+              subject: adminSubject,
+              message: adminEmailHTML,
+              from_name: 'Ximpul Shop'
+            };
+            
+            // Add CC emails if configured
+            if (ccEmails) {
+              emailParams.cc = ccEmails;
+            }
+            
+            // Skip email if no admin emails configured
+            if (!adminEmails) {
+              console.log('⚠️ No admin emails configured, skipping admin notification');
+            } else {
+              console.log('📧 STEP 3.2: Sending admin email for COD order');
+              
+              const adminEmailResponse = await fetch('https://ximpul.com/smtp-mailer.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams(emailParams)
+              });
+              
+              const adminEmailResult = await adminEmailResponse.json();
+              console.log('📧 Admin email response:', adminEmailResult);
+              
+              if (!adminEmailResult.success) {
+                console.error('❌ Admin email failed:', adminEmailResult.error);
+              } else {
+                console.log('✅ Admin email sent successfully');
+              }
+            }
           } else {
-            console.log('⚠️ No admin portal templates available - using fallback template');
-            console.log('⚠️ To use custom templates, create them in Admin > SMTP Config > Templates');
-            // Fallback to detailed template
-            adminEmailHTML = `<h2>New Order Alert</h2><p><strong>Order #${(order as any).order_id}</strong><br>Total: ${orderData.totalAmount} BDT</p><br><h3>Customer Information</h3><strong>Name:</strong><br>${orderData.customerName}<br><strong>Phone:</strong><br>${orderData.customerPhone || 'Not provided'}<br><strong>Email:</strong><br>${orderData.customerEmail || 'Not provided'}<br><strong>Address:</strong><br>${orderData.customerAddress || 'Not provided'}<br><br><h3>Product Details</h3><strong>Edition:</strong><br>${orderData.selectedEdition || 'Not specified'}<br><strong>Color:</strong><br>${orderData.selectedColor || 'Not specified'}<br>${orderData.engravingText ? `<strong>Engraving:</strong><br>${orderData.engravingText}<br>` : ''}<strong>Payment Method:</strong><br>${paymentStatus}<br><br><p>Please process this order.</p>`;
-          }
-          
-          const emailParams: any = {
-            to: adminEmails,
-            subject: adminSubject,
-            message: adminEmailHTML,
-            from_name: 'Ximpul Shop'
-          };
-          
-          // Add CC emails if configured
-          if (ccEmails) {
-            emailParams.cc = ccEmails;
-          }
-          
-          // Skip email if no admin emails configured
-          if (!adminEmails) {
-            console.log('⚠️ No admin emails configured, skipping admin notification');
-            console.log('⚠️ Please configure admin emails in Admin > SMTP Config > Email Recipients');
-            return;
-          }
-          
-          console.log('📧 STEP 3.2: Sending admin email with params:', emailParams);
-          console.log('📧 Admin email HTML length:', adminEmailHTML.length);
-          console.log('📧 Admin template found:', !!finalAdminTemplate);
-          
-          const adminEmailResponse = await fetch('https://ximpul.com/smtp-mailer.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams(emailParams)
-          });
-          
-          console.log('📧 Admin email response status:', adminEmailResponse.status);
-          const adminEmailResult = await adminEmailResponse.json();
-          console.log('📧 Admin email full response:', adminEmailResult);
-          
-          if (!adminEmailResult.success) {
-            console.error('❌ Admin email failed:', adminEmailResult.error);
-            console.error('❌ Admin email error details:', adminEmailResult);
-          } else {
-            console.log('✅ Admin email sent successfully');
+            console.log('📧 Skipping admin email for online payment - will be sent after payment confirmation');
           }
           
           const response = { ok: true };
