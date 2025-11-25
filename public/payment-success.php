@@ -6,6 +6,7 @@ error_reporting(E_ALL);
 // Sanitize and validate inputs
 $tran_id = filter_input(INPUT_GET, 'tran_id', FILTER_SANITIZE_STRING);
 $amount = filter_input(INPUT_GET, 'amount', FILTER_VALIDATE_FLOAT);
+$status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_STRING);
 
 // Validate UUID format for tran_id
 if ($tran_id && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $tran_id)) {
@@ -14,8 +15,9 @@ if ($tran_id && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     exit;
 }
 
-if ($tran_id && $amount) {
-    error_log("Payment Success Callback - tran_id: $tran_id, amount: $amount");
+// Only process if payment is successful (not cancelled or failed)
+if ($tran_id && $amount && (!$status || $status === 'VALID' || $status === 'VALIDATED')) {
+    error_log("Payment Success Callback - tran_id: $tran_id, amount: $amount, status: $status");
 
     // Load Supabase configuration
     $config = require_once __DIR__ . '/payment-config.php';
