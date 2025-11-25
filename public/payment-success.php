@@ -8,6 +8,9 @@ $tran_id = filter_input(INPUT_GET, 'tran_id', FILTER_SANITIZE_STRING);
 $amount = filter_input(INPUT_GET, 'amount', FILTER_VALIDATE_FLOAT);
 $status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_STRING);
 
+// Log all incoming requests for debugging
+error_log("Payment callback received - tran_id: $tran_id, amount: $amount, status: $status");
+
 // Validate UUID format for tran_id
 if ($tran_id && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $tran_id)) {
     error_log("Invalid transaction ID format: $tran_id");
@@ -17,7 +20,7 @@ if ($tran_id && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
 
 // Only process if payment is successful (not cancelled or failed)
 if ($tran_id && $amount && (!$status || $status === 'VALID' || $status === 'VALIDATED')) {
-    error_log("Payment Success Callback - tran_id: $tran_id, amount: $amount, status: $status");
+    error_log("Processing payment success - tran_id: $tran_id, amount: $amount, status: $status");
 
     // Load Supabase configuration
     $config = require_once __DIR__ . '/payment-config.php';
@@ -456,7 +459,7 @@ if ($tran_id && $amount && (!$status || $status === 'VALID' || $status === 'VALI
     // If order not found or API failed, redirect with UUID
     header("Location: https://ximpul.com/thank-you?orderId=$tran_id&amount=$amount");
 } else {
-    error_log("Missing tran_id or amount in callback");
+    error_log("Payment cancelled or invalid - tran_id: $tran_id, amount: $amount, status: $status");
     header("Location: https://ximpul.com/");
 }
 exit;
