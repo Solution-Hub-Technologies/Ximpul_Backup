@@ -23,7 +23,7 @@ const BulkOrder = () => {
     timeline: '',
     engraving: '',
     message: '',
-    products: [{ model: '', color: '', quantity: '' }]
+    products: [{ model: '', color: '', quantity: '', accessories: [] as Array<{name: string, quantity: number}> }]
   });
 
   useEffect(() => {
@@ -93,7 +93,7 @@ const BulkOrder = () => {
         timeline: '',
         engraving: '',
         message: '',
-        products: [{ model: '', color: '', quantity: '' }]
+        products: [{ model: '', color: '', quantity: '', accessories: [] }]
       });
     } catch (error) {
       console.error('Error submitting bulk order:', error);
@@ -197,6 +197,7 @@ const BulkOrder = () => {
                   <tr>
                     <th className="border border-gray-300 p-2 md:p-3 text-left text-xs md:text-base">Quantity</th>
                     <th className="border border-gray-300 p-2 md:p-3 text-left text-xs md:text-base">Flat Reduction Per Unit</th>
+                    <th className="border border-gray-300 p-2 md:p-3 text-left text-xs md:text-base">Bulk Price Per Unit</th>
                     <th className="border border-gray-300 p-2 md:p-3 text-left text-xs md:text-base">Notes</th>
                   </tr>
                 </thead>
@@ -204,21 +205,25 @@ const BulkOrder = () => {
                   <tr>
                     <td className="border border-gray-300 p-2 md:p-3">10+ units</td>
                     <td className="border border-gray-300 p-2 md:p-3">৳ 20 off per unit</td>
+                    <td className="border border-gray-300 p-2 md:p-3">৳ 1170 per unit</td>
                     <td className="border border-gray-300 p-2 md:p-3">Community / group orders</td>
                   </tr>
                   <tr>
                     <td className="border border-gray-300 p-2 md:p-3">50+ units</td>
                     <td className="border border-gray-300 p-2 md:p-3">৳ 40 off per unit</td>
+                    <td className="border border-gray-300 p-2 md:p-3">৳ 1150 per unit</td>
                     <td className="border border-gray-300 p-2 md:p-3">Offices / schools / teams</td>
                   </tr>
                   <tr>
                     <td className="border border-gray-300 p-2 md:p-3">100+ units</td>
                     <td className="border border-gray-300 p-2 md:p-3">৳ 90 off per unit</td>
+                    <td className="border border-gray-300 p-2 md:p-3">৳ 1100 per unit</td>
                     <td className="border border-gray-300 p-2 md:p-3">Corporate gifting</td>
                   </tr>
                   <tr>
                     <td className="border border-gray-300 p-2 md:p-3">500+ units</td>
                     <td className="border border-gray-300 p-2 md:p-3">৳ 140 off per unit</td>
+                    <td className="border border-gray-300 p-2 md:p-3">৳ 1050 per unit</td>
                     <td className="border border-gray-300 p-2 md:p-3">Large institutions</td>
                   </tr>
                 </tbody>
@@ -355,9 +360,12 @@ const BulkOrder = () => {
                   <Label htmlFor="phone">Phone Number *</Label>
                   <Input 
                     id="phone" 
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     required 
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/[^0-9]/g, '')})}
                     placeholder="Enter phone number"
                   />
                 </div>
@@ -389,7 +397,8 @@ const BulkOrder = () => {
             <div className="space-y-4">
               <h3 className="text-base md:text-lg font-semibold text-gray-900 border-b pb-2">Product Information</h3>
               {formData.products.map((product, index) => (
-                <div key={index} className="flex gap-2 items-end">
+                <div key={index} className="space-y-3">
+                <div className="flex gap-2 items-end">
                   <div className="flex-1 grid grid-cols-3 gap-2">
                     <div>
                       <Label htmlFor={`model-${index}`} className="text-xs">Edition *</Label>
@@ -464,20 +473,24 @@ const BulkOrder = () => {
                         placeholder="Min 10"
                         className="h-9"
                       />
+                      {product.quantity && parseInt(product.quantity) > 0 && parseInt(product.quantity) < 10 && (
+                        <p className="text-xs text-red-600 mt-1">At least 10 required</p>
+                      )}
                     </div>
                   </div>
                   <div>
-                    {index === formData.products.length - 1 ? (
+                    {index === formData.products.length - 1 && formData.products.length < 4 ? (
                       <Button
                         type="button"
                         variant="outline"
                         size="icon"
-                        onClick={() => setFormData({...formData, products: [...formData.products, { model: '', color: '', quantity: '' }]})}
+                        disabled={!product.model || !product.color || !product.quantity}
+                        onClick={() => setFormData({...formData, products: [...formData.products, { model: '', color: '', quantity: '', accessories: [] }]})}
                         className="h-9 w-9"
                       >
                         <Plus className="h-4 w-4" />
                       </Button>
-                    ) : (
+                    ) : index > 0 ? (
                       <Button
                         type="button"
                         variant="outline"
@@ -490,8 +503,72 @@ const BulkOrder = () => {
                       >
                         <X className="h-4 w-4" />
                       </Button>
-                    )}
+                    ) : null}
                   </div>
+                </div>
+                {/* Accessories */}
+                {product.model && product.model === 'base-edition' && (
+                  <div className="ml-0 pl-0 md:pl-4 border-l-0 md:border-l-2 border-gray-200">
+                    <Label className="text-xs text-gray-600 mb-2 block">Accessories (Optional)</Label>
+                    <div className="grid grid-cols-2 gap-2 md:gap-3">
+                      {[
+                        { name: 'Straw Cap', price: 350 },
+                        { name: 'Cleaning Brush', price: 90 },
+                        { name: 'Straw Cleaning Brush', price: 50 },
+                        { name: 'Aluminium Hook', price: 90 }
+                      ].map((acc) => {
+                        const accessory = (product.accessories || []).find(a => a.name === acc.name);
+                        return (
+                        <div key={acc.name} className="p-3 rounded border border-gray-200">
+                          <div className="flex justify-between items-center mb-2">
+                            <div className="text-xs font-medium">{acc.name}</div>
+                            <div className="text-xs text-gray-600">৳{acc.price}</div>
+                          </div>
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            placeholder="Min 10"
+                            value={accessory?.quantity || ''}
+                            onChange={(e) => {
+                              const newProducts = [...formData.products];
+                              const accessories = newProducts[index].accessories || [];
+                              const value = e.target.value;
+                              const qty = value === '' ? 0 : parseInt(value);
+                              
+                              if (value === '' || qty === 0) {
+                                newProducts[index].accessories = accessories.filter(a => a.name !== acc.name);
+                              } else if (qty >= 10) {
+                                const existingIndex = accessories.findIndex(a => a.name === acc.name);
+                                if (existingIndex >= 0) {
+                                  accessories[existingIndex].quantity = qty;
+                                } else {
+                                  accessories.push({ name: acc.name, quantity: qty });
+                                }
+                                newProducts[index].accessories = accessories;
+                              } else {
+                                // Allow typing but don't save to state if less than 10
+                                const existingIndex = accessories.findIndex(a => a.name === acc.name);
+                                if (existingIndex >= 0) {
+                                  accessories[existingIndex].quantity = qty;
+                                } else {
+                                  accessories.push({ name: acc.name, quantity: qty });
+                                }
+                                newProducts[index].accessories = accessories;
+                              }
+                              setFormData({...formData, products: newProducts});
+                            }}
+                            className="h-10 text-base w-full"
+                          />
+                          {accessory && accessory.quantity > 0 && accessory.quantity < 10 && (
+                            <p className="text-xs text-red-600 mt-1">At least 10 required</p>
+                          )}
+                        </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 </div>
               ))}
               <div>
@@ -501,6 +578,8 @@ const BulkOrder = () => {
                   type="date"
                   value={formData.timeline}
                   onChange={(e) => setFormData({...formData, timeline: e.target.value})}
+                  className="h-10 text-base"
+                  style={{ WebkitAppearance: 'none', appearance: 'none' }}
                 />
               </div>
               <div>
@@ -508,12 +587,11 @@ const BulkOrder = () => {
                   <Label htmlFor="engraving">Engraving/Personalize</Label>
                   <span className="text-sm text-gray-600">৳150 per laser engraving</span>
                 </div>
-                <Textarea 
+                <Input 
                   id="engraving" 
                   placeholder="Enter engraving text"
                   value={formData.engraving}
                   onChange={(e) => setFormData({...formData, engraving: e.target.value})}
-                  rows={3}
                 />
               </div>
               <div>
