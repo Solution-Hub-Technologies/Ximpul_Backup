@@ -7,9 +7,10 @@ error_reporting(E_ALL);
 $tran_id = filter_input(INPUT_GET, 'tran_id', FILTER_SANITIZE_STRING);
 $amount = filter_input(INPUT_GET, 'amount', FILTER_VALIDATE_FLOAT);
 $status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_STRING);
+$val_id = filter_input(INPUT_GET, 'val_id', FILTER_SANITIZE_STRING);
 
 // Log all incoming requests for debugging
-error_log("Payment callback received - tran_id: $tran_id, amount: $amount, status: $status");
+error_log("Payment callback received - tran_id: $tran_id, amount: $amount, status: $status, val_id: $val_id, REQUEST_URI: " . $_SERVER['REQUEST_URI']);
 
 // Validate UUID format for tran_id
 if ($tran_id && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $tran_id)) {
@@ -18,9 +19,10 @@ if ($tran_id && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     exit;
 }
 
-// Only process if payment is successful (not cancelled or failed)
-if ($tran_id && $amount && (!$status || $status === 'VALID' || $status === 'VALIDATED')) {
-    error_log("Processing payment success - tran_id: $tran_id, amount: $amount, status: $status");
+// Only process if payment is successful with valid validation ID
+// SSL Commerce sends val_id only on successful payment, not on cancel
+if ($tran_id && $amount && $val_id) {
+    error_log("Processing payment success - tran_id: $tran_id, amount: $amount, status: $status, val_id: $val_id");
 
     // Load Supabase configuration
     $config = require_once __DIR__ . '/payment-config.php';
