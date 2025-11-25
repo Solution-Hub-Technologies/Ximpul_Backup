@@ -22,6 +22,17 @@ if ($tran_id && $amount) {
     $supabaseUrl = $config['url'];
     $apiKey = $config['key'];
     
+    // Get SSLCommerz validation parameters
+    $val_id = filter_input(INPUT_GET, 'val_id', FILTER_SANITIZE_STRING);
+    $status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_STRING);
+    
+    // Verify payment status from SSLCommerz
+    if ($status && strtoupper($status) !== 'VALID' && strtoupper($status) !== 'VALIDATED') {
+        error_log("Invalid payment status: $status for transaction: $tran_id");
+        header("Location: https://ximpul.com/payment-failed?tran_id=" . urlencode($tran_id));
+        exit;
+    }
+    
     if (empty($apiKey) || $apiKey === 'your-service-role-key-here') {
         error_log("Missing or invalid Supabase API key in payment-config.php");
         header("Location: https://ximpul.com/");

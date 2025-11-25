@@ -98,8 +98,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $post_data['currency'] = "BDT";
     $post_data['tran_id'] = $orderId;
     $post_data['success_url'] = "https://ximpul.com/payment-success.php?tran_id=" . $orderId . "&amount=" . $totalAmount;
-    $post_data['fail_url'] = "https://ximpul.com/payment-failed";
-    $post_data['cancel_url'] = "https://ximpul.com/";
+    $post_data['fail_url'] = "https://ximpul.com/payment-fail.php?tran_id=" . $orderId . "&amount=" . $totalAmount;
+    $post_data['cancel_url'] = "https://ximpul.com/payment-cancel.php?tran_id=" . $orderId . "&amount=" . $totalAmount;
 
     $post_data['cus_name'] = $customerName;
     $post_data['cus_email'] = $customerEmail;
