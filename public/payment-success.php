@@ -19,9 +19,9 @@ if ($tran_id && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     exit;
 }
 
-// Only process if payment is successful with valid validation ID
-// SSL Commerce sends val_id only on successful payment, not on cancel
-if ($tran_id && $amount && $val_id) {
+// Only process if payment is successful (status check)
+// SSL Commerce sends different status for success/cancel/fail
+if ($tran_id && $amount && $status !== 'CANCELLED' && $status !== 'FAILED') {
     error_log("Processing payment success - tran_id: $tran_id, amount: $amount, status: $status, val_id: $val_id");
 
     // Load Supabase configuration
