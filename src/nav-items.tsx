@@ -1,5 +1,5 @@
 
-import { HomeIcon, Package, HelpCircle, Phone, Info, FileText, DollarSign, Search } from "lucide-react";
+import { HomeIcon, Package, HelpCircle, Phone, Info, FileText, DollarSign, Search, ShoppingCart } from "lucide-react";
 import Index from "./pages/Index.tsx";
 import Specs from "./pages/Specs.tsx";
 import FAQ from "./pages/FAQ.tsx";
@@ -13,6 +13,7 @@ import { PaymentFailed } from "./pages/PaymentFailed.tsx";
 import WarrantyPolicy from "./pages/WarrantyPolicy.tsx";
 import ReturnPolicy from "./pages/ReturnPolicy.tsx";
 import { TrackOrder } from "./pages/TrackOrder.tsx";
+import BulkOrder from "./pages/BulkOrder.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 export const navItems = [
@@ -93,6 +94,12 @@ export const navItems = [
     to: "/track-order",
     icon: <Search className="h-4 w-4" />,
     page: <TrackOrder />,
+  },
+  {
+    title: "Bulk Order",
+    to: "/bulk-order",
+    icon: <ShoppingCart className="h-4 w-4" />,
+    page: <BulkOrder />,
   },
   {
     title: "Not Found",

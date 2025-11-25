@@ -169,7 +169,7 @@ export const AdminDashboard = () => {
       </div>
 
       {/* Today's Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <Card className="border-l-4 border-l-primary shadow-sm hover:shadow transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Orders Today</CardTitle>
@@ -297,9 +297,9 @@ export const AdminDashboard = () => {
           ) : (
             <div className="space-y-4">
               {todayOrders.slice(0, 5).map((order) => (
-                <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className={`p-2 rounded-full ${
+                <div key={order.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors gap-3">
+                  <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1">
+                    <div className={`p-2 rounded-full shrink-0 ${
                       order.payment_method === 'cod' ? 'bg-green-100' : 'bg-blue-100'
                     }`}>
                       {order.payment_method === 'cod' ? 
@@ -307,14 +307,14 @@ export const AdminDashboard = () => {
                         <CreditCard className="h-4 w-4 text-blue-600" />
                       }
                     </div>
-                    <div>
-                      <p className="font-medium">{order.customer_name}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <p className="text-sm text-gray-600">{order.customer_phone}</p>
-                        <span className="text-gray-300">|</span>
-                        <p className="text-sm text-gray-600">{order.selected_edition} Edition</p>
-                        <span className="text-gray-300">|</span>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{order.customer_name}</p>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1">
+                        <p className="text-sm text-gray-600 truncate">{order.customer_phone}</p>
+                        <span className="text-gray-300 hidden sm:inline">|</span>
+                        <p className="text-sm text-gray-600 truncate">{order.selected_edition} Edition</p>
+                        <span className="text-gray-300 hidden sm:inline">|</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium inline-block w-fit ${
                           order.payment_method === 'cod' 
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-blue-100 text-blue-800'
@@ -333,9 +333,9 @@ export const AdminDashboard = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">{order.total_amount.toLocaleString()} BDT</p>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 ${
+                  <div className="flex items-center justify-between md:flex-col md:items-end md:justify-start gap-2 md:gap-1">
+                    <p className="font-medium text-base md:text-base">{order.total_amount.toLocaleString()} BDT</p>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       order.order_status === 'pending' 
                         ? 'bg-yellow-100 text-yellow-800'
                         : order.order_status === 'processing'

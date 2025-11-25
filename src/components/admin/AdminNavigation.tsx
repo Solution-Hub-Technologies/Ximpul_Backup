@@ -119,18 +119,18 @@ export const AdminNavigation = () => {
 
   return (
     <nav className="bg-white shadow-sm border-b sticky top-0 z-10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 md:px-6 lg:px-8">
+        <div className="flex justify-between h-14 md:h-16">
           <div className="flex items-center">
             <Link to="/admin/dashboard" className="flex items-center">
-              <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center mr-2">
-                <span className="text-white font-bold">X</span>
+              <div className="w-7 h-7 md:w-8 md:h-8 bg-primary rounded-md flex items-center justify-center mr-1.5 md:mr-2">
+                <span className="text-white font-bold text-sm md:text-base">X</span>
               </div>
-              <span className="text-xl font-bold text-gray-900">Ximpul</span>
-              <span className="text-sm font-medium text-gray-500 ml-1">Admin</span>
+              <span className="text-lg md:text-xl font-bold text-gray-900">Ximpul</span>
+              <span className="text-xs md:text-sm font-medium text-gray-500 ml-1">Admin</span>
             </Link>
             
-            <div className="hidden md:flex md:ml-10 space-x-1">
+            <div className="hidden lg:flex lg:ml-10 space-x-1">
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.href;
@@ -152,23 +152,23 @@ export const AdminNavigation = () => {
             </div>
           </div>
           
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 md:space-x-4">
 
             
             <div className="relative">
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <button 
-                    className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 relative"
+                    className="p-1 md:p-1.5 rounded-full text-gray-500 hover:bg-gray-100 relative"
                     onClick={() => {
                       if (unreadCount > 0) {
                         setTimeout(() => markNotificationsAsRead(), 100);
                       }
                     }}
                   >
-                    <Bell className="w-5 h-5" />
+                    <Bell className="w-4 h-4 md:w-5 md:h-5" />
                     {(unreadCount > 0 || stockNotifications.length > 0 || dbNotifications.length > 0) && (
-                      <span className="absolute top-0 right-0 flex items-center justify-center h-4 w-4 text-xs rounded-full bg-red-500 text-white">
+                      <span className="absolute -top-1 -right-1 flex items-center justify-center h-4 w-4 text-[10px] rounded-full bg-red-500 text-white">
                         {(unreadCount + stockNotifications.length + dbNotifications.length) > 9 ? '9+' : (unreadCount + stockNotifications.length + dbNotifications.length)}
                       </span>
                     )}
@@ -258,15 +258,15 @@ export const AdminNavigation = () => {
             
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
-                <div className="flex items-center space-x-2 border-l pl-4 ml-2 cursor-pointer">
-                  <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-700 font-medium">
+                <div className="flex items-center space-x-1 md:space-x-2 border-l pl-2 md:pl-4 ml-1 md:ml-2 cursor-pointer">
+                  <div className="w-7 h-7 md:w-8 md:h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-700 font-medium text-sm">
                     {adminUser?.name?.charAt(0) || 'A'}
                   </div>
                   <div className="hidden md:block">
                     <p className="text-sm font-medium text-gray-700">{adminUser?.name || 'Admin'}</p>
                     <p className="text-xs text-gray-500">{adminUser?.role || 'Administrator'}</p>
                   </div>
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                  <ChevronDown className="w-3 h-3 md:w-4 md:h-4 text-gray-500" />
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={(e) => e.preventDefault()}>
@@ -323,8 +323,8 @@ export const AdminNavigation = () => {
       </div>
       
       {/* Mobile Navigation */}
-      <div className="md:hidden border-t">
-        <div className="flex justify-between px-2 py-2">
+      <div className="md:hidden border-t overflow-x-auto">
+        <div className="flex px-2 py-2 min-w-max">
           {navigation.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
@@ -332,21 +332,17 @@ export const AdminNavigation = () => {
               <Link
                 key={item.name}
                 to={item.href}
-                className={`flex flex-col items-center justify-center px-3 py-1 rounded-md text-xs ${
+                className={`flex flex-col items-center justify-center px-2 py-1 rounded-md text-[10px] min-w-[60px] ${
                   isActive
                     ? 'text-primary'
                     : 'text-gray-600 hover:text-primary'
                 }`}
               >
-                <Icon className={`w-5 h-5 mb-1 ${isActive ? 'text-primary' : ''}`} />
-                {item.name}
+                <Icon className={`w-4 h-4 mb-0.5 ${isActive ? 'text-primary' : ''}`} />
+                <span className="truncate w-full text-center">{item.name}</span>
               </Link>
             );
           })}
-          <button className="flex flex-col items-center justify-center px-3 py-1 rounded-md text-xs text-gray-600 hover:text-primary">
-            <Settings className="w-5 h-5 mb-1" />
-            Settings
-          </button>
         </div>
       </div>
 

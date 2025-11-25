@@ -121,6 +121,11 @@ export const Footer = () => {
               }`}>
                 Track Order
               </button>
+              <button onClick={() => navigateToPage('/bulk-order')} className={`transition-colors font-medium ${
+                location.pathname === '/bulk-order' ? 'text-black font-bold' : 'text-muted-foreground hover:text-foreground'
+              }`}>
+                Bulk Order
+              </button>
             </div>
           </div>
 
