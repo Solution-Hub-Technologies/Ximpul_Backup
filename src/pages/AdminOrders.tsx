@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { useOrders, Order } from '@/hooks/useOrders';
+import { useBulkOrders } from '@/hooks/useBulkOrders';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 import { 
@@ -40,6 +41,7 @@ const ColorBadge = ({ color }: { color: string }) => {
 
 export const AdminOrders = () => {
   const { orders, isLoading, updateOrderStatus, updatePaymentStatus, updateTrackingInfo, fetchOrders, deleteOrder } = useOrders();
+  const { bulkOrders, isLoading: bulkOrdersLoading, fetchBulkOrders } = useBulkOrders();
   const { adminUser } = useAdminAuth();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState('all');
@@ -987,7 +989,7 @@ export const AdminOrders = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 md:p-6">
         <h2 className="text-sm md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Order Categories</h2>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 md:space-y-6">
-          <TabsList className="grid grid-cols-4 w-full bg-white border border-gray-200 p-0.5 md:p-1 rounded-lg gap-0.5 md:gap-1">
+          <TabsList className="grid grid-cols-5 w-full bg-white border border-gray-200 p-0.5 md:p-1 rounded-lg gap-0.5 md:gap-1">
             <TabsTrigger value="all" className="data-[state=active]:bg-gray-900 data-[state=active]:text-white text-[10px] md:text-sm py-1.5 md:py-2 px-1 md:px-3">
               <span className="hidden sm:inline">All Orders</span>
               <span className="sm:hidden">All</span> ({orders.filter(o => !(o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending'))).length})
@@ -1002,6 +1004,9 @@ export const AdminOrders = () => {
             </TabsTrigger>
             <TabsTrigger value="leads" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white text-[10px] md:text-sm py-1.5 md:py-2 px-1 md:px-3">
               Leads ({orders.filter(o => o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending')).length})
+            </TabsTrigger>
+            <TabsTrigger value="bulk" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white text-[10px] md:text-sm py-1.5 md:py-2 px-1 md:px-3">
+              Bulk Orders ({bulkOrders.length})
             </TabsTrigger>
           </TabsList>
           
@@ -1093,9 +1098,130 @@ export const AdminOrders = () => {
         </Tabs>
       </div>
 
+      {/* Bulk Orders Tab Content */}
+      {activeTab === 'bulk' && (
+        <Card className="shadow-sm hover:shadow transition-shadow overflow-hidden bg-purple-50/30 border-purple-200">
+          <CardHeader className="pb-2 px-3 md:px-6">
+            <CardTitle className="capitalize text-base md:text-lg">Bulk Orders ({bulkOrders.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 md:px-6">
+            <div className="space-y-3 md:space-y-4">
+              {bulkOrdersLoading ? (
+                <div className="text-center py-12">
+                  <RefreshCw className="h-8 w-8 text-primary animate-spin mx-auto mb-2" />
+                  <p>Loading bulk orders...</p>
+                </div>
+              ) : bulkOrders.length === 0 ? (
+                <div className="text-center py-12">
+                  <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <h3 className="text-lg font-medium text-gray-900">No bulk orders found</h3>
+                  <p className="text-gray-500">Bulk order requests will appear here</p>
+                </div>
+              ) : (
+                bulkOrders.map((order) => (
+                  <div key={order.id} className="border border-gray-200 rounded-lg p-2 md:p-4 transition-all shadow-sm bg-white hover:bg-gray-50">
+                    <div className="flex flex-col gap-2 md:gap-4">
+                      <div className="flex flex-col gap-2 md:gap-4 pb-2 md:pb-3 border-b">
+                        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2">
+                          <div>
+                            <h3 className="font-semibold text-base md:text-xl text-gray-900">{order.customer_name}</h3>
+                            <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 mt-1">
+                              <Phone className="h-3 w-3 md:h-3.5 md:w-3.5 text-gray-400" />
+                              <span>{order.customer_phone}</span>
+                            </div>
+                            {order.customer_email && (
+                              <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 mt-0.5">
+                                <Mail className="h-3 w-3 md:h-3.5 md:w-3.5 text-gray-400" />
+                                <span>{order.customer_email}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-left md:text-right">
+                            <div className="flex items-center gap-1 md:gap-2 text-gray-600 font-medium text-xs md:text-sm">
+                              <Calendar className="h-3 w-3 md:h-4 md:w-4" />
+                              <span>Requested</span>
+                            </div>
+                            <p className="text-xs md:text-sm font-medium text-gray-900 mt-0.5">
+                              {new Date(order.created_at).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
+                        <div className="space-y-2 md:space-y-0.5">
+                          <div className="flex items-center gap-2 text-gray-600 font-medium text-xs md:text-base">
+                            <Package className="h-3 w-3 md:h-4 md:w-4" />
+                            <span>Products</span>
+                          </div>
+                          <div className="space-y-2">
+                            {order.products.map((product, idx) => (
+                              <div key={idx} className="bg-gray-50 p-2 md:p-3 rounded-lg border border-gray-200">
+                                <p className="text-xs md:text-sm"><span className="font-medium">Edition:</span> {product.model}</p>
+                                <p className="text-xs md:text-sm"><span className="font-medium">Color:</span> {product.color}</p>
+                                <p className="text-xs md:text-sm"><span className="font-medium">Quantity:</span> {product.quantity}</p>
+                                {product.accessories && product.accessories.length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-gray-200">
+                                    <p className="text-xs font-medium text-gray-600 mb-1">Accessories:</p>
+                                    {product.accessories.map((acc, accIdx) => (
+                                      <p key={accIdx} className="text-xs text-gray-600">• {acc.name} × {acc.quantity}</p>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2 md:space-y-0.5">
+                          <div className="flex items-center gap-2 text-gray-600 font-medium text-xs md:text-base">
+                            <FileText className="h-3 w-3 md:h-4 md:w-4" />
+                            <span>Order Details</span>
+                          </div>
+                          <div className="space-y-1 text-xs md:text-base">
+                            <p className="flex items-start gap-2 text-gray-900">
+                              <MapPin className="h-3.5 w-3.5 text-gray-400 mt-0.5" />
+                              <span className="text-sm">{order.customer_location}</span>
+                            </p>
+                            {order.timeline && (
+                              <p className="flex items-center gap-2 text-gray-900">
+                                <Clock className="h-3.5 w-3.5 text-gray-400" />
+                                <span className="text-sm"><span className="font-medium">Timeline:</span> {order.timeline}</span>
+                              </p>
+                            )}
+                            {order.engraving && (
+                              <p className="text-gray-900">
+                                <span className="font-medium">Engraving:</span> <span className="text-gray-600">{order.engraving}</span>
+                              </p>
+                            )}
+                            {order.additional_message && (
+                              <div className="mt-2 pt-2 border-t border-gray-200">
+                                <p className="text-sm font-medium mb-1">Additional Message:</p>
+                                <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">{order.additional_message}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Orders Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         {[activeTab].map((tab) => {
+          if (tab === 'bulk') return null;
           let baseOrders;
           if (tab === 'online') {
             baseOrders = orders.filter(order => order.payment_method === 'online' && !(order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending')));
