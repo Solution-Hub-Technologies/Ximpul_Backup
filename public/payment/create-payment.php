@@ -110,9 +110,9 @@ $post_data = [
     'total_amount' => $totalAmount,
     'currency' => 'BDT',
     'tran_id' => $orderId,
-    'success_url' => "https://ximpul.com/payment-success?tran_id={$orderId}&amount={$totalAmount}",
-    'fail_url' => 'https://ximpul.com/payment-failed',
-    'cancel_url' => 'https://ximpul.com/',
+    'success_url' => "https://ximpul.com/payment-success.php?tran_id={$orderId}&amount={$totalAmount}",
+    'fail_url' => "https://ximpul.com/payment-fail.php?tran_id={$orderId}&amount={$totalAmount}",
+    'cancel_url' => "https://ximpul.com/payment-cancel.php?tran_id={$orderId}&amount={$totalAmount}",
     'ipn_url' => 'https://ximpul.com/api/ipn',
 
     'cus_name' => $customerName,
