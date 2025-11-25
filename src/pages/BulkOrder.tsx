@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 
 const BulkOrder = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -46,7 +47,7 @@ const BulkOrder = () => {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabaseAdmin.from('bulk_orders').insert({
+      const { data, error } = await supabaseAdmin.from('bulk_orders').insert({
         customer_name: formData.name,
         customer_email: formData.email,
         customer_phone: formData.phone,
@@ -55,15 +56,35 @@ const BulkOrder = () => {
         timeline: formData.timeline || null,
         engraving: formData.engraving || null,
         additional_message: formData.message || null
-      });
+      }).select().single();
 
       if (error) {
         console.error('Database error:', error);
         throw error;
       }
 
-      toast.success('Bulk order request submitted successfully!');
+      // Send emails
+      try {
+        await fetch('https://ximpul.com:3002/send-bulk-order-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerName: formData.name,
+            customerEmail: formData.email,
+            customerPhone: formData.phone,
+            customerLocation: formData.location,
+            products: formData.products,
+            timeline: formData.timeline,
+            engraving: formData.engraving,
+            additionalMessage: formData.message
+          })
+        });
+      } catch (emailError) {
+        console.error('Email error:', emailError);
+      }
+
       setIsModalOpen(false);
+      setShowSuccessModal(true);
       setFormData({
         name: '',
         email: '',
@@ -514,6 +535,28 @@ const BulkOrder = () => {
               <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="flex-1 sm:flex-initial" disabled={isSubmitting}>Cancel</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Success Modal */}
+      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl">🎉 Request Submitted!</DialogTitle>
+          </DialogHeader>
+          <div className="text-center space-y-4 py-4">
+            <div className="text-6xl">✓</div>
+            <p className="text-lg font-medium">Thank you for your bulk order request!</p>
+            <p className="text-gray-600">
+              We've received your request and sent a confirmation email to <strong>{formData.email}</strong>.
+            </p>
+            <p className="text-gray-600">
+              Our team will review your request and get back to you with a detailed quotation within 24-48 hours.
+            </p>
+            <Button onClick={() => setShowSuccessModal(false)} className="w-full mt-4">
+              Close
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
       
