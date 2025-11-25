@@ -6,11 +6,6 @@ error_reporting(E_ALL);
 // Sanitize and validate inputs
 $tran_id = filter_input(INPUT_GET, 'tran_id', FILTER_SANITIZE_STRING);
 $amount = filter_input(INPUT_GET, 'amount', FILTER_VALIDATE_FLOAT);
-$status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_STRING);
-$val_id = filter_input(INPUT_GET, 'val_id', FILTER_SANITIZE_STRING);
-
-// Log all incoming requests for debugging
-error_log("Payment callback received - tran_id: $tran_id, amount: $amount, status: $status, val_id: $val_id, REQUEST_URI: " . $_SERVER['REQUEST_URI']);
 
 // Validate UUID format for tran_id
 if ($tran_id && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $tran_id)) {
@@ -19,10 +14,8 @@ if ($tran_id && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     exit;
 }
 
-// Only process if payment is successful (status check)
-// SSL Commerce sends specific status for success, reject everything else
-if ($tran_id && $amount && ($status === 'VALID' || $status === 'VALIDATED' || (!empty($val_id) && $status !== 'CANCELLED' && $status !== 'FAILED'))) {
-    error_log("Processing payment success - tran_id: $tran_id, amount: $amount, status: $status, val_id: $val_id");
+if ($tran_id && $amount) {
+    error_log("Payment Success Callback - tran_id: $tran_id, amount: $amount");
 
     // Load Supabase configuration
     $config = require_once __DIR__ . '/payment-config.php';
@@ -461,7 +454,7 @@ if ($tran_id && $amount && ($status === 'VALID' || $status === 'VALIDATED' || (!
     // If order not found or API failed, redirect with UUID
     header("Location: https://ximpul.com/thank-you?orderId=$tran_id&amount=$amount");
 } else {
-    error_log("Payment cancelled or invalid - tran_id: $tran_id, amount: $amount, status: $status");
+    error_log("Missing tran_id or amount in callback");
     header("Location: https://ximpul.com/");
 }
 exit;
