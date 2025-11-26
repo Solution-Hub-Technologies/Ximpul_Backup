@@ -87,11 +87,6 @@ const BulkOrder = () => {
     setIsSubmitting(true);
 
     try {
-      // Generate PDF first
-      console.log('📧 Generating PDF for email attachment...');
-      const pdfBase64 = await generatePDF();
-      console.log('📧 PDF ready, proceeding with submission...');
-
       const { data, error } = await supabaseAdmin.from('bulk_orders').insert({
         customer_name: formData.name,
         customer_email: formData.email,
@@ -108,7 +103,21 @@ const BulkOrder = () => {
         throw error;
       }
 
+      // Generate PDF quotation
+      console.log('📄 Generating PDF quotation...');
+      const pdfBase64 = await generatePDF();
+      console.log('✅ PDF generated successfully, size:', pdfBase64.length, 'characters');
+
       // Send emails using same system as ColorSelector
+      const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      
+      if (isDevelopment) {
+        console.log('🔧 Development mode: Skipping email send');
+        console.log('📧 Would send admin email to:', 'ximpulshop@gmail.com');
+        console.log('📧 Would send customer email to:', formData.email);
+        console.log('📎 PDF attachment ready:', pdfBase64.substring(0, 50) + '...');
+      }
+      
       try {
         const { supabase } = await import('@/integrations/supabase/client');
         
@@ -187,31 +196,13 @@ const BulkOrder = () => {
           adminEmailParams.cc = ccEmails;
         }
         
-        console.log('📧 Sending admin email with attachment...');
-        console.log('📎 Attachment size:', pdfBase64.length, 'characters');
-        
-        // Convert base64 to blob
-        const byteCharacters = atob(pdfBase64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        if (!isDevelopment) {
+          await fetch('https://ximpul.com/smtp-mailer.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams(adminEmailParams)
+          });
         }
-        const byteArray = new Uint8Array(byteNumbers);
-        const pdfBlob = new Blob([byteArray], { type: 'application/pdf' });
-        
-        await fetch('https://ximpul.com/phpmailer-send.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            to: adminEmailParams.to,
-            subject: adminEmailParams.subject,
-            message: adminEmailParams.message,
-            from_name: adminEmailParams.from_name,
-            cc: adminEmailParams.cc || '',
-            pdf_base64: pdfBase64,
-            pdf_filename: adminEmailParams.attachment_name
-          })
-        });
         
         // Send confirmation email to customer
         const { data: customerTemplate } = await supabase
@@ -232,27 +223,34 @@ const BulkOrder = () => {
             .replace(/\$\{customerName\}/g, formData.name)
             .replace(/{{customerName}}/g, formData.name);
         } else {
-          customerEmailHTML = `<h2>Bulk Order Request Received</h2><p>Dear ${formData.name},</p><p>Thank you for your bulk order request!</p><p>We'll review your request and get back to you with a detailed quotation within 24-48 hours.</p><p>Best regards,<br>Team Ximpul</p>`;
+          customerEmailHTML = `<h2>Bulk Order Request Received</h2><p>Dear ${formData.name},</p><p>Thank you for your bulk order request!</p><p>We'll review your request and get back to you with a detailed quotation within 24-48 hours.</p><p>Best regards,<br>Team Ximpul<br>01881408611</p>`;
         }
         
-        await fetch('https://ximpul.com/phpmailer-send.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            to: formData.email,
-            subject: customerSubject,
-            message: customerEmailHTML,
-            from_name: 'Ximpul Shop',
-            pdf_base64: pdfBase64,
-            pdf_filename: `Bulk_Order_Quotation_${formData.name.replace(/\s+/g, '_')}.pdf`
-          })
-        });
+        if (!isDevelopment) {
+          await fetch('https://ximpul.com/smtp-mailer.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              to: formData.email,
+              subject: customerSubject,
+              message: customerEmailHTML,
+              from_name: 'Ximpul Shop'
+            })
+          });
+        }
       } catch (emailError) {
         console.error('Email error:', emailError);
+        if (!isDevelopment) {
+          toast.error('Failed to send email notifications');
+        }
       }
 
       setIsModalOpen(false);
       setShowSuccessModal(true);
+      
+      if (isDevelopment) {
+        toast.success('✅ Development mode: Order saved, PDF generated (emails skipped)');
+      }
       setFormData({
         name: '',
         email: '',

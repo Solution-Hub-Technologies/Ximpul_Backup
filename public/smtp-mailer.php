@@ -22,15 +22,19 @@ $subject = filter_input(INPUT_POST, 'subject', FILTER_SANITIZE_STRING) ?: 'Email
 $message = $_POST['message'] ?? '';
 $from_name = filter_input(INPUT_POST, 'from_name', FILTER_SANITIZE_STRING) ?: 'Ximpul Shop';
 
-// Handle file upload
+// Handle file upload or base64 PDF
 $attachment = '';
 $attachment_name = 'attachment.pdf';
-if (isset($_FILES['pdf_file']) && $_FILES['pdf_file']['error'] === UPLOAD_ERR_OK) {
+if (isset($_POST['pdf_base64']) && !empty($_POST['pdf_base64'])) {
+    $attachment = $_POST['pdf_base64'];
+    $attachment_name = $_POST['pdf_filename'] ?? 'attachment.pdf';
+    error_log('PDF base64 received: ' . $attachment_name . ', size: ' . strlen($attachment));
+} elseif (isset($_FILES['pdf_file']) && $_FILES['pdf_file']['error'] === UPLOAD_ERR_OK) {
     $attachment = base64_encode(file_get_contents($_FILES['pdf_file']['tmp_name']));
     $attachment_name = $_FILES['pdf_file']['name'];
     error_log('PDF file uploaded: ' . $attachment_name . ', size: ' . strlen($attachment));
 } else {
-    error_log('No PDF file uploaded or upload error');
+    error_log('No PDF attachment');
 }
 
 // Parse TO emails (comma separated)
