@@ -6,6 +6,10 @@ error_reporting(E_ALL);
 // Sanitize and validate inputs
 $tran_id = filter_input(INPUT_GET, 'tran_id', FILTER_SANITIZE_STRING);
 $amount = filter_input(INPUT_GET, 'amount', FILTER_VALIDATE_FLOAT);
+$val_id = filter_input(INPUT_GET, 'val_id', FILTER_SANITIZE_STRING);
+$status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_STRING);
+$card_type = filter_input(INPUT_GET, 'card_type', FILTER_SANITIZE_STRING);
+$bank_tran_id = filter_input(INPUT_GET, 'bank_tran_id', FILTER_SANITIZE_STRING);
 
 // Validate UUID format for tran_id
 if ($tran_id && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $tran_id)) {
@@ -14,23 +18,97 @@ if ($tran_id && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     exit;
 }
 
-if ($tran_id && $amount) {
-    error_log("Payment Success Callback - tran_id: $tran_id, amount: $amount");
-
-    // Load Supabase configuration
+// Check if this is a real payment success (must have bank_tran_id or card_type)
+// If not present, verify with SSLCommerz API as fallback
+if (!$bank_tran_id && !$card_type) {
+    error_log("⚠️ No bank_tran_id or card_type in callback - verifying with SSLCommerz API. tran_id: $tran_id");
+    
+    // Load config for verification
     $config = require_once __DIR__ . '/payment-config.php';
     $supabaseUrl = $config['url'];
     $apiKey = $config['key'];
     
-    // Get SSLCommerz validation parameters
-    $val_id = filter_input(INPUT_GET, 'val_id', FILTER_SANITIZE_STRING);
-    $status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_STRING);
+    // Get SSL config
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/ssl_config?select=*&limit=1');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'apikey: ' . $apiKey,
+        'Authorization: Bearer ' . $apiKey,
+        'Content-Type: application/json'
+    ]);
+    $sslConfigResponse = curl_exec($ch);
+    curl_close($ch);
     
-    // Verify payment status from SSLCommerz
-    if ($status && strtoupper($status) !== 'VALID' && strtoupper($status) !== 'VALIDATED') {
-        error_log("Invalid payment status: $status for transaction: $tran_id");
-        header("Location: https://ximpul.com/payment-failed?tran_id=" . urlencode($tran_id));
+    $sslConfigs = json_decode($sslConfigResponse, true);
+    
+    if ($sslConfigs && count($sslConfigs) > 0) {
+        $sslConfig = $sslConfigs[0];
+        $store_id = $sslConfig['store_id'];
+        $store_passwd = $sslConfig['store_password'];
+        $is_live = $sslConfig['is_live'];
+        
+        // Verify with merchant transaction ID API
+        $validation_url = $is_live 
+            ? "https://securepay.sslcommerz.com/validator/api/merchantTransIDvalidationAPI.php"
+            : "https://sandbox.sslcommerz.com/validator/api/merchantTransIDvalidationAPI.php";
+        
+        $validation_data = [
+            'tran_id' => $tran_id,
+            'store_id' => $store_id,
+            'store_passwd' => $store_passwd,
+            'format' => 'json'
+        ];
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $validation_url . '?' . http_build_query($validation_data));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $fallback_response = curl_exec($ch);
+        curl_close($ch);
+        
+        $fallback_result = json_decode($fallback_response, true);
+        
+        error_log("🔍 Fallback verification response: $fallback_response");
+        
+        // Check if transaction is valid
+        if ($fallback_result && isset($fallback_result['element']) && count($fallback_result['element']) > 0) {
+            $transaction = $fallback_result['element'][0];
+            
+            if ($transaction['status'] === 'VALID' || $transaction['status'] === 'VALIDATED') {
+                error_log("✅ Fallback verification SUCCESS - Payment is valid");
+                // Extract bank_tran_id and card_type from verification response
+                $bank_tran_id = $transaction['bank_tran_id'] ?? null;
+                $card_type = $transaction['card_type'] ?? null;
+                $val_id = $transaction['val_id'] ?? null;
+                
+                error_log("✅ Retrieved from API - bank_tran_id: $bank_tran_id, card_type: $card_type");
+                // Continue processing below
+            } else {
+                error_log("❌ Fallback verification FAILED - Payment not valid");
+                header("Location: https://ximpul.com/");
+                exit;
+            }
+        } else {
+            error_log("❌ Fallback verification FAILED - No valid transaction found");
+            header("Location: https://ximpul.com/");
+            exit;
+        }
+    } else {
+        error_log("❌ SSL config not found for fallback verification");
+        header("Location: https://ximpul.com/");
         exit;
+    }
+}
+
+if ($tran_id && $amount) {
+    error_log("✅ Valid Payment Callback - tran_id: $tran_id, amount: $amount, bank_tran_id: " . ($bank_tran_id ?: 'none') . ", card_type: " . ($card_type ?: 'none'));
+
+    // Load Supabase configuration (check if already loaded)
+    if (!isset($supabaseUrl) || !isset($apiKey)) {
+        $config = require __DIR__ . '/payment-config.php';
+        $supabaseUrl = $config['url'];
+        $apiKey = $config['key'];
     }
     
     if (empty($apiKey) || $apiKey === 'your-service-role-key-here') {
@@ -64,15 +142,90 @@ if ($tran_id && $amount) {
             $order = $orders[0];
             error_log("Order details: " . print_r($order, true));
             
-            // Check if order is already processed to prevent duplicate stock deduction
-            if ($order['order_status'] === 'processing' && $order['payment_status'] === 'completed') {
-                error_log("Order already processed, skipping stock deduction: " . $order['order_id']);
-                // Redirect to thank you page without processing again
+            // Check if order is already processed to prevent duplicate processing
+            if ($order['payment_status'] === 'completed') {
+                error_log("⚠️ DUPLICATE - Order already completed: " . $order['order_id']);
+                // Redirect to Thank You page since payment is already done
                 header("Location: https://ximpul.com/thank-you?orderId=" . urlencode($order['order_id']) . "&totalAmount=" . urlencode($order['total_amount']) . "&paymentMethod=online");
                 exit;
             }
             
-            // Update order status
+            // Check if order status is not pending_payment (means it's cancelled or failed)
+            if ($order['order_status'] !== 'pending_payment') {
+                error_log("⚠️ INVALID ORDER STATUS - Expected pending_payment, got: " . $order['order_status'] . " for order: " . $order['order_id']);
+                header("Location: https://ximpul.com/");
+                exit;
+            }
+            
+            error_log("🚀 Processing new online payment for order: " . $order['order_id']);
+            
+            // Verify payment with SSLCommerz validation API
+            error_log("🔐 Verifying payment with SSLCommerz for tran_id: $tran_id");
+            
+            // Get SSL config for validation
+            $sslConfigUrl = $supabaseUrl . '/ssl_config?select=*&limit=1';
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $sslConfigUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'apikey: ' . $apiKey,
+                'Authorization: Bearer ' . $apiKey,
+                'Content-Type: application/json'
+            ]);
+            $sslConfigResponse = curl_exec($ch);
+            curl_close($ch);
+            
+            $sslConfigs = json_decode($sslConfigResponse, true);
+            if ($sslConfigs && count($sslConfigs) > 0) {
+                $sslConfig = $sslConfigs[0];
+                $store_id = $sslConfig['store_id'];
+                $store_passwd = $sslConfig['store_password'];
+                $is_live = $sslConfig['is_live'];
+                
+                // SSLCommerz validation API endpoint
+                $validation_url = $is_live 
+                    ? "https://securepay.sslcommerz.com/validator/api/validationserverAPI.php"
+                    : "https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php";
+                
+                // Only validate if val_id is present
+                if ($val_id) {
+                    // Validate payment
+                    $validation_data = [
+                        'val_id' => $val_id,
+                        'store_id' => $store_id,
+                        'store_passwd' => $store_passwd,
+                        'format' => 'json'
+                    ];
+                    
+                    $ch = curl_init();
+                    curl_setopt($ch, CURLOPT_URL, $validation_url . '?' . http_build_query($validation_data));
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    $validation_response = curl_exec($ch);
+                    $validation_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+                    
+                    error_log("🔍 Validation API response code: $validation_code");
+                    error_log("🔍 Validation API response: $validation_response");
+                    
+                    $validation_result = json_decode($validation_response, true);
+                    
+                    // Check if payment is valid (accept both VALID and VALIDATED)
+                    if ($validation_code !== 200 || !$validation_result || ($validation_result['status'] !== 'VALID' && $validation_result['status'] !== 'VALIDATED')) {
+                        error_log("❌ Payment validation FAILED for order: " . $order['order_id']);
+                        error_log("❌ Validation result: " . json_encode($validation_result));
+                        // Redirect to home without processing
+                        header("Location: https://ximpul.com/");
+                        exit;
+                    }
+                    
+                    error_log("✅ Payment validation SUCCESS for order: " . $order['order_id']);
+                } else {
+                    error_log("⚠️ No val_id provided - skipping validation (test mode?)");
+                }
+            }
+            
+            // Update order status FIRST to prevent race condition
             $updateData = json_encode([
                 'order_status' => 'processing',
                 'payment_status' => 'completed'
@@ -277,8 +430,18 @@ if ($tran_id && $amount) {
                 }
             }
             
-            // Send customer email with same format as COD
-            if (!empty($order['customer_email'])) {
+            // Check if emails already sent for this order (prevent duplicates)
+            $emailSentFlag = sys_get_temp_dir() . '/email_sent_' . $order['id'] . '.flag';
+            
+            if (file_exists($emailSentFlag)) {
+                error_log("⚠️ Emails already sent for order: " . $order['order_id'] . ", skipping duplicate");
+            } else {
+                // Create flag file
+                file_put_contents($emailSentFlag, time());
+                
+                // Send customer email with same format as COD
+                if (!empty($order['customer_email'])) {
+                    error_log("📧 SENDING CUSTOMER EMAIL to: " . $order['customer_email'] . " for order: " . $order['order_id']);
                 // Build secure email template
                 $customerName = htmlspecialchars($order['customer_name'], ENT_QUOTES, 'UTF-8');
                 $orderId = htmlspecialchars($order['order_id'], ENT_QUOTES, 'UTF-8');
@@ -301,11 +464,11 @@ if ($tran_id && $amount) {
                 $emailResponse = curl_exec($ch);
                 curl_close($ch);
                 
-                error_log("Customer Email Response: $emailResponse");
-            }
+                    error_log("✅ Customer Email Response: $emailResponse");
+                }
             
-            // Send admin emails for online payment
-            $adminEmailHTML = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Payment Received - Ximpul Admin</title></head><body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f1f5f9;"><div style="max-width: 650px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"><div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center;"><div style="background-color: rgba(255,255,255,0.2); width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 24px;">✓</span></div><h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 0 0 5px 0;">Payment Received</h1><p style="color: #d1fae5; font-size: 14px; margin: 0;">Online payment confirmed</p></div><div style="padding: 30px;"><div style="background: linear-gradient(135deg, #1f2937 0%, #374151 100%); border-radius: 12px; padding: 20px; margin-bottom: 25px; text-align: center;"><h2 style="color: #ffffff; font-size: 20px; font-weight: 600; margin: 0 0 10px 0;">Order #' . htmlspecialchars($order['order_id']) . '</h2><p style="color: #d1d5db; font-size: 14px; margin: 0;">Total: <span style="font-size: 18px; font-weight: 700; color: #10b981;">' . htmlspecialchars($order['total_amount']) . ' BDT</span></p></div><div style="background-color: #f8fafc; border-radius: 12px; padding: 25px; margin-bottom: 25px;"><h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Customer Information</h3><div style="display: grid; gap: 12px;"><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Name:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['customer_name']) . '</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Phone:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['customer_phone']) . '</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Email:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['customer_email']) . '</span></div><div style="padding: 8px 0;"><span style="color: #64748b; font-weight: 500; display: block; margin-bottom: 5px;">Address:</span><span style="color: #1f2937; font-weight: 600; background-color: #ffffff; padding: 10px; border-radius: 6px; display: block;">' . htmlspecialchars($order['customer_address']) . '</span></div></div></div><div style="background-color: #f0f9ff; border-radius: 12px; padding: 25px; margin-bottom: 25px;"><h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px;">Product Details</h3><div style="display: grid; gap: 12px;"><div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Edition:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['selected_edition']) . '</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Color:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['selected_color']) . '</span></div>' . (!empty($order['engraving_text']) ? '<div style="padding: 8px 0;"><span style="color: #1e40af; font-weight: 500; display: block; margin-bottom: 5px;">Engraving:</span><span style="color: #1f2937; font-weight: 600; background-color: #ffffff; padding: 10px; border-radius: 6px; display: block; font-style: italic;">' . htmlspecialchars($order['engraving_text']) . '</span></div>' : '') . '<div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Payment Method:</span><span style="color: #1f2937; font-weight: 600;">Online Payment</span></div></div></div><div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 12px; padding: 20px; text-align: center;"><h4 style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0 0 10px 0;">Action Required</h4><p style="color: #fef3c7; margin: 0 0 15px 0; font-size: 14px;">Please process this order in the admin dashboard</p><a href="https://ximpul.com/admin/orders" style="display: inline-block; background-color: #ffffff; color: #d97706; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">View in Dashboard</a></div></div><div style="background-color: #1f2937; padding: 20px; text-align: center;"><p style="color: #9ca3af; font-size: 12px; margin: 0;">Ximpul Admin Panel | Order Management System</p><p style="color: #6b7280; font-size: 11px; margin: 5px 0 0 0;">This is an automated notification</p></div></div></body></html>';
+                // Send admin emails for online payment
+                $adminEmailHTML = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Payment Received - Ximpul Admin</title></head><body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f1f5f9;"><div style="max-width: 650px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"><div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center;"><div style="background-color: rgba(255,255,255,0.2); width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 24px;">✓</span></div><h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 0 0 5px 0;">Payment Received</h1><p style="color: #d1fae5; font-size: 14px; margin: 0;">Online payment confirmed</p></div><div style="padding: 30px;"><div style="background: linear-gradient(135deg, #1f2937 0%, #374151 100%); border-radius: 12px; padding: 20px; margin-bottom: 25px; text-align: center;"><h2 style="color: #ffffff; font-size: 20px; font-weight: 600; margin: 0 0 10px 0;">Order #' . htmlspecialchars($order['order_id']) . '</h2><p style="color: #d1d5db; font-size: 14px; margin: 0;">Total: <span style="font-size: 18px; font-weight: 700; color: #10b981;">' . htmlspecialchars($order['total_amount']) . ' BDT</span></p></div><div style="background-color: #f8fafc; border-radius: 12px; padding: 25px; margin-bottom: 25px;"><h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Customer Information</h3><div style="display: grid; gap: 12px;"><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Name:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['customer_name']) . '</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Phone:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['customer_phone']) . '</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Email:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['customer_email']) . '</span></div><div style="padding: 8px 0;"><span style="color: #64748b; font-weight: 500; display: block; margin-bottom: 5px;">Address:</span><span style="color: #1f2937; font-weight: 600; background-color: #ffffff; padding: 10px; border-radius: 6px; display: block;">' . htmlspecialchars($order['customer_address']) . '</span></div></div></div><div style="background-color: #f0f9ff; border-radius: 12px; padding: 25px; margin-bottom: 25px;"><h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px;">Product Details</h3><div style="display: grid; gap: 12px;"><div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Edition:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['selected_edition']) . '</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Color:</span><span style="color: #1f2937; font-weight: 600;">' . htmlspecialchars($order['selected_color']) . '</span></div>' . (!empty($order['engraving_text']) ? '<div style="padding: 8px 0;"><span style="color: #1e40af; font-weight: 500; display: block; margin-bottom: 5px;">Engraving:</span><span style="color: #1f2937; font-weight: 600; background-color: #ffffff; padding: 10px; border-radius: 6px; display: block; font-style: italic;">' . htmlspecialchars($order['engraving_text']) . '</span></div>' : '') . '<div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Payment Method:</span><span style="color: #1f2937; font-weight: 600;">Online Payment</span></div></div></div><div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 12px; padding: 20px; text-align: center;"><h4 style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0 0 10px 0;">Action Required</h4><p style="color: #fef3c7; margin: 0 0 15px 0; font-size: 14px;">Please process this order in the admin dashboard</p><a href="https://ximpul.com/admin/orders" style="display: inline-block; background-color: #ffffff; color: #d97706; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">View in Dashboard</a></div></div><div style="background-color: #1f2937; padding: 20px; text-align: center;"><p style="color: #9ca3af; font-size: 12px; margin: 0;">Ximpul Admin Panel | Order Management System</p><p style="color: #6b7280; font-size: 11px; margin: 5px 0 0 0;">This is an automated notification</p></div></div></body></html>';
             
             // Fetch admin email configuration from database
             $emailConfigUrl = $supabaseUrl . '/email_config?select=*&config_type=eq.customer';
@@ -357,6 +520,7 @@ if ($tran_id && $amount) {
                 error_log("Warning: No admin emails configured, skipping admin notification");
                 error_log("Please configure admin emails in Admin > SMTP Config > Email Recipients");
             } else {
+                error_log("📧 SENDING ADMIN EMAIL to: " . $adminEmails . " for order: " . $order['order_id']);
                 $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, 'https://ximpul.com/smtp-mailer.php');
             curl_setopt($ch, CURLOPT_POST, 1);
@@ -365,8 +529,10 @@ if ($tran_id && $amount) {
             $emailResponse = curl_exec($ch);
             curl_close($ch);
             
-            error_log("Admin Email Response: $emailResponse");
+                error_log("✅ Admin Email Response: $emailResponse");
+                }
             }
+            
             
             // Auto-create Steadfast parcel for online orders
             try {
@@ -462,8 +628,9 @@ if ($tran_id && $amount) {
         error_log("API call failed with code: $httpCode, response: $response");
     }
     
-    // If order not found or API failed, redirect with UUID
-    header("Location: https://ximpul.com/thank-you?orderId=$tran_id&amount=$amount");
+    // If order not found or API failed, redirect to home
+    error_log("Order not found or API failed, redirecting to home");
+    header("Location: https://ximpul.com/");
 } else {
     error_log("Missing tran_id or amount in callback");
     header("Location: https://ximpul.com/");

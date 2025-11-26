@@ -81,10 +81,10 @@ export const useOrderSubmission = () => {
 
       console.log('✅ STEP 2 SUCCESS: Order created:', order.id);
       
-      // Send emails for all orders
-      console.log('📧 STEP 3: Sending email notifications...');
+      // Skip email sending - will be sent from Thank You page
+      console.log('📧 STEP 3: Email sending skipped - will be triggered from Thank You page');
       
-      try {
+      if (false) { // Disabled - emails will be sent from Thank You page
 
           console.log('📧 Sending emails for order:', order.id);
           
@@ -278,10 +278,9 @@ export const useOrderSubmission = () => {
           const response = { ok: true };
           
         console.log('✅ STEP 3 SUCCESS: Emails sent successfully');
-      } catch (emailError: any) {
-        console.error('⚠️ STEP 3 WARNING: Email sending failed:', emailError);
-        // Don't fail the order if email fails
-      }
+      } // End of disabled email block
+      
+      console.log('✅ STEP 3 SKIPPED: Emails will be sent from Thank You page');
 
       // If payment method is online, initialize SSLCommerz payment
       if (orderData.paymentMethod === 'online') {
@@ -344,10 +343,16 @@ export const useOrderSubmission = () => {
         
         // Store data in sessionStorage for POST handling
         sessionStorage.setItem('thankYouPostData', JSON.stringify({
-          orderId: data.id,
+          orderId: (data as any).order_id,
           paymentMethod: orderData.paymentMethod,
           totalAmount: orderData.totalAmount.toString()
         }));
+        
+        console.log('📦 Stored order data for Thank You page:', {
+          orderId: (data as any).order_id,
+          paymentMethod: orderData.paymentMethod,
+          totalAmount: orderData.totalAmount
+        });
         
         // Redirect immediately without delay
         window.location.href = '/thank-you';
