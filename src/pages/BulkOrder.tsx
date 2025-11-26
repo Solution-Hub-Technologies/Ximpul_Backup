@@ -17,7 +17,7 @@ import jsPDF from 'jspdf';
 const BulkOrder = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showQuotationModal, setShowQuotationModal] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const quotationRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -49,13 +49,12 @@ const BulkOrder = () => {
   const generatePDF = async (): Promise<string> => {
     console.log('🔄 Starting PDF generation...');
     
-    // Temporarily show quotation to render it
-    setShowQuotationModal(true);
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for render
+    setIsGeneratingPDF(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     if (!quotationRef.current) {
       console.error('❌ quotationRef.current is null');
-      setShowQuotationModal(false);
+      setIsGeneratingPDF(false);
       return '';
     }
     
@@ -67,7 +66,7 @@ const BulkOrder = () => {
       backgroundColor: '#ffffff'
     });
     
-    setShowQuotationModal(false); // Hide it again
+    setIsGeneratingPDF(false);
     
     console.log('📄 Generating PDF...');
     const imgData = canvas.toDataURL('image/jpeg', 0.8);
@@ -234,7 +233,9 @@ const BulkOrder = () => {
               to: formData.email,
               subject: customerSubject,
               message: customerEmailHTML,
-              from_name: 'Ximpul Shop'
+              from_name: 'Ximpul Shop',
+              attachment: pdfBase64,
+              attachment_name: `Bulk_Order_Quotation_${formData.name.replace(/\s+/g, '_')}.pdf`
             })
           });
         }
@@ -788,17 +789,8 @@ const BulkOrder = () => {
 
 
             <div className="flex flex-col sm:flex-row gap-2 pt-4">
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="flex-1 hover:bg-black hover:text-white" 
-                onClick={() => setShowQuotationModal(true)}
-                disabled={!formData.name || !formData.email || formData.products.some(p => !p.model || !p.color || !p.quantity)}
-              >
-                Quotation Preview
-              </Button>
               <Button type="submit" className="flex-1 bg-black hover:bg-gray-800" disabled={isSubmitting}>
-                {isSubmitting ? 'Submitting...' : 'Submit Request'}
+                {isSubmitting ? 'Processing...' : 'Submit Request'}
               </Button>
               <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="flex-1 sm:flex-initial" disabled={isSubmitting}>Cancel</Button>
             </div>
@@ -806,15 +798,10 @@ const BulkOrder = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Quotation Preview Modal */}
-      <Dialog open={showQuotationModal} onOpenChange={setShowQuotationModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Bulk Order Quotation Preview</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            {/* Professional Quotation Invoice */}
-            <div ref={quotationRef} className="bg-white border-2 border-gray-300 p-8" id="quotation-invoice">
+      {/* Hidden Quotation for PDF Generation */}
+      {isGeneratingPDF && (
+        <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -9999 }}>
+          <div ref={quotationRef} className="bg-white border-2 border-gray-300 p-8" style={{ width: '800px' }}>
               {/* Header */}
               <div className="flex justify-between items-start mb-6">
                 <div>
@@ -980,117 +967,9 @@ const BulkOrder = () => {
                 <p className="text-xs mt-2">Thank you for choosing ximpul! <span className="text-red-600 font-semibold">#TruePrice</span></p>
                 <p className="text-xs mt-2">For support, contact us at <strong>ximpulshop@gmail.com</strong> or <strong>+88 01881-408611</strong></p>
               </div>
-            </div>
-
-            {/* Original Preview (for reference) */}
-            {/* Customer Info */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-semibold mb-3">Customer Information</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div><span className="font-medium">Name:</span> {formData.name}</div>
-                <div><span className="font-medium">Phone:</span> {formData.phone}</div>
-                <div><span className="font-medium">Email:</span> {formData.email}</div>
-                <div><span className="font-medium">Address:</span> {formData.location}</div>
-              </div>
-            </div>
-
-            {/* Products */}
-            {formData.products.filter(p => p.quantity).map((product, idx) => {
-              const qty = parseInt(product.quantity);
-              const isBaseEdition = product.model === 'base-edition';
-              const basePrice = isBaseEdition ? 1190 : 1650;
-              let discount = 0;
-              let bulkPrice = basePrice;
-              
-              if (isBaseEdition) {
-                if (qty >= 500) { discount = 140; bulkPrice = 1050; }
-                else if (qty >= 100) { discount = 90; bulkPrice = 1100; }
-                else if (qty >= 50) { discount = 40; bulkPrice = 1150; }
-                else if (qty >= 10) { discount = 20; bulkPrice = 1170; }
-              }
-              
-              const productTotal = bulkPrice * qty;
-              const accessoriesTotal = isBaseEdition ? (product.accessories || []).reduce((sum, acc) => {
-                const prices: any = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
-                return sum + (prices[acc.name] * acc.quantity);
-              }, 0) : 0;
-              const engravingCost = formData.engraving === 'yes' ? qty * 150 : 0;
-              const total = productTotal + accessoriesTotal + engravingCost;
-              const editionName = isBaseEdition ? 'Base Edition' : 'Lifestyle Edition';
-
-              return (
-                <div key={idx} className="border rounded-lg p-4">
-                  <h3 className="font-semibold mb-3">Product {idx + 1}: {editionName} - {product.color}</h3>
-                  <table className="w-full text-sm">
-                    <tbody>
-                      <tr className="border-b">
-                        <td className="py-2">Quantity</td>
-                        <td className="py-2 text-right">{qty} units</td>
-                      </tr>
-                      <tr className="border-b">
-                        <td className="py-2">Base Price</td>
-                        <td className="py-2 text-right">৳{basePrice}</td>
-                      </tr>
-                      {isBaseEdition && (
-                        <tr className="border-b">
-                          <td className="py-2">Bulk Reduction</td>
-                          <td className="py-2 text-right text-green-600">-৳{discount} per unit</td>
-                        </tr>
-                      )}
-                      <tr className="border-b">
-                        <td className="py-2 font-medium">Bulk Price Per Unit</td>
-                        <td className="py-2 text-right font-medium">৳{bulkPrice}</td>
-                      </tr>
-                      <tr className="border-b">
-                        <td className="py-2">Product Subtotal</td>
-                        <td className="py-2 text-right">৳{productTotal}</td>
-                      </tr>
-                      {isBaseEdition && (product.accessories || []).length > 0 && (
-                        <>
-                          <tr className="border-b bg-gray-50">
-                            <td colSpan={2} className="py-2 font-medium">Accessories <span className="text-xs text-gray-600">(No price reduction)</span></td>
-                          </tr>
-                          {(product.accessories || []).map((acc, accIdx) => {
-                            const prices: any = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
-                            const accPrice = prices[acc.name];
-                            const accTotal = accPrice * acc.quantity;
-                            return (
-                              <tr key={accIdx} className="border-b">
-                                <td className="py-2 pl-4 text-sm">{acc.name} x {acc.quantity} (৳{accPrice} each)</td>
-                                <td className="py-2 text-right text-sm">৳{accTotal}</td>
-                              </tr>
-                            );
-                          })}
-                          <tr className="border-b">
-                            <td className="py-2 font-medium">Accessories Subtotal</td>
-                            <td className="py-2 text-right font-medium">৳{accessoriesTotal}</td>
-                          </tr>
-                        </>
-                      )}
-                      {formData.engraving === 'yes' && (
-                        <tr className="border-b">
-                          <td className="py-2">Engraving ({qty} units)</td>
-                          <td className="py-2 text-right">৳{engravingCost}</td>
-                        </tr>
-                      )}
-                      <tr>
-                        <td className="py-2 font-bold text-lg">Total</td>
-                        <td className="py-2 text-right font-bold text-lg">৳{total}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })}
-
-
-
-            <div className="flex gap-2">
-              <Button onClick={() => setShowQuotationModal(false)} className="flex-1 bg-black hover:bg-gray-800">Close Preview</Button>
-            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
       {/* Success Modal */}
       <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>

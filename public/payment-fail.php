@@ -50,27 +50,10 @@ if ($tran_id) {
         if ($orders && count($orders) > 0) {
             $order = $orders[0];
             error_log("Payment failed for order: " . $order['order_id']);
+            error_log("Order remains in pending_payment status (Lead) - customer can retry payment later");
             
-            // Update order status to failed
-            $updateData = json_encode([
-                'order_status' => 'failed',
-                'payment_status' => 'failed'
-            ]);
-            
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/orders?id=eq.' . urlencode($tran_id));
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $updateData);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'apikey: ' . $apiKey,
-                'Authorization: Bearer ' . $apiKey,
-                'Content-Type: application/json'
-            ]);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_exec($ch);
-            curl_close($ch);
-            
-            error_log("Order status updated to failed for: " . $order['order_id']);
+            // DO NOT change order status - keep it as pending_payment so it stays in Leads
+            // Customer may retry payment later
         }
     }
 }

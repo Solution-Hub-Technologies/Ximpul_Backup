@@ -71,26 +71,34 @@ if (!$bank_tran_id && !$card_type) {
         
         error_log("🔍 Fallback verification response: $fallback_response");
         
-        // Check if transaction is valid
+        // Check if transaction is valid - loop through all transactions to find VALID/VALIDATED one
         if ($fallback_result && isset($fallback_result['element']) && count($fallback_result['element']) > 0) {
-            $transaction = $fallback_result['element'][0];
+            $validTransaction = null;
             
-            if ($transaction['status'] === 'VALID' || $transaction['status'] === 'VALIDATED') {
+            // Loop through all transactions to find a VALID or VALIDATED one
+            foreach ($fallback_result['element'] as $trans) {
+                if ($trans['status'] === 'VALID' || $trans['status'] === 'VALIDATED') {
+                    $validTransaction = $trans;
+                    break;
+                }
+            }
+            
+            if ($validTransaction) {
                 error_log("✅ Fallback verification SUCCESS - Payment is valid");
                 // Extract bank_tran_id and card_type from verification response
-                $bank_tran_id = $transaction['bank_tran_id'] ?? null;
-                $card_type = $transaction['card_type'] ?? null;
-                $val_id = $transaction['val_id'] ?? null;
+                $bank_tran_id = $validTransaction['bank_tran_id'] ?? null;
+                $card_type = $validTransaction['card_type'] ?? null;
+                $val_id = $validTransaction['val_id'] ?? null;
                 
                 error_log("✅ Retrieved from API - bank_tran_id: $bank_tran_id, card_type: $card_type");
                 // Continue processing below
             } else {
-                error_log("❌ Fallback verification FAILED - Payment not valid");
+                error_log("❌ Fallback verification FAILED - No VALID/VALIDATED transaction found");
                 header("Location: https://ximpul.com/");
                 exit;
             }
         } else {
-            error_log("❌ Fallback verification FAILED - No valid transaction found");
+            error_log("❌ Fallback verification FAILED - No transactions found");
             header("Location: https://ximpul.com/");
             exit;
         }
