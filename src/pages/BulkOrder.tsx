@@ -211,7 +211,7 @@ const BulkOrder = () => {
           .single();
         
         let customerEmailHTML = '';
-        let customerSubject = 'Bulk Order Request Received - Ximpul';
+        let customerSubject = 'Your Ximpul Bulk Order Quotation';
         
         if (customerTemplate) {
           customerEmailHTML = customerTemplate.template
