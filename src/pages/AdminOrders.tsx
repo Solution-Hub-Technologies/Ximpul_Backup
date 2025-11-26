@@ -2794,7 +2794,7 @@ export const AdminOrders = () => {
                             
                             <div class="mb-tight">
                               <p class="text-xs">Order ID: ${steadfastOrder.order_id}</p>
-                              <p class="font-bold text-lg">Payment Status: ${steadfastOrder.payment_method === 'online' ? 'Paid Online' : 'COD'}</p>
+  
                             </div>
                             
                             <div style="border-top: 1px solid #999; margin: 0.03in 0;"></div>

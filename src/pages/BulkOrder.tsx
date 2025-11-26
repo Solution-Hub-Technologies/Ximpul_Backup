@@ -222,7 +222,15 @@ const BulkOrder = () => {
             .replace(/\$\{customerName\}/g, formData.name)
             .replace(/{{customerName}}/g, formData.name);
         } else {
-          customerEmailHTML = `<h2>Bulk Order Request Received</h2><p>Dear ${formData.name},</p><p>Thank you for your bulk order request!</p><p>We'll review your request and get back to you with a detailed quotation within 24-48 hours.</p><p>Best regards,<br>Team Ximpul<br>01881408611</p>`;
+          customerEmailHTML = `
+            <p>Hello <strong>${formData.name}</strong>,</p>
+            <p>Thank you for requesting a bulk quotation from Ximpul. We've prepared your official quote based on the information you submitted.</p>
+            <p>Please find the <strong>PDF attachment</strong> containing your complete bulk order proposal, including TruePrice details, flat bulk reductions, delivery information, and final payable amount.</p>
+            <p>At Ximpul, our pricing is always transparent and consistent. Bulk reductions are offered only when larger orders help us gain operational efficiency — ensuring fairness for every customer.</p>
+            <p>If you need any adjustments, have questions, or want to proceed with the order, simply reply to this email and our team will assist you right away.</p>
+            <p>Thank you for choosing Ximpul and supporting a new standard of transparency in Bangladesh.<br><strong>Make Water Free Again.</strong></p>
+            <p>Warm regards,<br>Ximpul Team</p>
+          `;
         }
         
         if (!isDevelopment) {
@@ -404,6 +412,7 @@ const BulkOrder = () => {
                 <li>• Engraving / personalization / add‑ons remain at regular cost.</li>
                 <li>• Bulk reductions are fixed and non‑negotiable.</li>
                 <li>• This maintains Ximpul's brand integrity and fairness.</li>
+                <li>• Full advance payment (100%) is required for all orders.</li>
               </ul>
             </div>
           </div>
@@ -809,7 +818,7 @@ const BulkOrder = () => {
                   <p className="text-sm mt-2">www.ximpul.com</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-red-600 font-semibold">#TruePrice</p>
+                  <p style={{ color: '#dc2626', fontWeight: '600' }}>#TruePrice</p>
                 </div>
               </div>
 
@@ -939,11 +948,11 @@ const BulkOrder = () => {
                       <React.Fragment>
                         <div className="flex justify-between py-2 border-b">
                           <span className="font-semibold">Subtotal:</span>
-                          <span className="font-semibold">৳ {grandTotal.toFixed(2)}</span>
+                          <span className="font-semibold">BDT {grandTotal.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between py-2 gap-2">
                           <span className="font-bold text-sm">Grand Total(Excluding Vat & Tax):</span>
-                          <span className="font-bold whitespace-nowrap">৳ {grandTotal.toFixed(2)}</span>
+                          <span className="font-bold whitespace-nowrap">BDT {grandTotal.toFixed(2)}</span>
                         </div>
                       </React.Fragment>
                     );
@@ -956,16 +965,21 @@ const BulkOrder = () => {
                 <p className="font-semibold mb-2">***Note:</p>
                 <p>1. Quoted prices are valid for 30 Days</p>
                 <p>2. Prices are exclusive of government VAT & taxes.</p>
-                <p>3. Full advance payment (100%) is required for all orders with engraving/logo customization.</p>
+                <p>3. Full advance payment (100%) is required for all orders.</p>
                 <p>4. All products should be thoroughly checked before delivery. After delivery, Ximpul will not be held responsible for any damages or issues.</p>
                 <p>5. All sold products are non-returnable and non-refundable.</p>
               </div>
 
               {/* Footer */}
-              <div className="text-center text-sm border-t-2 border-gray-300 pt-4">
-                <p className="font-semibold">ximpul - Making Water Free Again</p>
-                <p className="text-xs mt-2">Thank you for choosing ximpul! <span className="text-red-600 font-semibold">#TruePrice</span></p>
-                <p className="text-xs mt-2">For support, contact us at <strong>ximpulshop@gmail.com</strong> or <strong>+88 01881-408611</strong></p>
+              <div className="border-t-2 border-gray-300 pt-4">
+                <div className="text-center text-sm">
+                  <p className="font-semibold">ximpul - Making Water Free Again</p>
+                  <p className="text-xs mt-2">Thank you for choosing ximpul! <span style={{ color: '#dc2626', fontWeight: '600' }}>#TruePrice</span></p>
+                  <p className="text-xs mt-2">For support, contact us at <strong>ximpulshop@gmail.com</strong> or <strong>+88 01881-408611</strong></p>
+                </div>
+                <div className="text-right mt-3">
+                  <p className="text-xs" style={{ color: '#6b7280' }}>Powered By SOHUB</p>
+                </div>
               </div>
           </div>
         </div>
