@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Footer } from '@/components/Footer';
 import { AnimatedText } from '@/components/ui/animated-underline-text-one';
@@ -11,10 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Package, Plus, X, Check } from 'lucide-react';
 import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 import { toast } from 'sonner';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 const BulkOrder = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showQuotationModal, setShowQuotationModal] = useState(false);
+  const quotationRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -42,11 +46,52 @@ const BulkOrder = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const generatePDF = async (): Promise<string> => {
+    console.log('🔄 Starting PDF generation...');
+    
+    // Temporarily show quotation to render it
+    setShowQuotationModal(true);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for render
+    
+    if (!quotationRef.current) {
+      console.error('❌ quotationRef.current is null');
+      setShowQuotationModal(false);
+      return '';
+    }
+    
+    console.log('📸 Capturing canvas...');
+    const canvas = await html2canvas(quotationRef.current, {
+      scale: 1.5,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff'
+    });
+    
+    setShowQuotationModal(false); // Hide it again
+    
+    console.log('📄 Generating PDF...');
+    const imgData = canvas.toDataURL('image/jpeg', 0.8);
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+    
+    pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+    const pdfBase64 = pdf.output('dataurlstring').split(',')[1];
+    
+    console.log('✅ PDF generated, size:', pdfBase64.length, 'characters');
+    return pdfBase64;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
+      // Generate PDF first
+      console.log('📧 Generating PDF for email attachment...');
+      const pdfBase64 = await generatePDF();
+      console.log('📧 PDF ready, proceeding with submission...');
+
       const { data, error } = await supabaseAdmin.from('bulk_orders').insert({
         customer_name: formData.name,
         customer_email: formData.email,
@@ -63,20 +108,143 @@ const BulkOrder = () => {
         throw error;
       }
 
-      // Send emails
+      // Send emails using same system as ColorSelector
       try {
-        await fetch('https://ximpul.com:3002/send-bulk-order-email', {
+        const { supabase } = await import('@/integrations/supabase/client');
+        
+        // Fetch admin email configuration
+        const { data: emailConfig } = await supabase
+          .from('email_config')
+          .select('*')
+          .eq('config_type', 'customer');
+        
+        // Use configured emails or fallback to default
+        let adminEmails = 'ximpulshop@gmail.com';
+        let ccEmails = '';
+        
+        if (emailConfig && emailConfig.length > 0) {
+          const config = emailConfig[0];
+          if (config?.to_emails?.length > 0) {
+            adminEmails = config.to_emails.join(',');
+          }
+          if (config?.cc_emails?.length > 0) {
+            ccEmails = config.cc_emails.join(',');
+          }
+        }
+        
+        // Fetch admin email template
+        const { data: adminTemplate } = await supabase
+          .from('email_templates')
+          .select('*')
+          .eq('type', 'bulk_order_admin')
+          .single();
+        
+        // Build products summary
+        const productsSummary = formData.products.map(p => 
+          `${p.model} - ${p.color} (Qty: ${p.quantity})`
+        ).join(', ');
+        
+        // Send admin notification email
+        let adminEmailHTML = '';
+        let adminSubject = `Bulk Order Request - ${formData.name}`;
+        
+        if (adminTemplate) {
+          adminEmailHTML = adminTemplate.template
+            .replace(/\$\{customerName\}/g, formData.name)
+            .replace(/\$\{customerPhone\}/g, formData.phone)
+            .replace(/\$\{customerEmail\}/g, formData.email)
+            .replace(/\$\{customerLocation\}/g, formData.location)
+            .replace(/\$\{products\}/g, productsSummary)
+            .replace(/\$\{timeline\}/g, formData.timeline || 'Not specified')
+            .replace(/\$\{engraving\}/g, formData.engraving || 'No')
+            .replace(/\$\{message\}/g, formData.message || 'None')
+            .replace(/{{customerName}}/g, formData.name)
+            .replace(/{{customerPhone}}/g, formData.phone)
+            .replace(/{{customerEmail}}/g, formData.email)
+            .replace(/{{customerLocation}}/g, formData.location)
+            .replace(/{{products}}/g, productsSummary)
+            .replace(/{{timeline}}/g, formData.timeline || 'Not specified')
+            .replace(/{{engraving}}/g, formData.engraving || 'No')
+            .replace(/{{message}}/g, formData.message || 'None');
+          
+          adminSubject = adminTemplate.subject
+            .replace(/\$\{customerName\}/g, formData.name)
+            .replace(/{{customerName}}/g, formData.name);
+        } else {
+          adminEmailHTML = `<h2>Bulk Order Request</h2><p><strong>Customer:</strong> ${formData.name}</p><p><strong>Phone:</strong> ${formData.phone}</p><p><strong>Email:</strong> ${formData.email}</p><p><strong>Location:</strong> ${formData.location}</p><p><strong>Products:</strong> ${productsSummary}</p><p><strong>Timeline:</strong> ${formData.timeline || 'Not specified'}</p><p><strong>Engraving:</strong> ${formData.engraving || 'No'}</p><p><strong>Message:</strong> ${formData.message || 'None'}</p>`;
+        }
+        
+        const adminEmailParams: any = {
+          to: adminEmails,
+          subject: adminSubject,
+          message: adminEmailHTML,
+          from_name: 'Ximpul Shop',
+          attachment: pdfBase64,
+          attachment_name: `Bulk_Order_Quotation_${formData.name.replace(/\s+/g, '_')}.pdf`
+        };
+        
+        if (ccEmails) {
+          adminEmailParams.cc = ccEmails;
+        }
+        
+        console.log('📧 Sending admin email with attachment...');
+        console.log('📎 Attachment size:', pdfBase64.length, 'characters');
+        
+        // Convert base64 to blob
+        const byteCharacters = atob(pdfBase64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const pdfBlob = new Blob([byteArray], { type: 'application/pdf' });
+        
+        await fetch('https://ximpul.com/phpmailer-send.php', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            customerName: formData.name,
-            customerEmail: formData.email,
-            customerPhone: formData.phone,
-            customerLocation: formData.location,
-            products: formData.products,
-            timeline: formData.timeline,
-            engraving: formData.engraving,
-            additionalMessage: formData.message
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            to: adminEmailParams.to,
+            subject: adminEmailParams.subject,
+            message: adminEmailParams.message,
+            from_name: adminEmailParams.from_name,
+            cc: adminEmailParams.cc || '',
+            pdf_base64: pdfBase64,
+            pdf_filename: adminEmailParams.attachment_name
+          })
+        });
+        
+        // Send confirmation email to customer
+        const { data: customerTemplate } = await supabase
+          .from('email_templates')
+          .select('*')
+          .eq('type', 'bulk_order_customer')
+          .single();
+        
+        let customerEmailHTML = '';
+        let customerSubject = 'Bulk Order Request Received - Ximpul';
+        
+        if (customerTemplate) {
+          customerEmailHTML = customerTemplate.template
+            .replace(/\$\{customerName\}/g, formData.name)
+            .replace(/{{customerName}}/g, formData.name);
+          
+          customerSubject = customerTemplate.subject
+            .replace(/\$\{customerName\}/g, formData.name)
+            .replace(/{{customerName}}/g, formData.name);
+        } else {
+          customerEmailHTML = `<h2>Bulk Order Request Received</h2><p>Dear ${formData.name},</p><p>Thank you for your bulk order request!</p><p>We'll review your request and get back to you with a detailed quotation within 24-48 hours.</p><p>Best regards,<br>Team Ximpul</p>`;
+        }
+        
+        await fetch('https://ximpul.com/phpmailer-send.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            to: formData.email,
+            subject: customerSubject,
+            message: customerEmailHTML,
+            from_name: 'Ximpul Shop',
+            pdf_base64: pdfBase64,
+            pdf_filename: `Bulk_Order_Quotation_${formData.name.replace(/\s+/g, '_')}.pdf`
           })
         });
       } catch (emailError) {
@@ -318,7 +486,7 @@ const BulkOrder = () => {
           <div className="text-center pt-6 md:pt-8">
             <Button 
               size="lg" 
-              className="text-base md:text-lg px-6 md:px-8 py-4 md:py-6 w-full sm:w-auto"
+              className="text-base md:text-lg px-6 md:px-8 py-4 md:py-6 w-full sm:w-auto bg-black hover:bg-gray-800"
               onClick={() => setIsModalOpen(true)}
             >
               Request a Bulk Quote
@@ -342,57 +510,6 @@ const BulkOrder = () => {
           </DialogHeader>
           
           <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6 py-2 md:py-4">
-            {/* Customer Information */}
-            <div className="space-y-4">
-              <h3 className="text-base md:text-lg font-semibold text-gray-900 border-b pb-2">Customer Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Name *</Label>
-                  <Input 
-                    id="name" 
-                    required 
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    placeholder="Enter your name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phone">Phone Number *</Label>
-                  <Input 
-                    id="phone" 
-                    type="tel"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    required 
-                    value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/[^0-9]/g, '')})}
-                    placeholder="Enter phone number"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="email">Email *</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  required 
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  placeholder="Enter email address"
-                />
-              </div>
-              <div>
-                <Label htmlFor="location">Location *</Label>
-                <Input 
-                  id="location" 
-                  required 
-                  placeholder="City, Area"
-                  value={formData.location}
-                  onChange={(e) => setFormData({...formData, location: e.target.value})}
-                />
-              </div>
-            </div>
-
             {/* Product Information */}
             <div className="space-y-4">
               <h3 className="text-base md:text-lg font-semibold text-gray-900 border-b pb-2">Product Information</h3>
@@ -506,7 +623,6 @@ const BulkOrder = () => {
                     ) : null}
                   </div>
                 </div>
-                {/* Accessories */}
                 {product.model && product.model === 'base-edition' && (
                   <div className="ml-0 pl-0 md:pl-4 border-l-0 md:border-l-2 border-gray-200">
                     <Label className="text-xs text-gray-600 mb-2 block">Accessories (Optional)</Label>
@@ -528,13 +644,14 @@ const BulkOrder = () => {
                             type="number"
                             inputMode="numeric"
                             pattern="[0-9]*"
+                            min="0"
                             placeholder="Min 10"
                             value={accessory?.quantity || ''}
                             onChange={(e) => {
                               const newProducts = [...formData.products];
                               const accessories = newProducts[index].accessories || [];
                               const value = e.target.value;
-                              const qty = value === '' ? 0 : parseInt(value);
+                              const qty = value === '' ? 0 : Math.max(0, parseInt(value));
                               
                               if (value === '' || qty === 0) {
                                 newProducts[index].accessories = accessories.filter(a => a.name !== acc.name);
@@ -547,7 +664,6 @@ const BulkOrder = () => {
                                 }
                                 newProducts[index].accessories = accessories;
                               } else {
-                                // Allow typing but don't save to state if less than 10
                                 const existingIndex = accessories.findIndex(a => a.name === acc.name);
                                 if (existingIndex >= 0) {
                                   accessories[existingIndex].quantity = qty;
@@ -583,16 +699,29 @@ const BulkOrder = () => {
                 />
               </div>
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label htmlFor="engraving">Engraving/Personalize</Label>
-                  <span className="text-sm text-gray-600">৳150 per laser engraving</span>
+                <Label className="mb-2 block">Engraving/Personalize <span className="text-sm text-gray-600">(৳150 per laser engraving)</span></Label>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="engraving-yes"
+                      checked={formData.engraving === 'yes'}
+                      onChange={(e) => setFormData({...formData, engraving: e.target.checked ? 'yes' : ''})}
+                      className="w-4 h-4"
+                    />
+                    <Label htmlFor="engraving-yes" className="cursor-pointer">Yes</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="engraving-no"
+                      checked={formData.engraving === ''}
+                      onChange={(e) => setFormData({...formData, engraving: e.target.checked ? '' : 'yes'})}
+                      className="w-4 h-4"
+                    />
+                    <Label htmlFor="engraving-no" className="cursor-pointer">No</Label>
+                  </div>
                 </div>
-                <Input 
-                  id="engraving" 
-                  placeholder="Enter engraving text"
-                  value={formData.engraving}
-                  onChange={(e) => setFormData({...formData, engraving: e.target.value})}
-                />
               </div>
               <div>
                 <Label htmlFor="message">Additional Message</Label>
@@ -606,13 +735,362 @@ const BulkOrder = () => {
               </div>
             </div>
 
+            {/* Customer Information */}
+            <div className="space-y-4">
+              <h3 className="text-base md:text-lg font-semibold text-gray-900 border-b pb-2">Customer Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="name">Name *</Label>
+                  <Input 
+                    id="name" 
+                    required 
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    placeholder="Enter your name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Input 
+                    id="phone" 
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    required 
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/[^0-9]/g, '')})}
+                    placeholder="Enter phone number"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="email">Email *</Label>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  required 
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  placeholder="Enter email address"
+                />
+              </div>
+              <div>
+                <Label htmlFor="location">Address *</Label>
+                <Textarea 
+                  id="location" 
+                  required 
+                  placeholder="Enter your full address"
+                  value={formData.location}
+                  onChange={(e) => setFormData({...formData, location: e.target.value})}
+                  rows={2}
+                />
+              </div>
+            </div>
+
+
+
             <div className="flex flex-col sm:flex-row gap-2 pt-4">
-              <Button type="submit" className="flex-1" disabled={isSubmitting}>
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="flex-1 hover:bg-black hover:text-white" 
+                onClick={() => setShowQuotationModal(true)}
+                disabled={!formData.name || !formData.email || formData.products.some(p => !p.model || !p.color || !p.quantity)}
+              >
+                Quotation Preview
+              </Button>
+              <Button type="submit" className="flex-1 bg-black hover:bg-gray-800" disabled={isSubmitting}>
                 {isSubmitting ? 'Submitting...' : 'Submit Request'}
               </Button>
               <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="flex-1 sm:flex-initial" disabled={isSubmitting}>Cancel</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quotation Preview Modal */}
+      <Dialog open={showQuotationModal} onOpenChange={setShowQuotationModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bulk Order Quotation Preview</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {/* Professional Quotation Invoice */}
+            <div ref={quotationRef} className="bg-white border-2 border-gray-300 p-8" id="quotation-invoice">
+              {/* Header */}
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h1 className="text-4xl font-bold">ximpul</h1>
+                  <p className="text-sm mt-2">www.ximpul.com</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-red-600 font-semibold">#TruePrice</p>
+                </div>
+              </div>
+
+              <h2 className="text-2xl font-semibold text-center mb-6">Quotation</h2>
+
+              {/* Quotation Details */}
+              <div className="flex justify-between mb-6 text-sm">
+                <div>
+                  <p><strong>Quotation number:</strong> {new Date().getFullYear()}/{String(Math.floor(Math.random() * 10000)).padStart(4, '0')}</p>
+                  <p className="mt-2"><strong>Customer Details</strong></p>
+                  <p>{formData.name}</p>
+                  <p>{formData.location}</p>
+                  <p><strong>Mobile:</strong> {formData.phone} | <strong>Email:</strong> {formData.email}</p>
+                </div>
+                <div className="text-right">
+                  <p><strong>Date:</strong> {new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</p>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <table className="w-full border-collapse mb-6">
+                <thead>
+                  <tr className="border-b-2 border-gray-300">
+                    <th className="text-left py-2 text-sm font-semibold">Item Name</th>
+                    <th className="text-center py-2 text-sm font-semibold">Quantity</th>
+                    <th className="text-right py-2 text-sm font-semibold">Unit Price</th>
+                    <th className="text-right py-2 text-sm font-semibold">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {formData.products.filter(p => p.quantity).map((product, idx) => {
+                    const qty = parseInt(product.quantity);
+                    const isBaseEdition = product.model === 'base-edition';
+                    const basePrice = isBaseEdition ? 1190 : 1650;
+                    let bulkPrice = basePrice;
+                    
+                    if (isBaseEdition) {
+                      if (qty >= 500) bulkPrice = 1050;
+                      else if (qty >= 100) bulkPrice = 1100;
+                      else if (qty >= 50) bulkPrice = 1150;
+                      else if (qty >= 10) bulkPrice = 1170;
+                    }
+                    
+                    const productTotal = bulkPrice * qty;
+                    const colorName = product.color === 'obsidian-black' ? 'Obsidian Black' : 'Graphite Grey';
+                    const editionName = isBaseEdition ? 'Base Edition' : 'Lifestyle Edition';
+
+                    return (
+                      <React.Fragment key={idx}>
+                        <tr className="border-b border-gray-200">
+                          <td className="py-3 text-sm">
+                            <div className="font-semibold">Ximpul Flow {editionName} - {colorName}</div>
+                            <div className="text-xs text-gray-600 mt-1">
+                              <strong>Including:</strong> {isBaseEdition ? 'Silicon sleeve' : 'Silicon sleeve, Straw cap, Cleaning brush, Straw cleaning brush, Aluminium hook'}<br/>
+                              <strong>Temperature:</strong> Keeps drinks hot for 12 hours, cold for 24 hours.<br/>
+                              <strong>Material:</strong> Crafted from premium 304 SS food-grade.<br/>
+                              <strong>Security:</strong> Triple-lock, advanced leak-proof seal technology.<br/>
+                              <strong>Maintenance:</strong> Wide mouth opening for effortless cleaning.
+                            </div>
+                          </td>
+                          <td className="py-3 text-center text-sm">{qty}.00 Pc(s)</td>
+                          <td className="py-3 text-right text-sm">{bulkPrice.toFixed(2)}</td>
+                          <td className="py-3 text-right text-sm font-semibold">{productTotal.toFixed(2)}</td>
+                        </tr>
+
+                        {/* Accessories */}
+                        {isBaseEdition && (product.accessories || []).map((acc, accIdx) => {
+                          const prices: any = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
+                          const accPrice = prices[acc.name];
+                          const accTotal = accPrice * acc.quantity;
+                          return (
+                            <tr key={`acc-${accIdx}`} className="border-b border-gray-200">
+                              <td className="py-3 text-sm pl-4">{acc.name}</td>
+                              <td className="py-3 text-center text-sm">{acc.quantity}.00 Pc(s)</td>
+                              <td className="py-3 text-right text-sm">{accPrice.toFixed(2)}</td>
+                              <td className="py-3 text-right text-sm font-semibold">{accTotal.toFixed(2)}</td>
+                            </tr>
+                          );
+                        })}
+
+                        {/* Engraving */}
+                        {formData.engraving === 'yes' && (
+                          <tr className="border-b border-gray-200">
+                            <td className="py-3 text-sm">
+                              <div className="font-semibold">Laser Engraving Service(Logo)</div>
+                              <div className="text-xs text-gray-600">**Every Logo Laser engraving</div>
+                            </td>
+                            <td className="py-3 text-center text-sm">{qty}.00 Pc(s)</td>
+                            <td className="py-3 text-right text-sm">150.00</td>
+                            <td className="py-3 text-right text-sm font-semibold">{(qty * 150).toFixed(2)}</td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* Totals */}
+              <div className="flex justify-end mb-6">
+                <div className="w-85">
+                  {(() => {
+                    const grandTotal = formData.products.filter(p => p.quantity).reduce((total, product) => {
+                      const qty = parseInt(product.quantity);
+                      const isBaseEdition = product.model === 'base-edition';
+                      const basePrice = isBaseEdition ? 1190 : 1650;
+                      let bulkPrice = basePrice;
+                      
+                      if (isBaseEdition) {
+                        if (qty >= 500) bulkPrice = 1050;
+                        else if (qty >= 100) bulkPrice = 1100;
+                        else if (qty >= 50) bulkPrice = 1150;
+                        else if (qty >= 10) bulkPrice = 1170;
+                      }
+                      
+                      const productTotal = bulkPrice * qty;
+                      const accessoriesTotal = isBaseEdition ? (product.accessories || []).reduce((sum, acc) => {
+                        const prices: any = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
+                        return sum + (prices[acc.name] * acc.quantity);
+                      }, 0) : 0;
+                      const engravingCost = formData.engraving === 'yes' ? qty * 150 : 0;
+                      
+                      return total + productTotal + accessoriesTotal + engravingCost;
+                    }, 0);
+
+                    return (
+                      <React.Fragment>
+                        <div className="flex justify-between py-2 border-b">
+                          <span className="font-semibold">Subtotal:</span>
+                          <span className="font-semibold">৳ {grandTotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between py-2 gap-2">
+                          <span className="font-bold text-sm">Grand Total(Excluding Vat & Tax):</span>
+                          <span className="font-bold whitespace-nowrap">৳ {grandTotal.toFixed(2)}</span>
+                        </div>
+                      </React.Fragment>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="text-xs text-gray-700 mb-6">
+                <p className="font-semibold mb-2">***Note:</p>
+                <p>1. Quoted prices are valid for 30 Days</p>
+                <p>2. Prices are exclusive of government VAT & taxes.</p>
+                <p>3. Full advance payment (100%) is required for all orders with engraving/logo customization.</p>
+                <p>4. All products should be thoroughly checked before delivery. After delivery, Ximpul will not be held responsible for any damages or issues.</p>
+                <p>5. All sold products are non-returnable and non-refundable.</p>
+              </div>
+
+              {/* Footer */}
+              <div className="text-center text-sm border-t-2 border-gray-300 pt-4">
+                <p className="font-semibold">ximpul - Making Water Free Again</p>
+                <p className="text-xs mt-2">Thank you for choosing ximpul! <span className="text-red-600 font-semibold">#TruePrice</span></p>
+                <p className="text-xs mt-2">For support, contact us at <strong>ximpulshop@gmail.com</strong> or <strong>+88 01881-408611</strong></p>
+              </div>
+            </div>
+
+            {/* Original Preview (for reference) */}
+            {/* Customer Info */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h3 className="font-semibold mb-3">Customer Information</h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><span className="font-medium">Name:</span> {formData.name}</div>
+                <div><span className="font-medium">Phone:</span> {formData.phone}</div>
+                <div><span className="font-medium">Email:</span> {formData.email}</div>
+                <div><span className="font-medium">Address:</span> {formData.location}</div>
+              </div>
+            </div>
+
+            {/* Products */}
+            {formData.products.filter(p => p.quantity).map((product, idx) => {
+              const qty = parseInt(product.quantity);
+              const isBaseEdition = product.model === 'base-edition';
+              const basePrice = isBaseEdition ? 1190 : 1650;
+              let discount = 0;
+              let bulkPrice = basePrice;
+              
+              if (isBaseEdition) {
+                if (qty >= 500) { discount = 140; bulkPrice = 1050; }
+                else if (qty >= 100) { discount = 90; bulkPrice = 1100; }
+                else if (qty >= 50) { discount = 40; bulkPrice = 1150; }
+                else if (qty >= 10) { discount = 20; bulkPrice = 1170; }
+              }
+              
+              const productTotal = bulkPrice * qty;
+              const accessoriesTotal = isBaseEdition ? (product.accessories || []).reduce((sum, acc) => {
+                const prices: any = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
+                return sum + (prices[acc.name] * acc.quantity);
+              }, 0) : 0;
+              const engravingCost = formData.engraving === 'yes' ? qty * 150 : 0;
+              const total = productTotal + accessoriesTotal + engravingCost;
+              const editionName = isBaseEdition ? 'Base Edition' : 'Lifestyle Edition';
+
+              return (
+                <div key={idx} className="border rounded-lg p-4">
+                  <h3 className="font-semibold mb-3">Product {idx + 1}: {editionName} - {product.color}</h3>
+                  <table className="w-full text-sm">
+                    <tbody>
+                      <tr className="border-b">
+                        <td className="py-2">Quantity</td>
+                        <td className="py-2 text-right">{qty} units</td>
+                      </tr>
+                      <tr className="border-b">
+                        <td className="py-2">Base Price</td>
+                        <td className="py-2 text-right">৳{basePrice}</td>
+                      </tr>
+                      {isBaseEdition && (
+                        <tr className="border-b">
+                          <td className="py-2">Bulk Reduction</td>
+                          <td className="py-2 text-right text-green-600">-৳{discount} per unit</td>
+                        </tr>
+                      )}
+                      <tr className="border-b">
+                        <td className="py-2 font-medium">Bulk Price Per Unit</td>
+                        <td className="py-2 text-right font-medium">৳{bulkPrice}</td>
+                      </tr>
+                      <tr className="border-b">
+                        <td className="py-2">Product Subtotal</td>
+                        <td className="py-2 text-right">৳{productTotal}</td>
+                      </tr>
+                      {isBaseEdition && (product.accessories || []).length > 0 && (
+                        <>
+                          <tr className="border-b bg-gray-50">
+                            <td colSpan={2} className="py-2 font-medium">Accessories <span className="text-xs text-gray-600">(No price reduction)</span></td>
+                          </tr>
+                          {(product.accessories || []).map((acc, accIdx) => {
+                            const prices: any = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
+                            const accPrice = prices[acc.name];
+                            const accTotal = accPrice * acc.quantity;
+                            return (
+                              <tr key={accIdx} className="border-b">
+                                <td className="py-2 pl-4 text-sm">{acc.name} x {acc.quantity} (৳{accPrice} each)</td>
+                                <td className="py-2 text-right text-sm">৳{accTotal}</td>
+                              </tr>
+                            );
+                          })}
+                          <tr className="border-b">
+                            <td className="py-2 font-medium">Accessories Subtotal</td>
+                            <td className="py-2 text-right font-medium">৳{accessoriesTotal}</td>
+                          </tr>
+                        </>
+                      )}
+                      {formData.engraving === 'yes' && (
+                        <tr className="border-b">
+                          <td className="py-2">Engraving ({qty} units)</td>
+                          <td className="py-2 text-right">৳{engravingCost}</td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td className="py-2 font-bold text-lg">Total</td>
+                        <td className="py-2 text-right font-bold text-lg">৳{total}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
+
+
+
+            <div className="flex gap-2">
+              <Button onClick={() => setShowQuotationModal(false)} className="flex-1 bg-black hover:bg-gray-800">Close Preview</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -631,7 +1109,7 @@ const BulkOrder = () => {
             <p className="text-gray-600">
               Our team will review your request and get back to you with a detailed quotation within 24-48 hours.
             </p>
-            <Button onClick={() => setShowSuccessModal(false)} className="w-full mt-4">
+            <Button onClick={() => setShowSuccessModal(false)} className="w-full mt-4 bg-black hover:bg-gray-800">
               Close
             </Button>
           </div>

@@ -22,6 +22,17 @@ $subject = filter_input(INPUT_POST, 'subject', FILTER_SANITIZE_STRING) ?: 'Email
 $message = $_POST['message'] ?? '';
 $from_name = filter_input(INPUT_POST, 'from_name', FILTER_SANITIZE_STRING) ?: 'Ximpul Shop';
 
+// Handle file upload
+$attachment = '';
+$attachment_name = 'attachment.pdf';
+if (isset($_FILES['pdf_file']) && $_FILES['pdf_file']['error'] === UPLOAD_ERR_OK) {
+    $attachment = base64_encode(file_get_contents($_FILES['pdf_file']['tmp_name']));
+    $attachment_name = $_FILES['pdf_file']['name'];
+    error_log('PDF file uploaded: ' . $attachment_name . ', size: ' . strlen($attachment));
+} else {
+    error_log('No PDF file uploaded or upload error');
+}
+
 // Parse TO emails (comma separated)
 $to_emails = [];
 if (!empty($to)) {
@@ -197,6 +208,7 @@ try {
     }
     
     // Email headers and body
+    $boundary = md5(time());
     $email_content = "From: $from_name <$smtp_user>\r\n";
     $email_content .= "To: " . implode(', ', $to_emails) . "\r\n";
     if (!empty($cc_emails)) {
@@ -204,9 +216,30 @@ try {
     }
     $email_content .= "Subject: $subject\r\n";
     $email_content .= "MIME-Version: 1.0\r\n";
-    $email_content .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $email_content .= "\r\n";
-    $email_content .= $message;
+    
+    if (!empty($attachment)) {
+        // Multipart email with attachment
+        $email_content .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
+        $email_content .= "\r\n";
+        $email_content .= "--$boundary\r\n";
+        $email_content .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $email_content .= "Content-Transfer-Encoding: 7bit\r\n";
+        $email_content .= "\r\n";
+        $email_content .= $message . "\r\n";
+        $email_content .= "\r\n";
+        $email_content .= "--$boundary\r\n";
+        $email_content .= "Content-Type: application/pdf; name=\"$attachment_name\"\r\n";
+        $email_content .= "Content-Transfer-Encoding: base64\r\n";
+        $email_content .= "Content-Disposition: attachment; filename=\"$attachment_name\"\r\n";
+        $email_content .= "\r\n";
+        $email_content .= chunk_split($attachment) . "\r\n";
+        $email_content .= "--$boundary--\r\n";
+    } else {
+        // Simple HTML email
+        $email_content .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $email_content .= "\r\n";
+        $email_content .= $message;
+    }
     $email_content .= "\r\n.\r\n";
     
     fputs($socket, $email_content);
@@ -225,6 +258,7 @@ try {
         'to' => $to_emails,
         'cc' => $cc_emails,
         'subject' => $subject,
+        'has_attachment' => !empty($attachment),
         'timestamp' => date('Y-m-d H:i:s')
     ]);
     
