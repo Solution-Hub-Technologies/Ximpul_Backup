@@ -76,14 +76,11 @@ const ThankYou = () => {
           }
 
           if (error) {
-            console.error('Error fetching order:', error);
             setOrder(null);
           } else {
-            console.log('Order data received:', data);
             setOrder(data);
           }
         } catch (error) {
-          console.error('Error fetching order:', error);
           setOrder(null);
         }
         setLoading(false);
@@ -93,8 +90,134 @@ const ThankYou = () => {
     };
     
     fetchOrderDetails();
+  }, [orderId, type]); // Removed 'order' to prevent multiple email sends
+  
+  // Separate useEffect for sending emails after order is loaded
+  useEffect(() => {
+    const sendOrderEmails = async () => {
+      // Only send emails for COD orders OR completed online payments
+      const shouldSendEmail = order && 
+        ((order.payment_method === 'cod') || 
+         (order.payment_method === 'online' && order.payment_status === 'completed')) &&
+        !sessionStorage.getItem(`emailSent_${order.id}`);
+      
+      if (shouldSendEmail && order.payment_method === 'cod') {
+        try {
+          // Fetch email templates
+          const { data: customerTemplate } = await supabase
+            .from('email_templates')
+            .select('*')
+            .eq('type', 'order_customer')
+            .single();
+          
+          const { data: adminTemplate } = await supabase
+            .from('email_templates')
+            .select('*')
+            .eq('type', 'order_admin')
+            .single();
+          
+          const { data: emailConfig } = await supabase
+            .from('email_config')
+            .select('*')
+            .eq('config_type', 'customer');
+          
+          const paymentMethod = 'Cash on Delivery';
+          
+          // Send customer email
+          if (order.customer_email && customerTemplate) {
+            const customerEmailHTML = customerTemplate.template
+              .replace(/\$\{customerName\}/g, order.customer_name)
+              .replace(/\$\{orderId\}/g, order.order_id)
+              .replace(/\$\{selectedEdition\}/g, order.selected_edition)
+              .replace(/\$\{selectedColor\}/g, order.selected_color)
+              .replace(/\$\{paymentMethod\}/g, paymentMethod)
+              .replace(/\$\{totalAmount\}/g, order.total_amount.toString())
+              .replace(/{{customerName}}/g, order.customer_name)
+              .replace(/{{orderId}}/g, order.order_id)
+              .replace(/{{selectedEdition}}/g, order.selected_edition)
+              .replace(/{{selectedColor}}/g, order.selected_color)
+              .replace(/{{paymentMethod}}/g, paymentMethod)
+              .replace(/{{totalAmount}}/g, order.total_amount.toString());
+            
+            const customerSubject = customerTemplate.subject
+              .replace(/\$\{orderId\}/g, order.order_id)
+              .replace(/{{orderId}}/g, order.order_id);
+            
+            await fetch('https://ximpul.com/smtp-mailer.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({
+                to: order.customer_email,
+                subject: customerSubject,
+                message: customerEmailHTML,
+                from_name: 'Ximpul Shop'
+              })
+            });
+          }
+          
+          // Send admin email
+          if (adminTemplate && emailConfig && emailConfig.length > 0) {
+            const config = emailConfig[0];
+            const adminEmails = config?.to_emails?.join(',') || '';
+            const ccEmails = config?.cc_emails?.join(',') || '';
+            
+            if (adminEmails) {
+              const adminEmailHTML = adminTemplate.template
+                .replace(/\$\{customerName\}/g, order.customer_name)
+                .replace(/\$\{customerPhone\}/g, order.customer_phone)
+                .replace(/\$\{customerEmail\}/g, order.customer_email || 'Not provided')
+                .replace(/\$\{customerAddress\}/g, order.customer_address)
+                .replace(/\$\{orderId\}/g, order.order_id)
+                .replace(/\$\{selectedEdition\}/g, order.selected_edition)
+                .replace(/\$\{selectedColor\}/g, order.selected_color)
+                .replace(/\$\{engravingText\}/g, order.engraving_text || '')
+                .replace(/\$\{paymentMethod\}/g, paymentMethod)
+                .replace(/\$\{totalAmount\}/g, order.total_amount.toString())
+                .replace(/{{customerName}}/g, order.customer_name)
+                .replace(/{{customerPhone}}/g, order.customer_phone)
+                .replace(/{{customerEmail}}/g, order.customer_email || 'Not provided')
+                .replace(/{{customerAddress}}/g, order.customer_address)
+                .replace(/{{orderId}}/g, order.order_id)
+                .replace(/{{selectedEdition}}/g, order.selected_edition)
+                .replace(/{{selectedColor}}/g, order.selected_color)
+                .replace(/{{engravingText}}/g, order.engraving_text || '')
+                .replace(/{{paymentMethod}}/g, paymentMethod)
+                .replace(/{{totalAmount}}/g, order.total_amount.toString());
+              
+              const adminSubject = adminTemplate.subject
+                .replace(/\$\{orderId\}/g, order.order_id)
+                .replace(/{{orderId}}/g, order.order_id);
+              
+              const emailParams: any = {
+                to: adminEmails,
+                subject: adminSubject,
+                message: adminEmailHTML,
+                from_name: 'Ximpul Shop'
+              };
+              
+              if (ccEmails) emailParams.cc = ccEmails;
+              
+              await fetch('https://ximpul.com/smtp-mailer.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams(emailParams)
+              });
+            }
+          }
+          
+          // Mark as sent
+          sessionStorage.setItem(`emailSent_${order.id}`, 'true');
+        } catch (error) {
+          console.error('Error sending emails:', error);
+        }
+      }
+    };
     
-    // Update page title and meta description based on type
+    sendOrderEmails();
+  }, [order]); // Only run when order changes
+  
+  // Update page title and meta description
+  useEffect(() => {
     if (type === 'contact') {
       document.title = "Message Sent - Thank You for Contacting Ximpul";
       const metaDescription = document.querySelector('meta[name="description"]');
@@ -113,10 +236,10 @@ const ThankYou = () => {
     if (canonicalLink) {
       canonicalLink.setAttribute('href', 'https://ximpul.com/thank-you');
     }
-  }, [orderId, type]);
+  }, [type]);
 
   const isContactForm = type === 'contact';
-  const displayOrderId = loading ? 'Loading...' : (order?.order_id || 'N/A');
+  const displayOrderId = loading ? 'Loading...' : (order?.order_id || orderId || 'N/A');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
