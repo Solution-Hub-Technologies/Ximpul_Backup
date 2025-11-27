@@ -102,7 +102,6 @@ export const useOrders = () => {
     } catch (err: any) {
       console.error('Error fetching orders:', sanitizeForLog(err?.message || 'Unknown error'));
       setError(err.message);
-      toast.error('Failed to fetch orders');
     } finally {
       setIsLoading(false);
     }
@@ -593,7 +592,6 @@ export const useOrders = () => {
 
   useEffect(() => {
     fetchOrders();
-    // WebSocket subscription disabled to prevent connection errors
   }, []);
 
 

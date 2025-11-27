@@ -39,8 +39,30 @@ export const AdminReports = () => {
   const onlineRevenue = onlineOrders.reduce((sum, order) => sum + order.total_amount, 0);
   
   // Calculate engraving revenue (150 BDT per engraving)
-  const engravingOrders = filteredOrders.filter(order => order.engraving_text && order.engraving_text.trim() !== '');
-  const engravingRevenue = engravingOrders.length * 150;
+  const engravingStats = filteredOrders.reduce((acc, order) => {
+    let count = 0;
+    let revenue = 0;
+    
+    // Check if order has text_engraving_qty or logo_engraving_qty (manual orders)
+    const textQty = order.text_engraving_qty || 0;
+    const logoQty = order.logo_engraving_qty || 0;
+    
+    if (textQty > 0 || logoQty > 0) {
+      count = textQty + logoQty;
+      revenue = (textQty + logoQty) * 150;
+    } else if (order.engraving_text && order.engraving_text.trim() !== '') {
+      // Regular orders with engraving
+      count = 1;
+      revenue = 150;
+    }
+    
+    return {
+      count: acc.count + count,
+      revenue: acc.revenue + revenue
+    };
+  }, { count: 0, revenue: 0 });
+  
+  const engravingRevenue = engravingStats.revenue;
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -207,7 +229,7 @@ export const AdminReports = () => {
                 <div>
                   <p className="text-sm font-medium text-purple-700">Engraving Revenue</p>
                   <p className="text-3xl font-bold text-purple-800">৳{engravingRevenue.toLocaleString()}</p>
-                  <p className="text-sm text-purple-600 mt-1">{engravingOrders.length} engravings</p>
+                  <p className="text-sm text-purple-600 mt-1">{engravingStats.count} engravings</p>
                 </div>
                 <div className="p-3 bg-purple-200 rounded-lg">
                   <span className="text-2xl font-bold text-purple-700">✒</span>
@@ -230,19 +252,80 @@ export const AdminReports = () => {
                 
                 filteredOrders.forEach(order => {
                   const edition = order.selected_edition.toLowerCase();
-                  const color = order.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey';
-                  const key = `Ximpul-${edition}-${color}`;
                   
-                  if (!productStats[key]) {
-                    productStats[key] = { count: 0, revenue: 0 };
-                  }
-                  productStats[key].count += 1;
-                  productStats[key].revenue += order.total_amount;
-                  
-                  if (edition.includes('base')) {
-                    baseRevenue += order.total_amount;
-                  } else if (edition.includes('lifestyle')) {
-                    lifestyleRevenue += order.total_amount;
+                  // Check if this is a manual order (contains × or parentheses)
+                  if (edition.includes('×') || edition.includes('(')) {
+                    // Parse manual order format: "Base Edition (Black) × 40, base edition (grey) × 20"
+                    const parts = order.selected_edition.split(',').map(p => p.trim());
+                    
+                    parts.forEach(part => {
+                      const lowerPart = part.toLowerCase();
+                      let qty = 1;
+                      let editionType = '';
+                      let color = '';
+                      
+                      // Extract quantity
+                      const qtyMatch = part.match(/×\s*(\d+)/);
+                      if (qtyMatch) {
+                        qty = parseInt(qtyMatch[1]);
+                      }
+                      
+                      // Determine edition type
+                      if (lowerPart.includes('base')) {
+                        editionType = 'base edition';
+                      } else if (lowerPart.includes('lifestyle')) {
+                        editionType = 'lifestyle edition';
+                      }
+                      
+                      // Determine color
+                      if (lowerPart.includes('black')) {
+                        color = 'Obsidian Black';
+                      } else if (lowerPart.includes('grey') || lowerPart.includes('gray')) {
+                        color = 'Graphite Grey';
+                      }
+                      
+                      if (editionType && color) {
+                        const key = `Ximpul-${editionType}-${color}`;
+                        if (!productStats[key]) productStats[key] = { count: 0, revenue: 0 };
+                        productStats[key].count += qty;
+                        
+                        const price = editionType === 'base edition' ? 1190 : 1650;
+                        productStats[key].revenue += qty * price;
+                        
+                        if (editionType === 'base edition') {
+                          baseRevenue += qty * price;
+                        } else {
+                          lifestyleRevenue += qty * price;
+                        }
+                      }
+                    });
+                  } else {
+                    // Handle regular orders
+                    const color = order.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey';
+                    
+                    // Normalize edition name
+                    let editionType = '';
+                    if (edition.includes('base')) {
+                      editionType = 'base edition';
+                    } else if (edition.includes('lifestyle')) {
+                      editionType = 'lifestyle edition';
+                    }
+                    
+                    const key = `Ximpul-${editionType}-${color}`;
+                    
+                    if (!productStats[key]) {
+                      productStats[key] = { count: 0, revenue: 0 };
+                    }
+                    productStats[key].count += 1;
+                    
+                    const productPrice = editionType === 'base edition' ? 1190 : 1650;
+                    productStats[key].revenue += productPrice;
+                    
+                    if (editionType === 'base edition') {
+                      baseRevenue += productPrice;
+                    } else if (editionType === 'lifestyle edition') {
+                      lifestyleRevenue += productPrice;
+                    }
                   }
                 });
                 

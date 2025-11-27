@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useOrders, Order } from '@/hooks/useOrders';
 import { useBulkOrders } from '@/hooks/useBulkOrders';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { useSteadfastStatus } from '@/hooks/useSteadfastStatus';
 import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 import { 
   Eye, Copy, RefreshCw, Search, Filter, Calendar, 
@@ -21,6 +22,83 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import JsBarcode from 'jsbarcode';
+
+const SteadfastStatusBadge = ({ trackingNumber, status, onRefresh }: { trackingNumber: string; status: any; onRefresh: () => void }) => {
+  // Auto-retry on error after 3 seconds
+  React.useEffect(() => {
+    if (status?.error) {
+      const timer = setTimeout(() => {
+        onRefresh();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [status?.error, onRefresh]);
+
+  if (!status || status.loading) {
+    return (
+      <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-lg text-xs">
+        <RefreshCw className="h-3 w-3 animate-spin" />
+        <span>Loading...</span>
+      </div>
+    );
+  }
+
+  if (status.error) {
+    return (
+      <div className="flex items-center gap-1 px-2 py-1 bg-yellow-50 rounded-lg text-xs text-yellow-700">
+        <RefreshCw className="h-3 w-3 animate-spin" />
+        <span>Retrying...</span>
+      </div>
+    );
+  }
+
+  const statusConfig: Record<string, { bg: string; text: string; label: string; icon: any }> = {
+    'pending': { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending', icon: Clock },
+    'pending_pickup': { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending', icon: Clock },
+    'approval_pending': { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Approval Pending', icon: Clock },
+    'delivered_approval_pending': { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Approval Pending', icon: Clock },
+    'in_transit': { bg: 'bg-blue-100', text: 'text-blue-800', label: 'In Transit', icon: Truck },
+    'out_for_delivery': { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Out for Delivery', icon: Truck },
+    'delivered': { bg: 'bg-yellow-400', text: 'text-gray-900', label: 'Delivered', icon: CheckCircle },
+    'delivered_&_paid': { bg: 'bg-yellow-400', text: 'text-gray-900', label: 'Delivered & Paid', icon: CheckCircle },
+    'partial_delivered': { bg: 'bg-yellow-400', text: 'text-gray-900', label: 'Partly Delivered', icon: CheckCircle },
+    'partly_delivered': { bg: 'bg-yellow-400', text: 'text-gray-900', label: 'Partly Delivered', icon: CheckCircle },
+    'cancelled': { bg: 'bg-red-100', text: 'text-red-800', label: 'Cancelled', icon: X },
+    'canceled': { bg: 'bg-red-100', text: 'text-red-800', label: 'Cancelled', icon: X },
+    'in_review': { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'In Review', icon: AlertTriangle },
+    'hold': { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'On Hold', icon: Clock },
+    'on_hold': { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'On Hold', icon: Clock },
+    'returned': { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Returned', icon: ArrowUpRight },
+    'return_in_transit': { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Return in Transit', icon: ArrowUpRight },
+    'unknown': { bg: 'bg-gray-100', text: 'text-gray-600', label: 'Unknown', icon: AlertTriangle }
+  };
+  
+  // Log for debugging
+  if (status?.delivery_status && !statusConfig[status.delivery_status]) {
+    console.warn('Unknown Steadfast status:', status.delivery_status, 'for tracking:', trackingNumber);
+  }
+
+  const config = statusConfig[status.delivery_status] || statusConfig['unknown'];
+  const Icon = config.icon;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className={`flex items-center gap-1 px-2 py-1 ${config.bg} rounded-lg`}>
+        <Icon className={`h-3 w-3 ${config.text}`} />
+        <span className={`text-xs font-medium ${config.text}`}>{config.label}</span>
+        <button onClick={onRefresh} className="ml-1 hover:opacity-70">
+          <RefreshCw className={`h-3 w-3 ${config.text}`} />
+        </button>
+      </div>
+      {status.current_location && (
+        <div className="flex items-center gap-1 text-xs text-gray-600">
+          <MapPin className="h-3 w-3" />
+          <span>{status.current_location}</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const ColorBadge = ({ color }: { color: string }) => {
   if (color === 'obsidian') {
@@ -43,6 +121,12 @@ export const AdminOrders = () => {
   const { orders, isLoading, updateOrderStatus, updatePaymentStatus, updateTrackingInfo, fetchOrders, deleteOrder } = useOrders();
   const { bulkOrders, isLoading: bulkOrdersLoading, fetchBulkOrders } = useBulkOrders();
   const { adminUser } = useAdminAuth();
+  
+  // Get tracking numbers from visible orders
+  const trackingNumbers = orders
+    .filter(o => o.tracking_number && o.order_status !== 'cancelled')
+    .map(o => o.tracking_number);
+  const { statuses: steadfastStatuses, refreshStatus } = useSteadfastStatus(trackingNumbers);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState('all');
   const [activeStatusTab, setActiveStatusTab] = useState('all_status');
@@ -96,6 +180,9 @@ export const AdminOrders = () => {
     selected_accessories: [] as string[],
     accessory_quantities: {} as Record<string, number>,
     engraving_text: '',
+    engraving_logo: '',
+    text_engraving_qty: 0,
+    logo_engraving_qty: 0,
     base_black: 0,
     base_grey: 0,
     lifestyle_black: 0,
@@ -471,6 +558,9 @@ export const AdminOrders = () => {
         selected_accessories: accessories,
         accessory_quantities: accessoryQty,
         engraving_text: order.engraving_text || '',
+        engraving_logo: '',
+        text_engraving_qty: order.engraving_text ? 1 : 0,
+        logo_engraving_qty: 0,
         base_black: baseBlack,
         base_grey: baseGrey,
         lifestyle_black: lifestyleBlack,
@@ -490,6 +580,9 @@ export const AdminOrders = () => {
         selected_accessories: accessories,
         accessory_quantities: accessoryQty,
         engraving_text: order.engraving_text || '',
+        engraving_logo: '',
+        text_engraving_qty: order.engraving_text ? 1 : 0,
+        logo_engraving_qty: 0,
         base_black: 0,
         base_grey: 0,
         lifestyle_black: 0,
@@ -532,7 +625,7 @@ export const AdminOrders = () => {
           const qty = editOrderData.accessory_quantities[acc] || 1;
           return sum + (prices[acc] || 0) * qty;
         }, 0);
-        const engravingPrice = editOrderData.engraving_text ? 150 : 0;
+        const engravingPrice = ((editOrderData.text_engraving_qty || 0) * 150) + ((editOrderData.logo_engraving_qty || 0) * 150);
         subtotal = baseTotal + lifestyleTotal + accessoryTotal + engravingPrice;
       } else {
         // Regular order
@@ -546,7 +639,7 @@ export const AdminOrders = () => {
               return sum + (prices[acc] || 0) * qty;
             }, 0)
           : 0;
-        const engravingPrice = editOrderData.engraving_text ? 150 : 0;
+        const engravingPrice = ((editOrderData.text_engraving_qty || 0) * 150) + ((editOrderData.logo_engraving_qty || 0) * 150);
         subtotal = basePrice + accessoryPrice + engravingPrice;
       }
       
@@ -1575,7 +1668,7 @@ export const AdminOrders = () => {
                                       MANUAL
                                     </span>
                                   ) : (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 md:px-2.5 md:py-1 rounded-full text-[9px] md:text-xs font-bold bg-green-600 text-white">
+                                    <span className="inline-flex items-center px-1.5 py-0.5 md:px-2.5 md:py-1 rounded-full text-[9px] md:text-xs font-bold bg-green-100 text-green-700 border border-green-300">
                                       <Smartphone className="w-2 h-2 md:w-3 md:h-3 mr-0.5 md:mr-1" />
                                       WEBSITE
                                     </span>
@@ -1648,21 +1741,28 @@ export const AdminOrders = () => {
                                   </div>
                                   
                                   <div className="hidden md:flex items-center gap-2">
-                                    {order.order_status === 'processing' && order.tracking_number && (
-                                      <div 
-                                        className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity border border-green-300 rounded-lg p-2 bg-green-50"
-                                        onClick={() => {
-                                          setSteadfastParcelId(order.tracking_number);
-                                          setSteadfastOrder(order);
-                                        }}
-                                      >
-                                        <div className="w-6 h-6 flex items-center justify-center">
-                                          <img src="/ximpul-uploads/steadfast.svg" alt="Steadfast" className="w-6 h-6" />
+                                    {order.tracking_number && (
+                                      <div className="flex flex-col gap-2">
+                                        <div 
+                                          className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity border border-green-300 rounded-lg p-2 bg-green-50"
+                                          onClick={() => {
+                                            setSteadfastParcelId(order.tracking_number);
+                                            setSteadfastOrder(order);
+                                          }}
+                                        >
+                                          <div className="w-6 h-6 flex items-center justify-center">
+                                            <img src="/ximpul-uploads/steadfast.svg" alt="Steadfast" className="w-6 h-6" />
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <span className="text-green-700 font-medium text-xs">Steadfast</span>
+                                            <span className="text-green-700 font-medium text-xs">{order.tracking_number}</span>
+                                          </div>
                                         </div>
-                                        <div className="flex flex-col">
-                                          <span className="text-green-700 font-medium text-xs">Steadfast</span>
-                                          <span className="text-green-700 font-medium text-xs">{order.tracking_number}</span>
-                                        </div>
+                                        <SteadfastStatusBadge 
+                                          trackingNumber={order.tracking_number} 
+                                          status={steadfastStatuses[order.tracking_number]}
+                                          onRefresh={() => refreshStatus(order.tracking_number)}
+                                        />
                                       </div>
                                     )}
                                     <Button variant="outline" size="sm" onClick={() => handleEditOrder(order)} className="h-8 px-3 text-xs">
@@ -1716,21 +1816,28 @@ export const AdminOrders = () => {
                               
                               <div className="flex flex-col gap-1.5 md:gap-3 mt-2 md:mt-4 md:hidden">
                                 <div className="flex flex-wrap gap-1.5 md:gap-2 items-center">
-                                  {order.order_status === 'processing' && order.tracking_number && (
-                                    <div 
-                                      className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity border border-green-300 rounded-lg p-1 md:p-2 bg-green-50"
-                                      onClick={() => {
-                                        setSteadfastParcelId(order.tracking_number);
-                                        setSteadfastOrder(order);
-                                      }}
-                                    >
-                                      <div className="w-4 h-4 md:w-6 md:h-6 flex items-center justify-center">
-                                        <img src="/ximpul-uploads/steadfast.svg" alt="Steadfast" className="w-4 h-4 md:w-6 md:h-6" />
+                                  {order.tracking_number && (
+                                    <div className="flex flex-col gap-1">
+                                      <div 
+                                        className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity border border-green-300 rounded-lg p-1 md:p-2 bg-green-50"
+                                        onClick={() => {
+                                          setSteadfastParcelId(order.tracking_number);
+                                          setSteadfastOrder(order);
+                                        }}
+                                      >
+                                        <div className="w-4 h-4 md:w-6 md:h-6 flex items-center justify-center">
+                                          <img src="/ximpul-uploads/steadfast.svg" alt="Steadfast" className="w-4 h-4 md:w-6 md:h-6" />
+                                        </div>
+                                        <div className="flex flex-col">
+                                          <span className="text-green-700 font-medium text-[9px] md:text-xs">Steadfast</span>
+                                          <span className="text-green-700 font-medium text-[9px] md:text-xs">{order.tracking_number}</span>
+                                        </div>
                                       </div>
-                                      <div className="flex flex-col">
-                                        <span className="text-green-700 font-medium text-[9px] md:text-xs">Steadfast</span>
-                                        <span className="text-green-700 font-medium text-[9px] md:text-xs">{order.tracking_number}</span>
-                                      </div>
+                                      <SteadfastStatusBadge 
+                                        trackingNumber={order.tracking_number} 
+                                        status={steadfastStatuses[order.tracking_number]}
+                                        onRefresh={() => refreshStatus(order.tracking_number)}
+                                      />
                                     </div>
                                   )}
                                   <Button variant="outline" size="sm" onClick={() => handleEditOrder(order)} className="h-7 md:h-8 px-1.5 md:px-3 text-[10px] md:text-xs">
@@ -2286,8 +2393,53 @@ export const AdminOrders = () => {
                 </div>
               </div>
               <div>
-                <Label>Engraving Text</Label>
-                <Input value={editOrderData.engraving_text} onChange={(e) => setEditOrderData(prev => ({ ...prev, engraving_text: e.target.value }))} placeholder="Enter engraving text" />
+                <Label>Engraving (150 BDT each)</Label>
+                <div className="space-y-3 mt-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <Label className="text-sm">Text Engraving</Label>
+                      <Input 
+                        value={editOrderData.engraving_text} 
+                        onChange={(e) => setEditOrderData(prev => ({ ...prev, engraving_text: e.target.value }))} 
+                        placeholder="Enter text to engrave" 
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="w-24">
+                      <Label className="text-sm">Quantity</Label>
+                      <Input 
+                        type="number" 
+                        min="0" 
+                        value={editOrderData.text_engraving_qty || ''} 
+                        onChange={(e) => setEditOrderData(prev => ({ ...prev, text_engraving_qty: parseInt(e.target.value) || 0 }))} 
+                        onWheel={(e) => e.currentTarget.blur()}
+                        className="mt-1 text-center"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <Label className="text-sm">Logo Engraving</Label>
+                      <Input 
+                        value={editOrderData.engraving_logo} 
+                        onChange={(e) => setEditOrderData(prev => ({ ...prev, engraving_logo: e.target.value }))} 
+                        placeholder="Enter logo details" 
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="w-24">
+                      <Label className="text-sm">Quantity</Label>
+                      <Input 
+                        type="number" 
+                        min="0" 
+                        value={editOrderData.logo_engraving_qty || ''} 
+                        onChange={(e) => setEditOrderData(prev => ({ ...prev, logo_engraving_qty: parseInt(e.target.value) || 0 }))} 
+                        onWheel={(e) => e.currentTarget.blur()}
+                        className="mt-1 text-center"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <h4 className="font-semibold mb-2">Price Breakdown</h4>
@@ -2307,7 +2459,8 @@ export const AdminOrders = () => {
                     const qty = editOrderData.accessory_quantities[acc] || 1;
                     return <div key={acc} className="flex justify-between text-gray-600"><span>{acc} × {qty}:</span><span>{(prices[acc] * qty).toLocaleString()} BDT</span></div>;
                   })}
-                  {editOrderData.engraving_text && <div className="flex justify-between text-gray-600"><span>Engraving:</span><span>150 BDT</span></div>}
+                  {editOrderData.text_engraving_qty > 0 && <div className="flex justify-between text-gray-600"><span>Text Engraving × {editOrderData.text_engraving_qty}:</span><span>{(150 * editOrderData.text_engraving_qty).toLocaleString()} BDT</span></div>}
+                  {editOrderData.logo_engraving_qty > 0 && <div className="flex justify-between text-gray-600"><span>Logo Engraving × {editOrderData.logo_engraving_qty}:</span><span>{(150 * editOrderData.logo_engraving_qty).toLocaleString()} BDT</span></div>}
                   <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
                     <span>Subtotal:</span>
                     <span>
@@ -2317,7 +2470,7 @@ export const AdminOrders = () => {
                           const baseTotal = 1190 * (editOrderData.base_black + editOrderData.base_grey);
                           const lifestyleTotal = 1650 * (editOrderData.lifestyle_black + editOrderData.lifestyle_grey);
                           const accessoryTotal = editOrderData.selected_accessories.reduce((sum, acc) => sum + (prices[acc] || 0) * (editOrderData.accessory_quantities[acc] || 1), 0);
-                          const engravingPrice = editOrderData.engraving_text ? 150 : 0;
+                          const engravingPrice = ((editOrderData.text_engraving_qty || 0) * 150) + ((editOrderData.logo_engraving_qty || 0) * 150);
                           return (baseTotal + lifestyleTotal + accessoryTotal + engravingPrice).toLocaleString();
                         }
                         const basePrice = editOrderData.selected_edition === 'base edition' ? 1190 : 1650;
@@ -2325,7 +2478,7 @@ export const AdminOrders = () => {
                           ? editOrderData.selected_accessories.reduce((sum, acc) => {
                               return sum + (prices[acc] || 0) * (editOrderData.accessory_quantities[acc] || 1);
                             }, 0) : 0;
-                        const engravingPrice = editOrderData.engraving_text ? 150 : 0;
+                        const engravingPrice = ((editOrderData.text_engraving_qty || 0) * 150) + ((editOrderData.logo_engraving_qty || 0) * 150);
                         return (basePrice + accessoryPrice + engravingPrice).toLocaleString();
                       })()} BDT
                     </span>
@@ -2341,13 +2494,13 @@ export const AdminOrders = () => {
                           const baseTotal = 1190 * (editOrderData.base_black + editOrderData.base_grey);
                           const lifestyleTotal = 1650 * (editOrderData.lifestyle_black + editOrderData.lifestyle_grey);
                           const accessoryTotal = editOrderData.selected_accessories.reduce((sum, acc) => sum + (prices[acc] || 0) * (editOrderData.accessory_quantities[acc] || 1), 0);
-                          const engravingPrice = editOrderData.engraving_text ? 150 : 0;
+                          const engravingPrice = ((editOrderData.text_engraving_qty || 0) * 150) + ((editOrderData.logo_engraving_qty || 0) * 150);
                           subtotal = baseTotal + lifestyleTotal + accessoryTotal + engravingPrice;
                         } else {
                           const basePrice = editOrderData.selected_edition === 'base edition' ? 1190 : 1650;
                           const accessoryPrice = editOrderData.selected_edition === 'base edition' 
                             ? editOrderData.selected_accessories.reduce((sum, acc) => sum + (prices[acc] || 0) * (editOrderData.accessory_quantities[acc] || 1), 0) : 0;
-                          const engravingPrice = editOrderData.engraving_text ? 150 : 0;
+                          const engravingPrice = ((editOrderData.text_engraving_qty || 0) * 150) + ((editOrderData.logo_engraving_qty || 0) * 150);
                           subtotal = basePrice + accessoryPrice + engravingPrice;
                         }
                         const deliveryFee = editOrderData.payment_method === 'cod' ? 100 : 0;
@@ -2920,15 +3073,97 @@ export const AdminOrders = () => {
       <Dialog open={!!steadfastOrder} onOpenChange={(open) => !open && setSteadfastOrder(null)}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto w-[95vw]">
           <DialogHeader className="pb-6">
-            <DialogTitle className="flex items-center gap-3 text-2xl">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Truck className="h-6 w-6 text-green-700" />
+            <div className="flex items-start justify-between">
+              <div>
+                <DialogTitle className="flex items-center gap-3 text-2xl">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <Truck className="h-6 w-6 text-green-700" />
+                  </div>
+                  Steadfast Parcel Details
+                </DialogTitle>
+                <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
+                  <span>Order ID:</span>
+                  <span className="font-mono bg-gray-100 px-2 py-1 rounded">{steadfastOrder?.order_id}</span>
+                </div>
               </div>
-              Steadfast Parcel Details
-            </DialogTitle>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span>Order ID:</span>
-              <span className="font-mono bg-gray-100 px-2 py-1 rounded">{steadfastOrder?.order_id}</span>
+              {steadfastOrder && (
+                <Button onClick={() => {
+                  const barcodeDataUrl = generateBarcode(steadfastParcelId);
+                  const printWindow = window.open('', '_blank');
+                  if (printWindow) {
+                    printWindow.document.write(`
+                      <html>
+                        <head>
+                          <title>Sticker - ${steadfastOrder.order_id}</title>
+                          <style>
+                            body { 
+                              font-family: Arial, sans-serif; 
+                              margin: 0; 
+                              padding: 0;
+                              color: black;
+                              background: white;
+                            }
+                            .parcel-content { 
+                              width: 5cm;
+                              height: 7cm;
+                              padding: 0.2cm;
+                              border: 1px solid black;
+                              box-sizing: border-box;
+                            }
+                            .text-center { text-align: center; }
+                            .font-bold { font-weight: bold; }
+                            .text-xs { font-size: 10px; line-height: 1.2; }
+                            .text-xxs { font-size: 8px; line-height: 1.1; }
+                            .text-xl { font-size: 16px; line-height: 1.0; font-weight: 900; }
+                            .mb-1 { margin-bottom: 0.05in; }
+                            .mb-tight { margin-bottom: 0.03in; }
+                            .barcode-img { width: 100%; height: auto; max-width: 4cm; }
+                            p { margin: 0; padding: 0; }
+                            h1 { font-size: 12px; margin: 0 0 0.05in 0; }
+                            @page { size: 5cm 7cm; margin: 0; }
+                          </style>
+                        </head>
+                        <body>
+                          <div class="parcel-content">
+                            <div class="text-center mb-1"><h1 class="font-bold">XIMPUL</h1></div>
+                            <div class="mb-1">
+                              <p class="font-bold text-xs">Customer:</p>
+                              <p class="text-xxs">${steadfastOrder.customer_name}-${steadfastOrder.customer_phone}</p>
+                            </div>
+                            <div class="mb-1"><p class="text-xxs">${steadfastOrder.customer_address}</p></div>
+                            <div class="mb-1">
+                              <p class="font-bold text-xs">Order Details:</p>
+                              <p class="text-xxs">Ximpul Flow Water Bottle</p>
+                              <p class="text-xxs">Edition: <span class="font-bold">${steadfastOrder.selected_edition}</span></p>
+                              ${!steadfastOrder.selected_edition.includes('(') ? `<p class="text-xxs">Color: <span class="font-bold">${steadfastOrder.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}</span></p>` : ''}
+                              ${steadfastOrder.selected_accessories && steadfastOrder.selected_accessories.length > 0 ? `<p class="text-xxs">Accessories: <span class="font-bold">${steadfastOrder.selected_accessories.join(', ')}</span></p>` : ''}
+                              ${steadfastOrder.engraving_text ? `<p class="text-xxs">Engraved: <span class="font-bold">${steadfastOrder.engraving_text}</span></p>` : ''}
+                            </div>
+                            <div class="mb-tight"><p class="text-xs">Order ID: ${steadfastOrder.order_id}</p></div>
+                            <div style="border-top: 1px solid #999; margin: 0.03in 0;"></div>
+                            <div class="mb-1">
+                              <p class="font-bold text-xs">Steadfast ID:</p>
+                              <div style="border: 2px solid black; padding: 0.1cm; text-align: center; margin: 0.05cm 0;">
+                                <p class="text-xl font-bold">${steadfastParcelId}</p>
+                              </div>
+                              ${barcodeDataUrl ? `<div class="text-center" style="margin-top: 0.1cm;"><img src="${barcodeDataUrl}" class="barcode-img" alt="Barcode" /></div>` : ''}
+                            </div>
+                          </div>
+                        </body>
+                      </html>
+                    `);
+                    printWindow.document.close();
+                    printWindow.focus();
+                    setTimeout(() => {
+                      printWindow.print();
+                      printWindow.close();
+                    }, 250);
+                  }
+                }} className="flex items-center gap-2">
+                  <Printer className="h-4 w-4" />
+                  Print
+                </Button>
+              )}
             </div>
           </DialogHeader>
           {steadfastOrder && (
@@ -3094,112 +3329,6 @@ export const AdminOrders = () => {
                 </div>
                 <p className="text-gray-600">Parcel created via Steadfast Courier Service</p>
                 <p className="text-sm text-gray-500 mt-1">Track your delivery with Parcel ID: <span className="font-mono font-medium">{steadfastParcelId}</span></p>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t no-print">
-                <Button variant="outline" onClick={() => setSteadfastOrder(null)} className="w-full sm:w-auto">
-                  Close
-                </Button>
-                <Button onClick={() => {
-                  const barcodeDataUrl = generateBarcode(steadfastParcelId);
-                  const printWindow = window.open('', '_blank');
-                  if (printWindow) {
-                    printWindow.document.write(`
-                      <html>
-                        <head>
-                          <title>Sticker - ${steadfastOrder.order_id}</title>
-                          <style>
-                            body { 
-                              font-family: Arial, sans-serif; 
-                              margin: 0; 
-                              padding: 0;
-                              color: black;
-                              background: white;
-                            }
-                            .parcel-content { 
-                              width: 5cm;
-                              height: 7cm;
-                              padding: 0.2cm;
-                              border: 1px solid black;
-                              box-sizing: border-box;
-                            }
-                            .text-center { text-align: center; }
-                            .font-bold { font-weight: bold; }
-                            .font-extra-bold { font-weight: 900; }
-                            .text-xs { font-size: 10px; line-height: 1.2; }
-                            .text-xxs { font-size: 8px; line-height: 1.1; }
-                            .text-lg { font-size: 14px; line-height: 1.1; font-weight: 900; }
-                            .text-xl { font-size: 16px; line-height: 1.0; font-weight: 900; }
-                            .mb-1 { margin-bottom: 0.05in; }
-                            .mb-tight { margin-bottom: 0.03in; }
-                            .barcode-img { width: 100%; height: auto; max-width: 4cm; }
-                            p { margin: 0; padding: 0; }
-                            h1 { font-size: 12px; margin: 0 0 0.05in 0; }
-                            @page { 
-                              size: 5cm 7cm; 
-                              margin: 0;
-                            }
-                          </style>
-                        </head>
-                        <body>
-                          <div class="parcel-content">
-                            <div class="text-center mb-1">
-                              <h1 class="font-bold">XIMPUL</h1>
-                            </div>
-                            
-                            <div class="mb-1">
-                              <p class="font-bold text-xs">Customer:</p>
-                              <p class="text-xxs">${steadfastOrder.customer_name}-${steadfastOrder.customer_phone}</p>
-                            </div>
-                            
-                            <div class="mb-1">
-                              <p class="text-xxs">${steadfastOrder.customer_address}</p>
-                            </div>
-                            
-                            <div class="mb-1">
-                              <p class="font-bold text-xs">Order Details:</p>
-                              <p class="text-xxs">Ximpul Flow Water Bottle</p>
-                              <p class="text-xxs">Edition: <span class="font-bold">${steadfastOrder.selected_edition}</span></p>
-                              ${!steadfastOrder.selected_edition.includes('(') ? `<p class="text-xxs">Color: <span class="font-bold">${steadfastOrder.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}</span></p>` : ''}
-                              ${steadfastOrder.selected_accessories && steadfastOrder.selected_accessories.length > 0 ? `<p class="text-xxs">Accessories: <span class="font-bold">${steadfastOrder.selected_accessories.join(', ')}</span></p>` : ''}
-                              ${steadfastOrder.engraving_text ? `<p class="text-xxs">Engraved: <span class="font-bold">${steadfastOrder.engraving_text}</span></p>` : ''}
-                            </div>
-                            
-                            <div class="mb-tight">
-                              <p class="text-xs">Order ID: ${steadfastOrder.order_id}</p>
-  
-                            </div>
-                            
-                            <div style="border-top: 1px solid #999; margin: 0.03in 0;"></div>
-                            
-                            <div class="mb-1">
-                              <p class="font-bold text-xs">Steadfast ID:</p>
-                              <div style="border: 2px solid black; padding: 0.1cm; text-align: center; margin: 0.05cm 0;">
-                                <p class="text-xl font-bold">${steadfastParcelId}</p>
-                              </div>
-                              ${barcodeDataUrl ? `
-                              <div class="text-center" style="margin-top: 0.1cm;">
-                                <img src="${barcodeDataUrl}" class="barcode-img" alt="Barcode" />
-                              </div>` : ''}
-                            </div>
-                            
-
-                          </div>
-                        </body>
-                      </html>
-                    `);
-                    printWindow.document.close();
-                    printWindow.focus();
-                    setTimeout(() => {
-                      printWindow.print();
-                      printWindow.close();
-                    }, 250);
-                  }
-                }} className="flex items-center gap-2 w-full sm:w-auto justify-center">
-                  <Printer className="h-4 w-4" />
-                  Print Parcel Details
-                </Button>
               </div>
             </div>
           )}
