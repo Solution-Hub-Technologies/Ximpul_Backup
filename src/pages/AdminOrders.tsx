@@ -17,7 +17,7 @@ import {
   CreditCard, MapPin, FileText, User, Phone, Mail, 
   X, ArrowUpRight, Trash2, Shield, ChevronLeft, ChevronRight,
   Download, FileSpreadsheet, FileText as FilePdf, Printer, Receipt,
-  Banknote, Smartphone, Send
+  Banknote, Smartphone, Send, Edit
 } from 'lucide-react';
 import { toast } from 'sonner';
 import JsBarcode from 'jsbarcode';
@@ -25,16 +25,16 @@ import JsBarcode from 'jsbarcode';
 const ColorBadge = ({ color }: { color: string }) => {
   if (color === 'obsidian') {
     return (
-      <div className="flex items-center gap-1 px-3 py-1 bg-black rounded-full border-2 border-gray-800">
-        <div className="w-2 h-2 rounded-full bg-white"></div>
-        <span className="text-white text-xs font-bold">OBSIDIAN BLACK</span>
+      <div className="flex items-center gap-1 px-2 md:px-3 py-0.5 md:py-1 bg-black rounded-full border md:border-2 border-gray-800">
+        <div className="w-1.5 md:w-2 h-1.5 md:h-2 rounded-full bg-white"></div>
+        <span className="text-white text-[9px] md:text-xs font-bold">OBSIDIAN BLACK</span>
       </div>
     );
   }
   return (
-    <div className="flex items-center gap-1 px-3 py-1 bg-slate-500 rounded-full border-2 border-slate-400">
-      <div className="w-2 h-2 rounded-full bg-white"></div>
-      <span className="text-white text-xs font-bold">GRAPHITE GREY</span>
+    <div className="flex items-center gap-1 px-2 md:px-3 py-0.5 md:py-1 bg-slate-500 rounded-full border md:border-2 border-slate-400">
+      <div className="w-1.5 md:w-2 h-1.5 md:h-2 rounded-full bg-white"></div>
+      <span className="text-white text-[9px] md:text-xs font-bold">GRAPHITE GREY</span>
     </div>
   );
 };
@@ -88,6 +88,21 @@ export const AdminOrders = () => {
   const [deletionReason, setDeletionReason] = useState('');
   const [showDeletedOrders, setShowDeletedOrders] = useState(false);
   const [deletedOrders, setDeletedOrders] = useState([]);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editOrderData, setEditOrderData] = useState({
+    selected_edition: '',
+    selected_color: '',
+    selected_accessories: [] as string[],
+    accessory_quantities: {} as Record<string, number>,
+    engraving_text: '',
+    base_black: 0,
+    base_grey: 0,
+    lifestyle_black: 0,
+    lifestyle_grey: 0,
+    payment_method: 'cod',
+    delivery_fee: 100
+  });
 
   // Function to backup order before deletion
   const backupOrderBeforeDelete = async (order: Order, reason: string = '') => {
@@ -391,6 +406,184 @@ export const AdminOrders = () => {
     setIsDeleteDialogOpen(true);
   };
 
+  const handleEditOrder = (order: Order) => {
+    setEditingOrder(order);
+    
+    // Parse accessories to handle both array and string formats
+    let accessories = [];
+    const accessoryQty = {};
+    if (order.selected_accessories) {
+      if (Array.isArray(order.selected_accessories)) {
+        accessories = order.selected_accessories.map(acc => {
+          const match = acc.match(/^(.+?)\s*×\s*(\d+)$/);
+          if (match) {
+            accessoryQty[match[1]] = parseInt(match[2]);
+            return match[1];
+          }
+          accessoryQty[acc] = 1;
+          return acc;
+        });
+      } else if (typeof order.selected_accessories === 'string') {
+        try {
+          const parsed = JSON.parse(order.selected_accessories);
+          accessories = parsed.map(acc => {
+            const match = acc.match(/^(.+?)\s*×\s*(\d+)$/);
+            if (match) {
+              accessoryQty[match[1]] = parseInt(match[2]);
+              return match[1];
+            }
+            accessoryQty[acc] = 1;
+            return acc;
+          });
+        } catch {
+          accessories = [];
+        }
+      }
+    }
+    
+    // Check if manual order with multiple editions
+    const isManual = order.selected_edition.includes('×') || order.selected_edition.includes('(');
+    
+    if (isManual) {
+      // Parse manual order format
+      let baseBlack = 0, baseGrey = 0, lifestyleBlack = 0, lifestyleGrey = 0;
+      const editions = order.selected_edition.split(',').map(e => e.trim());
+      
+      editions.forEach(ed => {
+        if (ed.includes('Base') && ed.includes('Black')) {
+          const match = ed.match(/×\s*(\d+)/);
+          baseBlack = match ? parseInt(match[1]) : 1;
+        } else if (ed.includes('Base') && ed.includes('Grey')) {
+          const match = ed.match(/×\s*(\d+)/);
+          baseGrey = match ? parseInt(match[1]) : 1;
+        } else if (ed.includes('Lifestyle') && ed.includes('Black')) {
+          const match = ed.match(/×\s*(\d+)/);
+          lifestyleBlack = match ? parseInt(match[1]) : 1;
+        } else if (ed.includes('Lifestyle') && ed.includes('Grey')) {
+          const match = ed.match(/×\s*(\d+)/);
+          lifestyleGrey = match ? parseInt(match[1]) : 1;
+        }
+      });
+      
+      setEditOrderData({
+        selected_edition: 'manual',
+        selected_color: 'mixed',
+        selected_accessories: accessories,
+        accessory_quantities: accessoryQty,
+        engraving_text: order.engraving_text || '',
+        base_black: baseBlack,
+        base_grey: baseGrey,
+        lifestyle_black: lifestyleBlack,
+        lifestyle_grey: lifestyleGrey,
+        payment_method: order.payment_method,
+        delivery_fee: order.payment_method === 'cod' ? 100 : 0
+      });
+    } else {
+      // Regular order
+      const normalizedEdition = order.selected_edition.toLowerCase().includes('base') ? 'base edition' : 
+                                order.selected_edition.toLowerCase().includes('lifestyle') ? 'lifestyle edition' : 
+                                order.selected_edition;
+      
+      setEditOrderData({
+        selected_edition: normalizedEdition,
+        selected_color: order.selected_color,
+        selected_accessories: accessories,
+        accessory_quantities: accessoryQty,
+        engraving_text: order.engraving_text || '',
+        base_black: 0,
+        base_grey: 0,
+        lifestyle_black: 0,
+        lifestyle_grey: 0,
+        payment_method: order.payment_method,
+        delivery_fee: order.payment_method === 'cod' ? 100 : 0
+      });
+    }
+    
+    setIsEditDialogOpen(true);
+  };
+
+  const confirmEditOrder = async () => {
+    if (!editingOrder || !adminUser) return;
+    
+    try {
+      let finalEdition, finalColor, subtotal;
+      const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
+      
+      if (editOrderData.selected_edition === 'manual') {
+        // Manual order with multiple editions
+        const editions = [];
+        if (editOrderData.base_black > 0) editions.push(`Base Edition (Black) × ${editOrderData.base_black}`);
+        if (editOrderData.base_grey > 0) editions.push(`Base Edition (Grey) × ${editOrderData.base_grey}`);
+        if (editOrderData.lifestyle_black > 0) editions.push(`Lifestyle Edition (Black) × ${editOrderData.lifestyle_black}`);
+        if (editOrderData.lifestyle_grey > 0) editions.push(`Lifestyle Edition (Grey) × ${editOrderData.lifestyle_grey}`);
+        
+        if (editions.length === 0) {
+          toast.error('Please select at least one edition with quantity');
+          return;
+        }
+        
+        finalEdition = editions.join(', ');
+        finalColor = (editOrderData.base_black + editOrderData.lifestyle_black) > 0 && (editOrderData.base_grey + editOrderData.lifestyle_grey) > 0 ? 'mixed' : 
+                     (editOrderData.base_black + editOrderData.lifestyle_black) > 0 ? 'obsidian' : 'graphite';
+        
+        const baseTotal = 1190 * (editOrderData.base_black + editOrderData.base_grey);
+        const lifestyleTotal = 1650 * (editOrderData.lifestyle_black + editOrderData.lifestyle_grey);
+        const accessoryTotal = editOrderData.selected_accessories.reduce((sum, acc) => {
+          const qty = editOrderData.accessory_quantities[acc] || 1;
+          return sum + (prices[acc] || 0) * qty;
+        }, 0);
+        const engravingPrice = editOrderData.engraving_text ? 150 : 0;
+        subtotal = baseTotal + lifestyleTotal + accessoryTotal + engravingPrice;
+      } else {
+        // Regular order
+        finalEdition = editOrderData.selected_edition;
+        finalColor = editOrderData.selected_color;
+        
+        const basePrice = editOrderData.selected_edition === 'base edition' ? 1190 : 1650;
+        const accessoryPrice = editOrderData.selected_edition === 'base edition' 
+          ? editOrderData.selected_accessories.reduce((sum, acc) => {
+              const qty = editOrderData.accessory_quantities[acc] || 1;
+              return sum + (prices[acc] || 0) * qty;
+            }, 0)
+          : 0;
+        const engravingPrice = editOrderData.engraving_text ? 150 : 0;
+        subtotal = basePrice + accessoryPrice + engravingPrice;
+      }
+      
+      const deliveryFee = editOrderData.payment_method === 'cod' ? 100 : 0;
+      const totalAmount = subtotal + deliveryFee;
+
+      // Format accessories with quantities
+      const accessoriesWithQty = editOrderData.selected_accessories.map(acc => {
+        const qty = editOrderData.accessory_quantities[acc] || 1;
+        return qty > 1 ? `${acc} × ${qty}` : acc;
+      });
+
+      const { error } = await supabaseAdmin
+        .from('orders')
+        .update({
+          selected_edition: finalEdition,
+          selected_color: finalColor,
+          selected_accessories: accessoriesWithQty,
+          engraving_text: editOrderData.engraving_text,
+          subtotal: subtotal,
+          delivery_fee: deliveryFee,
+          total_amount: totalAmount
+        })
+        .eq('id', editingOrder.id);
+
+      if (error) throw error;
+
+      toast.success('Order updated successfully');
+      await fetchOrders();
+      setIsEditDialogOpen(false);
+      setEditingOrder(null);
+    } catch (error) {
+      console.error('Error updating order:', error);
+      toast.error('Failed to update order');
+    }
+  };
+
   const confirmDeleteOrder = async () => {
     if (!orderToDelete || !adminUser) return;
     
@@ -630,7 +823,7 @@ export const AdminOrders = () => {
         'Straw Cap': 350,
         'Cleaning Brush': 90,
         'Straw Cleaning Brush': 50,
-        'Aluminimum Hook': 90
+        'Aluminium Hook': 90
       };
       
       const accessoriesTotal = prev.selected_accessories.reduce((sum, acc) => {
@@ -652,21 +845,21 @@ export const AdminOrders = () => {
       pending_payment: 'bg-orange-100 text-orange-800 border border-orange-200',
       processing: 'bg-blue-100 text-blue-800 border border-blue-200',
       shipped: 'bg-purple-100 text-purple-800 border border-purple-200',
-      delivered: 'bg-green-100 text-green-800 border border-green-200',
+      delivered: 'bg-yellow-400 text-gray-900 border border-yellow-500',
       cancelled: 'bg-red-100 text-red-800 border border-red-200'
     };
     
     const icons = {
-      pending: <Clock className="w-3 h-3 mr-1" />,
-      pending_payment: <CreditCard className="w-3 h-3 mr-1" />,
-      processing: <Package className="w-3 h-3 mr-1" />,
-      shipped: <Truck className="w-3 h-3 mr-1" />,
-      delivered: <CheckCircle className="w-3 h-3 mr-1" />,
-      cancelled: <X className="w-3 h-3 mr-1" />
+      pending: <Clock className="w-2 md:w-3 h-2 md:h-3 mr-0.5 md:mr-1" />,
+      pending_payment: <CreditCard className="w-2 md:w-3 h-2 md:h-3 mr-0.5 md:mr-1" />,
+      processing: <Package className="w-2 md:w-3 h-2 md:h-3 mr-0.5 md:mr-1" />,
+      shipped: <Truck className="w-2 md:w-3 h-2 md:h-3 mr-0.5 md:mr-1" />,
+      delivered: <CheckCircle className="w-2 md:w-3 h-2 md:h-3 mr-0.5 md:mr-1" />,
+      cancelled: <X className="w-2 md:w-3 h-2 md:h-3 mr-0.5 md:mr-1" />
     };
     
     return (
-      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${colors[status] || 'bg-gray-100 text-gray-800 border border-gray-200'}`}>
+      <span className={`inline-flex items-center px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full text-[9px] md:text-xs font-medium ${colors[status] || 'bg-gray-100 text-gray-800 border border-gray-200'}`}>
         {icons[status]}
         {status.replace('_', ' ').charAt(0).toUpperCase() + status.replace('_', ' ').slice(1)}
       </span>
@@ -682,14 +875,14 @@ export const AdminOrders = () => {
     };
     
     const icons = {
-      pending: <Clock className="w-3 h-3 mr-1" />,
-      completed: <CheckCircle className="w-3 h-3 mr-1" />,
-      failed: <AlertTriangle className="w-3 h-3 mr-1" />,
-      refunded: <ArrowUpRight className="w-3 h-3 mr-1" />
+      pending: <Clock className="w-2 md:w-3 h-2 md:h-3 mr-0.5 md:mr-1" />,
+      completed: <CheckCircle className="w-2 md:w-3 h-2 md:h-3 mr-0.5 md:mr-1" />,
+      failed: <AlertTriangle className="w-2 md:w-3 h-2 md:h-3 mr-0.5 md:mr-1" />,
+      refunded: <ArrowUpRight className="w-2 md:w-3 h-2 md:h-3 mr-0.5 md:mr-1" />
     };
     
     return (
-      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${colors[status] || 'bg-gray-100 text-gray-800 border border-gray-200'}`}>
+      <span className={`inline-flex items-center px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full text-[9px] md:text-xs font-medium ${colors[status] || 'bg-gray-100 text-gray-800 border border-gray-200'}`}>
         {icons[status]}
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
@@ -826,13 +1019,13 @@ export const AdminOrders = () => {
               </div>
             </div>
             
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 md:p-4 border border-green-200">
+            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-3 md:p-4 border border-yellow-200">
               <div className="flex flex-col items-center text-center">
-                <div className="p-1.5 md:p-2 bg-green-200 rounded-lg mb-2 md:mb-3">
-                  <CheckCircle className="h-4 w-4 md:h-5 md:w-5 text-green-700" />
+                <div className="p-1.5 md:p-2 bg-yellow-200 rounded-lg mb-2 md:mb-3">
+                  <CheckCircle className="h-4 w-4 md:h-5 md:w-5 text-yellow-700" />
                 </div>
-                <p className="text-xs md:text-sm font-medium text-green-700">Delivered</p>
-                <p className="text-lg md:text-2xl font-bold text-green-800">{activeTab === 'online' ? orders.filter(o => o.payment_method === 'online' && o.order_status === 'delivered').length : activeTab === 'cod' ? orders.filter(o => o.payment_method === 'cod' && o.order_status === 'delivered').length : getFilteredOrders('all').filter(o => o.order_status === 'delivered').length}</p>
+                <p className="text-xs md:text-sm font-medium text-yellow-700">Delivered</p>
+                <p className="text-lg md:text-2xl font-bold text-yellow-800">{activeTab === 'online' ? orders.filter(o => o.payment_method === 'online' && o.order_status === 'delivered').length : activeTab === 'cod' ? orders.filter(o => o.payment_method === 'cod' && o.order_status === 'delivered').length : getFilteredOrders('all').filter(o => o.order_status === 'delivered').length}</p>
               </div>
             </div>
             
@@ -1006,7 +1199,8 @@ export const AdminOrders = () => {
               Leads ({orders.filter(o => o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending')).length})
             </TabsTrigger>
             <TabsTrigger value="bulk" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white text-[10px] md:text-sm py-1.5 md:py-2 px-1 md:px-3">
-              Bulk Orders ({bulkOrders.length})
+              <span className="hidden sm:inline">Bulk Orders</span>
+              <span className="sm:hidden">Bulk</span> ({bulkOrders.length})
             </TabsTrigger>
           </TabsList>
           
@@ -1069,7 +1263,7 @@ export const AdminOrders = () => {
                 variant={activeStatusTab === 'delivered' ? 'default' : 'outline'} 
                 size="sm" 
                 onClick={() => setActiveStatusTab('delivered')}
-                className={`text-[9px] md:text-xs h-7 md:h-8 px-1 md:px-3 ${activeStatusTab === 'delivered' ? 'bg-green-600 text-white' : 'bg-green-50 hover:bg-green-100 border-green-200 text-green-800'}`}
+                className={`text-[9px] md:text-xs h-7 md:h-8 px-1 md:px-3 ${activeStatusTab === 'delivered' ? 'bg-yellow-400 text-gray-900' : 'bg-yellow-50 hover:bg-yellow-100 border-yellow-200 text-yellow-800'}`}
               >
                 <span className="hidden sm:inline">Delivered</span>
                 <span className="sm:hidden">Delivered</span> ({(() => {
@@ -1471,6 +1665,9 @@ export const AdminOrders = () => {
                                         </div>
                                       </div>
                                     )}
+                                    <Button variant="outline" size="sm" onClick={() => handleEditOrder(order)} className="h-8 px-3 text-xs">
+                                      <Edit className="w-4 h-4 mr-1" /> Edit
+                                    </Button>
                                     <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)} className="h-8 px-3 text-xs">
                                       <Eye className="w-4 h-4 mr-2" /> View Details
                                     </Button>
@@ -1536,6 +1733,9 @@ export const AdminOrders = () => {
                                       </div>
                                     </div>
                                   )}
+                                  <Button variant="outline" size="sm" onClick={() => handleEditOrder(order)} className="h-7 md:h-8 px-1.5 md:px-3 text-[10px] md:text-xs">
+                                    <Edit className="w-3 h-3 md:w-4 md:h-4 mr-0 md:mr-0.5" /> <span className="hidden md:inline">Edit</span>
+                                  </Button>
                                   <Button variant="destructive" size="sm" onClick={() => handleDeleteOrder(order)} className="h-7 md:h-8 px-1.5 md:px-3 text-[10px] md:text-xs">
                                     <Trash2 className="w-3 h-3 md:w-4 md:h-4 mr-0 md:mr-0.5" /> <span className="hidden md:inline">Delete</span>
                                   </Button>
@@ -1565,24 +1765,24 @@ export const AdminOrders = () => {
                                 </p>
                                 {/* Admin Creation/Update Info */}
                                 {order.processed_by && (
-                                  <div className="mt-2 pt-2 border-t border-gray-100 hidden md:block">
+                                  <div className="mt-2 pt-2 border-t border-gray-100">
                                     {order.is_manual_order && (order.order_status === 'pending' || order.order_status === 'pending_payment') ? (
-                                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-2">
-                                        <div className="flex items-center gap-2 text-xs text-purple-700">
-                                          <Package className="h-3 w-3" />
+                                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-1.5 md:p-2">
+                                        <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs text-purple-700">
+                                          <Package className="h-2.5 md:h-3 w-2.5 md:w-3" />
                                           <span>Manually created by: <span className="font-semibold text-purple-900">{order.updated_by_name}</span></span>
                                         </div>
-                                        <div className="text-xs text-purple-600 mt-1 ml-5">
+                                        <div className="text-[9px] md:text-xs text-purple-600 mt-0.5 md:mt-1 ml-4 md:ml-5">
                                           {new Date(order.created_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                         </div>
                                       </div>
                                     ) : order.updated_by_name ? (
-                                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
-                                        <div className="flex items-center gap-2 text-xs text-blue-700">
-                                          <User className="h-3 w-3" />
+                                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-1.5 md:p-2">
+                                        <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs text-blue-700">
+                                          <User className="h-2.5 md:h-3 w-2.5 md:w-3" />
                                           <span>Last updated by: <span className="font-semibold text-blue-900">{order.updated_by_name}</span></span>
                                         </div>
-                                        <div className="text-xs text-blue-600 mt-1 ml-5">
+                                        <div className="text-[9px] md:text-xs text-blue-600 mt-0.5 md:mt-1 ml-4 md:ml-5">
                                           {new Date(order.updated_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                         </div>
                                       </div>
@@ -1992,6 +2192,180 @@ export const AdminOrders = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Order Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Order Product Info</DialogTitle>
+            <DialogDescription>Update product details for Order ID: {editingOrder?.order_id}</DialogDescription>
+          </DialogHeader>
+          {editingOrder && (
+            <div className="space-y-4 py-4">
+              {editOrderData.selected_edition === 'manual' ? (
+                <>
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <h4 className="font-semibold text-blue-900 mb-3">Base Edition (1,190 BDT each)</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Obsidian Black</Label>
+                        <Input type="number" min="0" value={editOrderData.base_black} onChange={(e) => setEditOrderData(prev => ({ ...prev, base_black: parseInt(e.target.value) || 0 }))} />
+                      </div>
+                      <div>
+                        <Label>Graphite Grey</Label>
+                        <Input type="number" min="0" value={editOrderData.base_grey} onChange={(e) => setEditOrderData(prev => ({ ...prev, base_grey: parseInt(e.target.value) || 0 }))} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                    <h4 className="font-semibold text-purple-900 mb-3">Lifestyle Edition (1,650 BDT each)</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Obsidian Black</Label>
+                        <Input type="number" min="0" value={editOrderData.lifestyle_black} onChange={(e) => setEditOrderData(prev => ({ ...prev, lifestyle_black: parseInt(e.target.value) || 0 }))} />
+                      </div>
+                      <div>
+                        <Label>Graphite Grey</Label>
+                        <Input type="number" min="0" value={editOrderData.lifestyle_grey} onChange={(e) => setEditOrderData(prev => ({ ...prev, lifestyle_grey: parseInt(e.target.value) || 0 }))} />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <Label>Edition</Label>
+                    <Select value={editOrderData.selected_edition} onValueChange={(value) => setEditOrderData(prev => ({ ...prev, selected_edition: value }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="base edition">Base Edition</SelectItem>
+                        <SelectItem value="lifestyle edition">Lifestyle Edition</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Color</Label>
+                    <Select value={editOrderData.selected_color} onValueChange={(value) => setEditOrderData(prev => ({ ...prev, selected_color: value }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="obsidian">Obsidian Black</SelectItem>
+                        <SelectItem value="graphite">Graphite Grey</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+              <div>
+                <Label>Accessories</Label>
+                <div className="space-y-2 mt-2">
+                  {['Straw Cap', 'Cleaning Brush', 'Straw Cleaning Brush', 'Aluminium Hook'].map((acc) => {
+                    const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
+                    const isChecked = editOrderData.selected_accessories.includes(acc);
+                    const qty = editOrderData.accessory_quantities[acc] || 1;
+                    return (
+                      <div key={acc} className="flex items-center justify-between space-x-2">
+                        <div className="flex items-center space-x-2 flex-1">
+                          <input type="checkbox" id={`edit-${acc}`} checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditOrderData(prev => ({ ...prev, selected_accessories: [...prev.selected_accessories, acc], accessory_quantities: { ...prev.accessory_quantities, [acc]: 1 } }));
+                              } else {
+                                setEditOrderData(prev => ({ ...prev, selected_accessories: prev.selected_accessories.filter(a => a !== acc) }));
+                              }
+                            }} className="rounded" />
+                          <Label htmlFor={`edit-${acc}`}>{acc}</Label>
+                        </div>
+                        {isChecked && (
+                          <Input type="number" min="1" value={qty}
+                            onChange={(e) => setEditOrderData(prev => ({ ...prev, accessory_quantities: { ...prev.accessory_quantities, [acc]: parseInt(e.target.value) || 1 } }))}
+                            className="w-16 h-8 text-center" />
+                        )}
+                        <span className="text-sm text-gray-600 w-20 text-right">{prices[acc]} BDT{isChecked && qty > 1 ? ` × ${qty}` : ''}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <Label>Engraving Text</Label>
+                <Input value={editOrderData.engraving_text} onChange={(e) => setEditOrderData(prev => ({ ...prev, engraving_text: e.target.value }))} placeholder="Enter engraving text" />
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <h4 className="font-semibold mb-2">Price Breakdown</h4>
+                <div className="space-y-1 text-sm">
+                  {editOrderData.selected_edition === 'manual' ? (
+                    <>
+                      {editOrderData.base_black > 0 && <div className="flex justify-between"><span>Base (Black) × {editOrderData.base_black}:</span><span>{(1190 * editOrderData.base_black).toLocaleString()} BDT</span></div>}
+                      {editOrderData.base_grey > 0 && <div className="flex justify-between"><span>Base (Grey) × {editOrderData.base_grey}:</span><span>{(1190 * editOrderData.base_grey).toLocaleString()} BDT</span></div>}
+                      {editOrderData.lifestyle_black > 0 && <div className="flex justify-between"><span>Lifestyle (Black) × {editOrderData.lifestyle_black}:</span><span>{(1650 * editOrderData.lifestyle_black).toLocaleString()} BDT</span></div>}
+                      {editOrderData.lifestyle_grey > 0 && <div className="flex justify-between"><span>Lifestyle (Grey) × {editOrderData.lifestyle_grey}:</span><span>{(1650 * editOrderData.lifestyle_grey).toLocaleString()} BDT</span></div>}
+                    </>
+                  ) : (
+                    <div className="flex justify-between"><span>Edition ({editOrderData.selected_edition}):</span><span>{editOrderData.selected_edition === 'base edition' ? '1,190' : '1,650'} BDT</span></div>
+                  )}
+                  {editOrderData.selected_accessories.map((acc) => {
+                    const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
+                    const qty = editOrderData.accessory_quantities[acc] || 1;
+                    return <div key={acc} className="flex justify-between text-gray-600"><span>{acc} × {qty}:</span><span>{(prices[acc] * qty).toLocaleString()} BDT</span></div>;
+                  })}
+                  {editOrderData.engraving_text && <div className="flex justify-between text-gray-600"><span>Engraving:</span><span>150 BDT</span></div>}
+                  <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
+                    <span>Subtotal:</span>
+                    <span>
+                      {(() => {
+                        const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
+                        if (editOrderData.selected_edition === 'manual') {
+                          const baseTotal = 1190 * (editOrderData.base_black + editOrderData.base_grey);
+                          const lifestyleTotal = 1650 * (editOrderData.lifestyle_black + editOrderData.lifestyle_grey);
+                          const accessoryTotal = editOrderData.selected_accessories.reduce((sum, acc) => sum + (prices[acc] || 0) * (editOrderData.accessory_quantities[acc] || 1), 0);
+                          const engravingPrice = editOrderData.engraving_text ? 150 : 0;
+                          return (baseTotal + lifestyleTotal + accessoryTotal + engravingPrice).toLocaleString();
+                        }
+                        const basePrice = editOrderData.selected_edition === 'base edition' ? 1190 : 1650;
+                        const accessoryPrice = editOrderData.selected_edition === 'base edition' 
+                          ? editOrderData.selected_accessories.reduce((sum, acc) => {
+                              return sum + (prices[acc] || 0) * (editOrderData.accessory_quantities[acc] || 1);
+                            }, 0) : 0;
+                        const engravingPrice = editOrderData.engraving_text ? 150 : 0;
+                        return (basePrice + accessoryPrice + engravingPrice).toLocaleString();
+                      })()} BDT
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-gray-600"><span>Delivery Charge ({editOrderData.payment_method === 'cod' ? 'COD' : 'Online'}):</span><span>{(editOrderData.payment_method === 'cod' ? 100 : 0).toLocaleString()} BDT</span></div>
+                  <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2">
+                    <span>Total:</span>
+                    <span>
+                      {(() => {
+                        const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
+                        let subtotal = 0;
+                        if (editOrderData.selected_edition === 'manual') {
+                          const baseTotal = 1190 * (editOrderData.base_black + editOrderData.base_grey);
+                          const lifestyleTotal = 1650 * (editOrderData.lifestyle_black + editOrderData.lifestyle_grey);
+                          const accessoryTotal = editOrderData.selected_accessories.reduce((sum, acc) => sum + (prices[acc] || 0) * (editOrderData.accessory_quantities[acc] || 1), 0);
+                          const engravingPrice = editOrderData.engraving_text ? 150 : 0;
+                          subtotal = baseTotal + lifestyleTotal + accessoryTotal + engravingPrice;
+                        } else {
+                          const basePrice = editOrderData.selected_edition === 'base edition' ? 1190 : 1650;
+                          const accessoryPrice = editOrderData.selected_edition === 'base edition' 
+                            ? editOrderData.selected_accessories.reduce((sum, acc) => sum + (prices[acc] || 0) * (editOrderData.accessory_quantities[acc] || 1), 0) : 0;
+                          const engravingPrice = editOrderData.engraving_text ? 150 : 0;
+                          subtotal = basePrice + accessoryPrice + engravingPrice;
+                        }
+                        const deliveryFee = editOrderData.payment_method === 'cod' ? 100 : 0;
+                        return (subtotal + deliveryFee).toLocaleString();
+                      })()} BDT
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={confirmEditOrder}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <Dialog 
         open={isDeleteDialogOpen} 
@@ -2136,33 +2510,33 @@ export const AdminOrders = () => {
 
       {/* Invoice Modal */}
       <Dialog open={!!invoiceOrder} onOpenChange={(open) => !open && setInvoiceOrder(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw]">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] p-3 md:p-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
+            <DialogTitle className="flex items-center gap-2 text-sm md:text-base">
+              <FileText className="h-4 w-4 md:h-5 md:w-5" />
               Invoice - {invoiceOrder?.order_id}
             </DialogTitle>
-            <DialogDescription>Professional invoice for order</DialogDescription>
+            <DialogDescription className="text-xs md:text-sm">Professional invoice for order</DialogDescription>
           </DialogHeader>
           {invoiceOrder && (
-            <div className="space-y-6 invoice-content">
+            <div className="space-y-3 md:space-y-6 invoice-content">
               {/* Invoice Header */}
-              <div className="flex justify-between items-center border-b-2 border-black pb-4">
-                <div className="text-3xl font-bold">XIMPUL</div>
-                <div className="text-2xl text-gray-600">INVOICE</div>
+              <div className="flex justify-between items-center border-b-2 border-black pb-2 md:pb-4">
+                <div className="text-xl md:text-3xl font-bold">XIMPUL</div>
+                <div className="text-lg md:text-2xl text-gray-600">INVOICE</div>
               </div>
               
               {/* Invoice Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-8">
                 <div>
-                  <h3 className="font-semibold text-lg mb-3 border-b border-gray-200 pb-1">Bill To:</h3>
-                  <div className="space-y-1">
+                  <h3 className="font-semibold text-sm md:text-lg mb-2 md:mb-3 border-b border-gray-200 pb-1">Bill To:</h3>
+                  <div className="space-y-0.5 md:space-y-1 text-xs md:text-base">
                     <p className="font-semibold">{invoiceOrder.customer_name}</p>
                     <p>{invoiceOrder.customer_phone}</p>
-                    {invoiceOrder.customer_email && <p>{invoiceOrder.customer_email}</p>}
+                    {invoiceOrder.customer_email && <p className="break-all">{invoiceOrder.customer_email}</p>}
                     <p className="whitespace-pre-wrap">{invoiceOrder.customer_address}</p>
                     {invoiceOrder.privacy_preference && (
-                      <span className="inline-block bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-semibold mt-2">
+                      <span className="inline-block bg-orange-100 text-orange-800 px-2 py-0.5 md:py-1 rounded text-[10px] md:text-xs font-semibold mt-1 md:mt-2">
                         PRIVATE ORDER
                       </span>
                     )}
@@ -2170,48 +2544,48 @@ export const AdminOrders = () => {
                 </div>
                 
                 <div>
-                  <h3 className="font-semibold text-lg mb-3 border-b border-gray-200 pb-1">Invoice Details:</h3>
-                  <div className="space-y-1">
+                  <h3 className="font-semibold text-sm md:text-lg mb-2 md:mb-3 border-b border-gray-200 pb-1">Invoice Details:</h3>
+                  <div className="space-y-0.5 md:space-y-1 text-xs md:text-base">
                     <p><span className="font-medium">Invoice #:</span> {invoiceOrder.order_id}</p>
                     <p><span className="font-medium">Order Date:</span> {new Date(invoiceOrder.created_at).toLocaleDateString('en-US', { 
-                      year: 'numeric', month: 'long', day: 'numeric' 
+                      year: 'numeric', month: 'short', day: 'numeric' 
                     })}</p>
-                    <p><span className="font-medium">Order Status:</span> <OrderStatusBadge status={invoiceOrder.order_status} /></p>
-                    <p><span className="font-medium">Payment Status:</span> <PaymentStatusBadge status={invoiceOrder.payment_method === 'online' ? 'completed' : invoiceOrder.payment_status} /></p>
-                    <p className="flex items-center gap-2"><span className="font-medium">Payment Method:</span> <PaymentMethodBadge method={invoiceOrder.payment_method} /></p>
+                    <p className="flex items-center gap-1 md:gap-2 flex-wrap"><span className="font-medium">Order Status:</span> <OrderStatusBadge status={invoiceOrder.order_status} /></p>
+                    <p className="flex items-center gap-1 md:gap-2 flex-wrap"><span className="font-medium">Payment Status:</span> <PaymentStatusBadge status={invoiceOrder.payment_method === 'online' ? 'completed' : invoiceOrder.payment_status} /></p>
+                    <p className="flex items-center gap-1 md:gap-2 flex-wrap"><span className="font-medium">Payment Method:</span> <PaymentMethodBadge method={invoiceOrder.payment_method} /></p>
                   </div>
                 </div>
               </div>
               
               {/* Order Details Table */}
-              <div className="overflow-x-auto -mx-4 md:mx-0">
-                <h3 className="font-semibold text-base md:text-lg mb-3 px-4 md:px-0">Order Details</h3>
-                <table className="w-full border-collapse border border-gray-300 text-xs md:text-sm">
+              <div className="overflow-x-auto -mx-3 md:mx-0">
+                <h3 className="font-semibold text-sm md:text-lg mb-2 md:mb-3 px-3 md:px-0">Order Details</h3>
+                <table className="w-full border-collapse border border-gray-300 text-[10px] md:text-sm">
                   <thead>
                     <tr className="bg-gray-50">
-                      <th className="border border-gray-300 p-3 text-left">Product</th>
-                      <th className="border border-gray-300 p-3 text-left">Edition</th>
-                      {!invoiceOrder.selected_edition.includes('(') && <th className="border border-gray-300 p-3 text-left">Color</th>}
-                      <th className="border border-gray-300 p-3 text-left">Engraving</th>
-                      <th className="border border-gray-300 p-3 text-right">Amount</th>
+                      <th className="border border-gray-300 p-1.5 md:p-3 text-left">Product</th>
+                      <th className="border border-gray-300 p-1.5 md:p-3 text-left">Edition</th>
+                      {!invoiceOrder.selected_edition.includes('(') && <th className="border border-gray-300 p-1.5 md:p-3 text-left">Color</th>}
+                      <th className="border border-gray-300 p-1.5 md:p-3 text-left">Engraving</th>
+                      <th className="border border-gray-300 p-1.5 md:p-3 text-right">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td className="border border-gray-300 p-3">Ximpul Flow Water Bottle</td>
-                      <td className="border border-gray-300 p-3">{invoiceOrder.selected_edition}</td>
+                      <td className="border border-gray-300 p-1.5 md:p-3">Ximpul Flow</td>
+                      <td className="border border-gray-300 p-1.5 md:p-3">{invoiceOrder.selected_edition}</td>
                       {!invoiceOrder.selected_edition.includes('(') && (
-                        <td className="border border-gray-300 p-3">
+                        <td className="border border-gray-300 p-1.5 md:p-3">
                           <ColorBadge color={invoiceOrder.selected_color} />
                         </td>
                       )}
-                      <td className="border border-gray-300 p-3">{invoiceOrder.engraving_text || 'None'}</td>
-                      <td className="border border-gray-300 p-3 text-right font-medium">{invoiceOrder.subtotal.toLocaleString()} BDT</td>
+                      <td className="border border-gray-300 p-1.5 md:p-3">{invoiceOrder.engraving_text || 'None'}</td>
+                      <td className="border border-gray-300 p-1.5 md:p-3 text-right font-medium">{invoiceOrder.subtotal.toLocaleString()} BDT</td>
                     </tr>
                     {invoiceOrder.selected_accessories && invoiceOrder.selected_accessories.length > 0 && (() => {
                       const hasLifestyle = invoiceOrder.selected_edition.toLowerCase().includes('lifestyle');
                       const hasBase = invoiceOrder.selected_edition.toLowerCase().includes('base');
-                      const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminimum Hook': 90 };
+                      const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
                       
                       // Parse accessory name and quantity
                       const parseAccessory = (accStr) => {
@@ -2228,10 +2602,10 @@ export const AdminOrders = () => {
                           const { name, qty } = parseAccessory(accStr);
                           return (
                             <tr key={idx}>
-                              <td className="border border-gray-300 p-3">{name}</td>
-                              <td className="border border-gray-300 p-3" colSpan={invoiceOrder.selected_edition.includes('(') ? 1 : 2}>Qty: {qty}</td>
-                              <td className="border border-gray-300 p-3">{prices[name]} BDT each</td>
-                              <td className="border border-gray-300 p-3 text-right font-medium">{(prices[name] * qty).toLocaleString()} BDT</td>
+                              <td className="border border-gray-300 p-1.5 md:p-3">{name}</td>
+                              <td className="border border-gray-300 p-1.5 md:p-3" colSpan={invoiceOrder.selected_edition.includes('(') ? 1 : 2}>Qty: {qty}</td>
+                              <td className="border border-gray-300 p-1.5 md:p-3">{prices[name]} BDT</td>
+                              <td className="border border-gray-300 p-1.5 md:p-3 text-right font-medium">{(prices[name] * qty).toLocaleString()} BDT</td>
                             </tr>
                           );
                         });
@@ -2241,10 +2615,10 @@ export const AdminOrders = () => {
                           const { name, qty } = parseAccessory(accStr);
                           return (
                             <tr key={idx}>
-                              <td className="border border-gray-300 p-3">{name} (for Base Edition)</td>
-                              <td className="border border-gray-300 p-3" colSpan={invoiceOrder.selected_edition.includes('(') ? 1 : 2}>Qty: {qty}</td>
-                              <td className="border border-gray-300 p-3">{prices[name]} BDT each</td>
-                              <td className="border border-gray-300 p-3 text-right font-medium">{(prices[name] * qty).toLocaleString()} BDT</td>
+                              <td className="border border-gray-300 p-1.5 md:p-3">{name} (Base)</td>
+                              <td className="border border-gray-300 p-1.5 md:p-3" colSpan={invoiceOrder.selected_edition.includes('(') ? 1 : 2}>Qty: {qty}</td>
+                              <td className="border border-gray-300 p-1.5 md:p-3">{prices[name]} BDT</td>
+                              <td className="border border-gray-300 p-1.5 md:p-3 text-right font-medium">{(prices[name] * qty).toLocaleString()} BDT</td>
                             </tr>
                           );
                         });
@@ -2259,20 +2633,20 @@ export const AdminOrders = () => {
               {/* Total Section */}
               <div className="flex justify-end">
                 <div className="w-full md:w-80">
-                  <div className="space-y-2">
-                    <div className="flex justify-between py-2">
+                  <div className="space-y-1 md:space-y-2 text-xs md:text-base">
+                    <div className="flex justify-between py-1 md:py-2">
                       <span>Subtotal:</span>
                       <span>{invoiceOrder.subtotal.toLocaleString()} BDT</span>
                     </div>
-                    <div className="flex justify-between py-2">
+                    <div className="flex justify-between py-1 md:py-2">
                       <span>Delivery Fee:</span>
                       <span>{invoiceOrder.delivery_fee.toLocaleString()} BDT</span>
                     </div>
-                    <div className="flex justify-between py-2">
+                    <div className="flex justify-between py-1 md:py-2">
                       <span>COD Amount:</span>
                       <span>{invoiceOrder.payment_method === 'online' ? '0' : invoiceOrder.total_amount.toLocaleString()} BDT</span>
                     </div>
-                    <div className="flex justify-between py-3 text-lg font-bold border-t-2 border-black">
+                    <div className="flex justify-between py-2 md:py-3 text-sm md:text-lg font-bold border-t-2 border-black">
                       <span>Total Amount:</span>
                       <span>{invoiceOrder.total_amount.toLocaleString()} BDT</span>
                     </div>
@@ -2281,15 +2655,15 @@ export const AdminOrders = () => {
               </div>
               
               {/* Footer */}
-              <div className="text-center border-t border-gray-200 pt-4 text-sm text-gray-600">
+              <div className="text-center border-t border-gray-200 pt-2 md:pt-4 text-[10px] md:text-sm text-gray-600">
                 <p className="font-semibold">Ximpul - Making Water Free Again</p>
                 <p>Thank you for choosing Ximpul Flow!</p>
-                <p>For support, contact us at ximpulshop@gmail.com</p>
+                <p className="break-all">For support, contact us at ximpulshop@gmail.com</p>
               </div>
               
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t no-print">
-                <Button variant="outline" onClick={() => setInvoiceOrder(null)} className="w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2 md:pt-4 border-t no-print">
+                <Button variant="outline" onClick={() => setInvoiceOrder(null)} className="w-full sm:w-auto text-xs md:text-sm h-8 md:h-10">
                   Close
                 </Button>
                 <Button onClick={() => {
@@ -2423,7 +2797,7 @@ export const AdminOrders = () => {
                                 ${invoiceOrder.selected_accessories && invoiceOrder.selected_accessories.length > 0 ? (() => {
                                   const hasLifestyle = invoiceOrder.selected_edition.toLowerCase().includes('lifestyle');
                                   const hasBase = invoiceOrder.selected_edition.toLowerCase().includes('base');
-                                  const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminimum Hook': 90 };
+                                  const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
                                   let rows = '';
                                   
                                   const parseAccessory = (accStr) => {
@@ -2504,8 +2878,8 @@ export const AdminOrders = () => {
                       printWindow.close();
                     }, 250);
                   }
-                }} className="flex items-center gap-2 w-full sm:w-auto justify-center">
-                  <Printer className="h-4 w-4" />
+                }} className="flex items-center gap-2 w-full sm:w-auto justify-center text-xs md:text-sm h-8 md:h-10">
+                  <Printer className="h-3 w-3 md:h-4 md:w-4" />
                   Print Invoice
                 </Button>
               </div>
@@ -2973,8 +3347,8 @@ export const AdminOrders = () => {
                   <p className="text-xs text-blue-600 mt-1">Select accessories for Base Edition (charges apply).</p>
                 )}
                 <div className="space-y-2 mt-2">
-                  {['Straw Cap', 'Cleaning Brush', 'Straw Cleaning Brush', 'Aluminimum Hook'].map((accessory) => {
-                    const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminimum Hook': 90 };
+                  {['Straw Cap', 'Cleaning Brush', 'Straw Cleaning Brush', 'Aluminium Hook'].map((accessory) => {
+                    const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
                     const isChecked = manualOrderData.selected_accessories.includes(accessory);
                     const qty = manualOrderData.accessory_quantities[accessory] || 1;
                     return (
@@ -3098,7 +3472,7 @@ export const AdminOrders = () => {
                     </div>
                   )}
                   {manualOrderData.selected_accessories.length > 0 && (() => {
-                    const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminimum Hook': 90 };
+                    const prices = { 'Straw Cap': 350, 'Cleaning Brush': 90, 'Straw Cleaning Brush': 50, 'Aluminium Hook': 90 };
                     const hasLifestyle = (manualOrderData.lifestyle_black + manualOrderData.lifestyle_grey) > 0;
                     const hasBase = (manualOrderData.base_black + manualOrderData.base_grey) > 0;
                     

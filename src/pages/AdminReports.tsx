@@ -217,9 +217,77 @@ export const AdminReports = () => {
           </div>
         </div>
 
-        {/* Accessories Report */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Accessories Report</h2>
+        {/* Product Sale Report and Accessories Report */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Product Sale Report */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Product Sale Report</h2>
+            <div className="space-y-4">
+              {(() => {
+                const productStats = {};
+                let baseRevenue = 0;
+                let lifestyleRevenue = 0;
+                
+                filteredOrders.forEach(order => {
+                  const edition = order.selected_edition.toLowerCase();
+                  const color = order.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey';
+                  const key = `Ximpul-${edition}-${color}`;
+                  
+                  if (!productStats[key]) {
+                    productStats[key] = { count: 0, revenue: 0 };
+                  }
+                  productStats[key].count += 1;
+                  productStats[key].revenue += order.total_amount;
+                  
+                  if (edition.includes('base')) {
+                    baseRevenue += order.total_amount;
+                  } else if (edition.includes('lifestyle')) {
+                    lifestyleRevenue += order.total_amount;
+                  }
+                });
+                
+                const totalProductCount = Object.values(productStats).reduce((sum, stat) => sum + stat.count, 0);
+                const totalProductRevenue = baseRevenue + lifestyleRevenue;
+                
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <p className="text-sm text-blue-700">Total Product Sold</p>
+                        <p className="text-2xl font-bold text-blue-800">{totalProductCount}</p>
+                      </div>
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <p className="text-sm text-blue-700">Product Revenue</p>
+                        <p className="text-2xl font-bold text-blue-800">৳{totalProductRevenue.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {Object.keys(productStats).length === 0 ? (
+                        <div className="text-center py-4 text-gray-500">
+                          No products sold in this period
+                        </div>
+                      ) : (
+                        Object.entries(productStats).map(([product, stats]) => (
+                          <div key={product} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                            <span className="font-medium">{product}</span>
+                            <div className="text-right">
+                              <p className="font-semibold">{stats.count} sold</p>
+                              <p className="text-sm text-gray-600">৳{stats.revenue.toLocaleString()}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Accessories Report */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Accessories Sale Report</h2>
           <div className="space-y-4">
             {(() => {
               const accessoryStats = {};
@@ -292,6 +360,7 @@ export const AdminReports = () => {
               );
             })()}
           </div>
+        </div>
         </div>
 
         {/* Payment Method Breakdown */}
