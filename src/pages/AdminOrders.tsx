@@ -1871,31 +1871,34 @@ export const AdminOrders = () => {
                                   })}
                                 </p>
                                 {/* Admin Creation/Update Info */}
-                                {order.processed_by && (
-                                  <div className="mt-2 pt-2 border-t border-gray-100">
-                                    {order.is_manual_order && (order.order_status === 'pending' || order.order_status === 'pending_payment') ? (
-                                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-1.5 md:p-2">
-                                        <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs text-purple-700">
-                                          <Package className="h-2.5 md:h-3 w-2.5 md:w-3" />
-                                          <span>Manually created by: <span className="font-semibold text-purple-900">{order.updated_by_name}</span></span>
-                                        </div>
-                                        <div className="text-[9px] md:text-xs text-purple-600 mt-0.5 md:mt-1 ml-4 md:ml-5">
-                                          {new Date(order.created_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                        </div>
+                                <div className="mt-2 pt-2 border-t border-gray-100">
+                                  {order.is_manual_order && (order.order_status === 'pending' || order.order_status === 'pending_payment') && order.processed_by ? (
+                                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-1.5 md:p-2">
+                                      <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs text-purple-700">
+                                        <Package className="h-2.5 md:h-3 w-2.5 md:w-3" />
+                                        <span>Manually created by: <span className="font-semibold text-purple-900">{order.updated_by_name || 'Admin'}</span></span>
                                       </div>
-                                    ) : order.updated_by_name ? (
-                                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-1.5 md:p-2">
-                                        <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs text-blue-700">
-                                          <User className="h-2.5 md:h-3 w-2.5 md:w-3" />
-                                          <span>Last updated by: <span className="font-semibold text-blue-900">{order.updated_by_name}</span></span>
-                                        </div>
-                                        <div className="text-[9px] md:text-xs text-blue-600 mt-0.5 md:mt-1 ml-4 md:ml-5">
-                                          {new Date(order.updated_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                        </div>
+                                      <div className="text-[9px] md:text-xs text-purple-600 mt-0.5 md:mt-1 ml-4 md:ml-5">
+                                        {new Date(order.created_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                       </div>
-                                    ) : null}
-                                  </div>
-                                )}
+                                    </div>
+                                  ) : order.updated_by_name ? (
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-1.5 md:p-2">
+                                      <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs text-blue-700">
+                                        <User className="h-2.5 md:h-3 w-2.5 md:w-3" />
+                                        <span><span className="font-semibold text-blue-900">{order.updated_by_name}</span> updated status to <span className="font-semibold text-blue-900">{order.order_status}</span></span>
+                                      </div>
+                                      <div className="text-[9px] md:text-xs text-blue-600 mt-0.5 md:mt-1 ml-4 md:ml-5">
+                                        {new Date(order.updated_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                      </div>
+                                      {order.status_update_notes && (
+                                        <div className="text-[9px] md:text-xs text-blue-700 mt-1 ml-4 md:ml-5 italic">
+                                          Note: {order.status_update_notes}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : null}
+                                </div>
                               </div>
                               
                               <div className="space-y-2 md:space-y-0.5">

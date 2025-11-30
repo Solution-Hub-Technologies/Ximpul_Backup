@@ -22,7 +22,10 @@ export const HashtagSection = () => {
   const handleSocialShare = (platform: string) => {
     const shareUrls = {
       facebook: 'https://www.facebook.com/itsximpul',
+      facebookGroup: 'https://www.facebook.com/share/g/19fT86ktC8/',
       instagram: 'https://www.instagram.com/itsximpul/',
+      tiktok: 'https://www.tiktok.com/@itsximpul',
+      youtube: 'https://youtube.com/@ximpul_flow',
     };
     
     window.open(shareUrls[platform as keyof typeof shareUrls], '_blank');
@@ -142,6 +145,31 @@ export const HashtagSection = () => {
                         size="icon"
                       >
                         <Icons.facebook className="w-5 h-5" />
+                      </Button>
+                      <Button 
+                        onClick={() => handleSocialShare('facebookGroup')}
+                        className="bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full"
+                        size="icon"
+                      >
+                        <svg className="w-5 h-5" viewBox="0 0 640 512" fill="currentColor">
+                          <path d="M96 128a128 128 0 1 1 256 0A128 128 0 1 1 96 128zM0 482.3C0 383.8 79.8 304 178.3 304h91.4C368.2 304 448 383.8 448 482.3c0 16.4-13.3 29.7-29.7 29.7H29.7C13.3 512 0 498.7 0 482.3zM609.3 512H471.4c5.4-9.4 8.6-20.3 8.6-32v-8c0-60.7-27.1-115.2-69.8-151.8c2.4-.1 4.7-.2 7.1-.2h61.4C567.8 320 640 392.2 640 481.3c0 17-13.8 30.7-30.7 30.7zM432 256c-31 0-59-12.6-79.3-32.9C372.4 196.5 384 163.6 384 128c0-26.8-6.6-52.1-18.3-74.3C384.3 40.1 407.2 32 432 32c61.9 0 112 50.1 112 112s-50.1 112-112 112z"/>
+                        </svg>
+                      </Button>
+                      <Button 
+                        onClick={() => handleSocialShare('tiktok')}
+                        className="bg-black hover:bg-gray-800 text-white p-3 rounded-full"
+                        size="icon"
+                      >
+                        <svg className="w-5 h-5" viewBox="0 0 448 512" fill="currentColor">
+                          <path d="M448 209.9a210.1 210.1 0 0 1 -122.8-39.3V349.4A162.6 162.6 0 1 1 185 188.3V278.2a74.6 74.6 0 1 0 52.2 71.2V0l88 0a121.2 121.2 0 0 0 1.9 22.2h0A122.2 122.2 0 0 0 381 102.4a121.4 121.4 0 0 0 67 20.1z"/>
+                        </svg>
+                      </Button>
+                      <Button 
+                        onClick={() => handleSocialShare('youtube')}
+                        className="bg-red-600 hover:bg-red-700 text-white p-3 rounded-full"
+                        size="icon"
+                      >
+                        <Icons.youtube className="w-5 h-5" />
                       </Button>
                     </div>
                   </div>
