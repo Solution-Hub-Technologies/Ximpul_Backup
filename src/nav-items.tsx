@@ -14,6 +14,7 @@ import WarrantyPolicy from "./pages/WarrantyPolicy.tsx";
 import ReturnPolicy from "./pages/ReturnPolicy.tsx";
 import { TrackOrder } from "./pages/TrackOrder.tsx";
 import BulkOrder from "./pages/BulkOrder.tsx";
+import JoinInitiative from "./pages/JoinInitiative.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 export const navItems = [
@@ -100,6 +101,12 @@ export const navItems = [
     to: "/bulk-order",
     icon: <ShoppingCart className="h-4 w-4" />,
     page: <BulkOrder />,
+  },
+  {
+    title: "Join Initiative",
+    to: "/join-initiative",
+    icon: <FileText className="h-4 w-4" />,
+    page: <JoinInitiative />,
   },
   {
     title: "Not Found",

@@ -63,10 +63,16 @@ export const Footer = () => {
                 className="h-8 w-auto mx-auto md:mx-0"
               />
             </div>
-            <p className="text-muted-foreground text-sm leading-relaxed">
+            <p className="text-muted-foreground text-sm leading-relaxed mb-4">
               World-class quality at #TruePrice.<br />
               Made with love, for Bangladesh.
             </p>
+            <RainbowButton 
+              onClick={() => navigateToPage('/join-initiative')}
+              className="w-auto mx-auto md:mx-0 md:w-auto text-[10px] md:text-xs font-semibold px-3 py-1.5 h-auto md:scale-100"
+            >
+              Join Our Initiative
+            </RainbowButton>
           </div>
 
           {/* Navigation Links */}
@@ -127,8 +133,8 @@ export const Footer = () => {
               }`}>
                 Track Order
               </button>
-              <button onClick={() => navigateToPage('/bulk-order')} className={`transition-colors font-medium ${
-                location.pathname === '/bulk-order' ? 'text-black font-bold' : 'text-muted-foreground hover:text-foreground'
+              <button onClick={() => navigateToPage('/bulk-order')} className={`transition-colors font-bold ${
+                location.pathname === '/bulk-order' ? 'text-black' : 'text-muted-foreground hover:text-foreground'
               }`}>
                 Bulk Order
               </button>
