@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useOrders } from '@/hooks/useOrders';
+import { useBulkOrders } from '@/hooks/useBulkOrders';
 import { 
   Calendar, TrendingUp, DollarSign, Package, 
   CreditCard, Truck, BarChart3, PieChart,
@@ -13,6 +14,7 @@ import { toast } from 'sonner';
 
 export const AdminReports = () => {
   const { orders, isLoading, fetchOrders } = useOrders();
+  const { bulkOrders, isLoading: bulkOrdersLoading } = useBulkOrders();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -534,6 +536,151 @@ export const AdminReports = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Bulk Order Sale Report */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Bulk Order Sale Report</h2>
+          <div className="space-y-4">
+            {(() => {
+              const deliveredBulkOrders = bulkOrders.filter(order => {
+                if (order.status !== 'delivered') return false;
+                const orderDate = new Date(order.created_at);
+                const fromDate = dateFrom ? new Date(dateFrom) : null;
+                const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+                return (!fromDate || orderDate >= fromDate) && (!toDate || orderDate <= toDate);
+              });
+
+              const editionStats = {};
+              const accessoryStats = {};
+
+              const bulkStats = deliveredBulkOrders.reduce((acc, order) => {
+                if (!order.pricing_data) return acc;
+                
+                const productRevenue = order.pricing_data.products?.reduce((pSum, p, idx) => 
+                  pSum + ((p.unit_price || 0) * parseInt(order.products[idx]?.quantity || 0)), 0) || 0;
+                
+                const accessoryRevenue = order.pricing_data.products?.reduce((pSum, p, idx) => {
+                  const accPrice = p.accessories?.reduce((aSum, acc, accIdx) => 
+                    aSum + ((acc.unit_price || 0) * (order.products[idx]?.accessories?.[accIdx]?.quantity || 0)), 0) || 0;
+                  return pSum + accPrice;
+                }, 0) || 0;
+                
+                const engravingRevenue = (order.pricing_data.engraving_price || 0) * 
+                  order.products.reduce((sum, p) => sum + parseInt(p.quantity || 0), 0);
+                
+                order.products.forEach((product, idx) => {
+                  const key = `${product.model} - ${product.color}`;
+                  const qty = parseInt(product.quantity || 0);
+                  const unitPrice = order.pricing_data.products?.[idx]?.unit_price || 0;
+                  
+                  if (!editionStats[key]) editionStats[key] = { count: 0, revenue: 0 };
+                  editionStats[key].count += qty;
+                  editionStats[key].revenue += qty * unitPrice;
+
+                  product.accessories?.forEach((accessory, accIdx) => {
+                    const accQty = parseInt(accessory.quantity || 0);
+                    const accUnitPrice = order.pricing_data.products?.[idx]?.accessories?.[accIdx]?.unit_price || 0;
+                    
+                    if (!accessoryStats[accessory.name]) accessoryStats[accessory.name] = { count: 0, revenue: 0 };
+                    accessoryStats[accessory.name].count += accQty;
+                    accessoryStats[accessory.name].revenue += accQty * accUnitPrice;
+                  });
+                });
+                
+                return {
+                  productRevenue: acc.productRevenue + productRevenue,
+                  accessoryRevenue: acc.accessoryRevenue + accessoryRevenue,
+                  engravingRevenue: acc.engravingRevenue + engravingRevenue,
+                  totalRevenue: acc.totalRevenue + productRevenue + accessoryRevenue + engravingRevenue
+                };
+              }, { productRevenue: 0, accessoryRevenue: 0, engravingRevenue: 0, totalRevenue: 0 });
+
+              const totalBulkProducts = deliveredBulkOrders.reduce((sum, order) => 
+                sum + order.products.reduce((pSum, p) => pSum + parseInt(p.quantity || 0), 0), 0);
+
+              return (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div className="bg-indigo-50 p-4 rounded-lg">
+                      <p className="text-sm text-indigo-700">Total Bulk Orders</p>
+                      <p className="text-2xl font-bold text-indigo-800">{deliveredBulkOrders.length}</p>
+                    </div>
+                    <div className="bg-indigo-50 p-4 rounded-lg">
+                      <p className="text-sm text-indigo-700">Total Products</p>
+                      <p className="text-2xl font-bold text-indigo-800">{totalBulkProducts}</p>
+                    </div>
+                    <div className="bg-indigo-50 p-4 rounded-lg">
+                      <p className="text-sm text-indigo-700">Total Revenue</p>
+                      <p className="text-2xl font-bold text-indigo-800">৳{bulkStats.totalRevenue.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <p className="text-sm text-blue-700">Product Revenue</p>
+                      <p className="text-2xl font-bold text-blue-800">৳{bulkStats.productRevenue.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-lg">
+                      <p className="text-sm text-purple-700">Accessory Revenue</p>
+                      <p className="text-2xl font-bold text-purple-800">৳{bulkStats.accessoryRevenue.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-yellow-50 p-4 rounded-lg">
+                      <p className="text-sm text-yellow-700">Engraving Revenue</p>
+                      <p className="text-2xl font-bold text-yellow-800">৳{bulkStats.engravingRevenue.toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  {deliveredBulkOrders.length > 0 && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div>
+                        <h3 className="text-md font-semibold text-gray-800 mb-3">Edition Breakdown</h3>
+                        <div className="space-y-2">
+                          {Object.keys(editionStats).length === 0 ? (
+                            <div className="text-center py-4 text-gray-500">No editions found</div>
+                          ) : (
+                            Object.entries(editionStats).map(([edition, stats]) => (
+                              <div key={edition} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                                <span className="font-medium">{edition}</span>
+                                <div className="text-right">
+                                  <p className="font-semibold">{stats.count} sold</p>
+                                  <p className="text-sm text-gray-600">৳{stats.revenue.toLocaleString()}</p>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-md font-semibold text-gray-800 mb-3">Accessories Breakdown</h3>
+                        <div className="space-y-2">
+                          {Object.keys(accessoryStats).length === 0 ? (
+                            <div className="text-center py-4 text-gray-500">No accessories found</div>
+                          ) : (
+                            Object.entries(accessoryStats).map(([accessory, stats]) => (
+                              <div key={accessory} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                                <span className="font-medium">{accessory}</span>
+                                <div className="text-right">
+                                  <p className="font-semibold">{stats.count} sold</p>
+                                  <p className="text-sm text-gray-600">৳{stats.revenue.toLocaleString()}</p>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {deliveredBulkOrders.length === 0 && (
+                    <div className="text-center py-4 text-gray-500">
+                      No delivered bulk orders in this period
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
 

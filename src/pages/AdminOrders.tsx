@@ -119,7 +119,7 @@ const ColorBadge = ({ color }: { color: string }) => {
 
 export const AdminOrders = () => {
   const { orders, isLoading, updateOrderStatus, updatePaymentStatus, updateTrackingInfo, fetchOrders, deleteOrder } = useOrders();
-  const { bulkOrders, isLoading: bulkOrdersLoading, fetchBulkOrders } = useBulkOrders();
+  const { bulkOrders, isLoading: bulkOrdersLoading, fetchBulkOrders, deleteBulkOrder, updateBulkOrderStatus } = useBulkOrders();
   const { adminUser } = useAdminAuth();
   
   // Get tracking numbers from visible orders
@@ -190,6 +190,12 @@ export const AdminOrders = () => {
     payment_method: 'cod',
     delivery_fee: 100
   });
+  const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
+  const [editingBulkOrder, setEditingBulkOrder] = useState<any>(null);
+  const [bulkOrderPrices, setBulkOrderPrices] = useState<Record<number, number>>({});
+  const [bulkOrderProducts, setBulkOrderProducts] = useState<any[]>([]);
+  const [bulkEngravingPrice, setBulkEngravingPrice] = useState(0);
+  const [bulkAccessoryPrices, setBulkAccessoryPrices] = useState<Record<string, number>>({});
 
   // Function to backup order before deletion
   const backupOrderBeforeDelete = async (order: Order, reason: string = '') => {
@@ -1410,7 +1416,7 @@ export const AdminOrders = () => {
                     <div className="flex flex-col gap-2 md:gap-4">
                       <div className="flex flex-col gap-2 md:gap-4 pb-2 md:pb-3 border-b">
                         <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2">
-                          <div>
+                          <div className="flex-1">
                             <h3 className="font-semibold text-base md:text-xl text-gray-900">{order.customer_name}</h3>
                             <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 mt-1">
                               <Phone className="h-3 w-3 md:h-3.5 md:w-3.5 text-gray-400" />
@@ -1423,20 +1429,87 @@ export const AdminOrders = () => {
                               </div>
                             )}
                           </div>
-                          <div className="text-left md:text-right">
-                            <div className="flex items-center gap-1 md:gap-2 text-gray-600 font-medium text-xs md:text-sm">
-                              <Calendar className="h-3 w-3 md:h-4 md:w-4" />
-                              <span>Requested</span>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => {
+                                setEditingBulkOrder(order);
+                                const prices = {};
+                                order.products.forEach((p, idx) => {
+                                  prices[idx] = order.pricing_data?.products?.[idx]?.unit_price || 0;
+                                });
+                                setBulkOrderPrices(prices);
+                                setBulkOrderProducts(JSON.parse(JSON.stringify(order.products)));
+                                setBulkEngravingPrice(order.pricing_data?.engraving_price || 0);
+                                const accPrices = {};
+                                order.products.forEach((p, pIdx) => {
+                                  if (p.accessories) {
+                                    p.accessories.forEach((acc, aIdx) => {
+                                      accPrices[`${pIdx}-${aIdx}`] = order.pricing_data?.products?.[pIdx]?.accessories?.[aIdx]?.unit_price || 0;
+                                    });
+                                  }
+                                });
+                                setBulkAccessoryPrices(accPrices);
+                                setIsBulkEditDialogOpen(true);
+                              }}
+                              className="h-7 md:h-8 px-2 md:px-3 text-xs"
+                            >
+                              <Edit className="w-3 h-3 md:w-4 md:h-4 mr-1" /> Edit
+                            </Button>
+                            <Button 
+                              variant={order.status === 'delivered' ? 'default' : 'outline'} 
+                              size="sm" 
+                              onClick={async () => {
+                                if (order.status !== 'delivered' && order.pricing_data) {
+                                  const success = await updateBulkOrderStatus(order.id, 'delivered', adminUser?.name);
+                                  if (success) {
+                                    toast.success('Marked as delivered');
+                                  } else {
+                                    toast.error('Failed to update status');
+                                  }
+                                } else if (!order.pricing_data) {
+                                  toast.error('Please set pricing first');
+                                }
+                              }}
+                              className={`h-7 md:h-8 px-2 md:px-3 text-xs ${order.status === 'delivered' ? 'text-gray-900' : ''}`}
+                              style={order.status === 'delivered' ? { backgroundColor: '#FACC15' } : {}}
+                              disabled={order.status === 'delivered' || !order.pricing_data}
+                            >
+                              <CheckCircle className="w-3 h-3 md:w-4 md:h-4 mr-1" /> Delivered
+                            </Button>
+                            <Button 
+                              variant="destructive" 
+                              size="sm" 
+                              onClick={async () => {
+                                if (confirm('Are you sure you want to delete this bulk order?')) {
+                                  const success = await deleteBulkOrder(order.id);
+                                  if (success) {
+                                    toast.success('Bulk order deleted');
+                                  } else {
+                                    toast.error('Failed to delete bulk order');
+                                  }
+                                }
+                              }}
+                              className="h-7 md:h-8 px-2 md:px-3 text-xs"
+                            >
+                              <Trash2 className="w-3 h-3 md:w-4 md:h-4" />
+                            </Button>
+                            <div className="text-left md:text-right">
+                              <div className="flex items-center gap-1 md:gap-2 text-gray-600 font-medium text-xs md:text-sm">
+                                <Calendar className="h-3 w-3 md:h-4 md:w-4" />
+                                <span>Requested</span>
+                              </div>
+                              <p className="text-xs md:text-sm font-medium text-gray-900 mt-0.5">
+                                {new Date(order.created_at).toLocaleDateString('en-US', { 
+                                  year: 'numeric', 
+                                  month: 'short', 
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </p>
                             </div>
-                            <p className="text-xs md:text-sm font-medium text-gray-900 mt-0.5">
-                              {new Date(order.created_at).toLocaleDateString('en-US', { 
-                                year: 'numeric', 
-                                month: 'short', 
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </p>
                           </div>
                         </div>
                       </div>
@@ -1448,21 +1521,37 @@ export const AdminOrders = () => {
                             <span>Products</span>
                           </div>
                           <div className="space-y-2">
-                            {order.products.map((product, idx) => (
+                            {order.products.map((product, idx) => {
+                              const pricedProduct = order.pricing_data?.products?.[idx];
+                              return (
                               <div key={idx} className="bg-gray-50 p-2 md:p-3 rounded-lg border border-gray-200">
                                 <p className="text-xs md:text-sm"><span className="font-medium">Edition:</span> {product.model}</p>
                                 <p className="text-xs md:text-sm"><span className="font-medium">Color:</span> {product.color}</p>
                                 <p className="text-xs md:text-sm"><span className="font-medium">Quantity:</span> {product.quantity}</p>
+                                {pricedProduct?.unit_price > 0 && (
+                                  <p className="text-xs md:text-sm font-bold text-green-700">
+                                    Price: {pricedProduct.unit_price.toLocaleString()} BDT × {product.quantity} = {(pricedProduct.unit_price * product.quantity).toLocaleString()} BDT
+                                  </p>
+                                )}
                                 {product.accessories && product.accessories.length > 0 && (
                                   <div className="mt-2 pt-2 border-t border-gray-200">
                                     <p className="text-xs font-medium text-gray-600 mb-1">Accessories:</p>
-                                    {product.accessories.map((acc, accIdx) => (
-                                      <p key={accIdx} className="text-xs text-gray-600">• {acc.name} × {acc.quantity}</p>
-                                    ))}
+                                    {product.accessories.map((acc, accIdx) => {
+                                      const pricedAcc = pricedProduct?.accessories?.[accIdx];
+                                      return (
+                                      <p key={accIdx} className="text-xs text-gray-600">
+                                        • {acc.name} × {acc.quantity}
+                                        {pricedAcc?.unit_price > 0 && (
+                                          <span className="font-bold text-green-700 ml-2">
+                                            ({pricedAcc.unit_price.toLocaleString()} BDT × {acc.quantity} = {(pricedAcc.unit_price * acc.quantity).toLocaleString()} BDT)
+                                          </span>
+                                        )}
+                                      </p>
+                                    )})}
                                   </div>
                                 )}
                               </div>
-                            ))}
+                            )})}
                           </div>
                         </div>
                         
@@ -1483,9 +1572,14 @@ export const AdminOrders = () => {
                               </p>
                             )}
                             {order.engraving && (
-                              <p className="text-gray-900">
-                                <span className="font-medium">Engraving:</span> <span className="text-gray-600">{order.engraving}</span>
-                              </p>
+                              <div className="text-gray-900">
+                                <p><span className="font-medium">Engraving:</span> <span className="text-gray-600">{order.engraving}</span></p>
+                                {order.pricing_data?.engraving_price > 0 && (
+                                  <p className="text-sm font-bold text-green-700 mt-1">
+                                    Engraving Price: {order.pricing_data.engraving_price.toLocaleString()} BDT per unit
+                                  </p>
+                                )}
+                              </div>
                             )}
                             {order.additional_message && (
                               <div className="mt-2 pt-2 border-t border-gray-200">
@@ -1493,6 +1587,52 @@ export const AdminOrders = () => {
                                 <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">{order.additional_message}</p>
                               </div>
                             )}
+                            {order.pricing_data && (
+                              <div className="mt-3 pt-3 border-t-2 border-green-200 bg-green-50 p-3 rounded-lg">
+                                <p className="text-sm font-bold text-green-900 mb-2">Total Pricing:</p>
+                                <p className="text-xl font-bold text-green-700">
+                                  {(() => {
+                                    const productTotal = order.pricing_data.products?.reduce((sum, p, idx) => {
+                                      const prodPrice = (p.unit_price || 0) * order.products[idx].quantity;
+                                      const accPrice = p.accessories?.reduce((accSum, acc, accIdx) => 
+                                        accSum + ((acc.unit_price || 0) * order.products[idx].accessories[accIdx].quantity), 0) || 0;
+                                      return sum + prodPrice + accPrice;
+                                    }, 0) || 0;
+                                    const engravingTotal = (order.pricing_data.engraving_price || 0) * 
+                                      order.products.reduce((sum, p) => sum + p.quantity, 0);
+                                    return (productTotal + engravingTotal).toLocaleString();
+                                  })()} BDT
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Edit History */}
+                          <div className="mt-2 pt-2 border-t border-gray-100">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {order.last_edited_by && (
+                                <div className="bg-purple-50 border border-purple-200 rounded-lg p-2">
+                                  <div className="flex items-center gap-2 text-xs text-purple-700">
+                                    <User className="h-3 w-3" />
+                                    <span><span className="font-semibold text-purple-900">{order.last_edited_by}</span> updated pricing</span>
+                                  </div>
+                                  <div className="text-xs text-purple-600 mt-1 ml-5">
+                                    {new Date(order.last_edited_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                </div>
+                              )}
+                              {order.delivered_by && order.status === 'delivered' && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                                  <div className="flex items-center gap-2 text-xs text-blue-700">
+                                    <User className="h-3 w-3" />
+                                    <span><span className="font-semibold text-blue-900">{order.delivered_by}</span> marked as delivered</span>
+                                  </div>
+                                  <div className="text-xs text-blue-600 mt-1 ml-5">
+                                    {new Date(order.delivered_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -3335,6 +3475,247 @@ export const AdminOrders = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Order Edit Dialog */}
+      <Dialog open={isBulkEditDialogOpen} onOpenChange={setIsBulkEditDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Bulk Order Pricing</DialogTitle>
+            <DialogDescription>Set manual prices for each product in this bulk order</DialogDescription>
+          </DialogHeader>
+          {editingBulkOrder && (
+            <div className="space-y-4 py-4">
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-semibold text-blue-900 mb-2">Customer: {editingBulkOrder.customer_name}</h4>
+                <p className="text-sm text-blue-700">{editingBulkOrder.customer_phone}</p>
+              </div>
+              
+              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                <Label htmlFor="engraving-price">Engraving Price Per Unit (BDT)</Label>
+                <Input
+                  id="engraving-price"
+                  type="number"
+                  min="0"
+                  value={bulkEngravingPrice || ''}
+                  onChange={(e) => setBulkEngravingPrice(parseFloat(e.target.value) || 0)}
+                  placeholder="Enter price per unit"
+                  className="mt-1"
+                />
+                <p className="text-xs text-yellow-700 mt-1">Engraving: {editingBulkOrder.engraving || 'No'}</p>
+                {bulkEngravingPrice > 0 && (
+                  <p className="text-sm text-yellow-800 mt-2 font-medium">
+                    Total Engraving Cost: {(bulkEngravingPrice * bulkOrderProducts.reduce((sum, p) => sum + p.quantity, 0)).toLocaleString()} BDT
+                  </p>
+                )}
+              </div>
+              
+              <div className="space-y-3">
+                <h4 className="font-semibold text-gray-900">Products & Pricing</h4>
+                {bulkOrderProducts.map((product, idx) => (
+                  <div key={idx} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor={`model-${idx}`}>Model</Label>
+                        <Input
+                          id={`model-${idx}`}
+                          value={product.model}
+                          onChange={(e) => {
+                            const updated = [...bulkOrderProducts];
+                            updated[idx].model = e.target.value;
+                            setBulkOrderProducts(updated);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`color-${idx}`}>Color</Label>
+                        <Input
+                          id={`color-${idx}`}
+                          value={product.color}
+                          onChange={(e) => {
+                            const updated = [...bulkOrderProducts];
+                            updated[idx].color = e.target.value;
+                            setBulkOrderProducts(updated);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`quantity-${idx}`}>Quantity</Label>
+                        <Input
+                          id={`quantity-${idx}`}
+                          type="number"
+                          min="1"
+                          value={product.quantity}
+                          onChange={(e) => {
+                            const updated = [...bulkOrderProducts];
+                            updated[idx].quantity = parseInt(e.target.value) || 1;
+                            setBulkOrderProducts(updated);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`price-${idx}`}>Unit Price (BDT)</Label>
+                        <Input
+                          id={`price-${idx}`}
+                          type="number"
+                          min="0"
+                          value={bulkOrderPrices[idx] || ''}
+                          onChange={(e) => setBulkOrderPrices(prev => ({ ...prev, [idx]: parseFloat(e.target.value) || 0 }))}
+                          placeholder="Enter price"
+                        />
+                      </div>
+                    </div>
+                    
+                    {(product.model?.toLowerCase().includes('base') || product.accessories?.length > 0) && (
+                      <div className="border-t pt-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-semibold">Accessories</Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const updated = [...bulkOrderProducts];
+                              if (!updated[idx].accessories) updated[idx].accessories = [];
+                              updated[idx].accessories.push({ name: '', quantity: 1 });
+                              setBulkOrderProducts(updated);
+                            }}
+                            className="h-7 text-xs"
+                          >
+                            + Add Accessory
+                          </Button>
+                        </div>
+                        {product.accessories?.map((acc, accIdx) => {
+                          const allAccessories = ['Straw Cap', 'Cleaning Brush', 'Straw Cleaning Brush', 'Aluminium Hook'];
+                          const usedAccessories = product.accessories.map(a => a.name).filter((_, i) => i !== accIdx);
+                          const availableAccessories = allAccessories.filter(a => !usedAccessories.includes(a));
+                          return (
+                          <div key={accIdx} className="grid grid-cols-12 gap-2 items-center bg-gray-50 p-2 rounded">
+                            <Select
+                              value={acc.name}
+                              onValueChange={(value) => {
+                                const updated = [...bulkOrderProducts];
+                                updated[idx].accessories[accIdx].name = value;
+                                setBulkOrderProducts(updated);
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-sm col-span-4">
+                                <SelectValue placeholder="Select accessory" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableAccessories.map(accName => (
+                                  <SelectItem key={accName} value={accName}>{accName}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              type="number"
+                              min="1"
+                              placeholder="Qty"
+                              value={acc.quantity}
+                              onChange={(e) => {
+                                const updated = [...bulkOrderProducts];
+                                updated[idx].accessories[accIdx].quantity = parseInt(e.target.value) || 1;
+                                setBulkOrderProducts(updated);
+                              }}
+                              className="h-8 text-sm col-span-2"
+                            />
+                            <Input
+                              type="number"
+                              min="0"
+                              placeholder="Unit price"
+                              value={bulkAccessoryPrices[`${idx}-${accIdx}`] || ''}
+                              onChange={(e) => setBulkAccessoryPrices(prev => ({ ...prev, [`${idx}-${accIdx}`]: parseFloat(e.target.value) || 0 }))}
+                              className="h-8 text-sm col-span-3"
+                            />
+                            <span className="text-sm text-gray-700 col-span-2">
+                              {bulkAccessoryPrices[`${idx}-${accIdx}`] > 0 ? `${(bulkAccessoryPrices[`${idx}-${accIdx}`] * acc.quantity).toLocaleString()} ৳` : ''}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const updated = [...bulkOrderProducts];
+                                updated[idx].accessories.splice(accIdx, 1);
+                                setBulkOrderProducts(updated);
+                              }}
+                              className="h-7 w-7 p-0 col-span-1"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )})}
+                      </div>
+                    )}
+                    
+                    {bulkOrderPrices[idx] > 0 && (
+                      <div className="bg-blue-50 p-2 rounded text-sm text-blue-900">
+                        Subtotal: <span className="font-bold">{(
+                          (bulkOrderPrices[idx] * product.quantity) + 
+                          (product.accessories || []).reduce((sum, acc, accIdx) => 
+                            sum + ((bulkAccessoryPrices[`${idx}-${accIdx}`] || 0) * acc.quantity), 0
+                          )
+                        ).toLocaleString()} BDT</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-gray-900">Grand Total:</span>
+                  <span className="text-xl font-bold text-primary">
+                    {(bulkOrderProducts.reduce((sum, product, idx) => {
+                      const productTotal = (bulkOrderPrices[idx] || 0) * product.quantity;
+                      const accessoriesTotal = (product.accessories || []).reduce((accSum, acc, accIdx) => 
+                        accSum + ((bulkAccessoryPrices[`${idx}-${accIdx}`] || 0) * acc.quantity), 0
+                      );
+                      return sum + productTotal + accessoriesTotal;
+                    }, 0) + (bulkEngravingPrice * bulkOrderProducts.reduce((sum, p) => sum + p.quantity, 0))).toLocaleString()} BDT
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBulkEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              try {
+                const pricingData = {
+                  products: bulkOrderProducts.map((p, idx) => ({
+                    ...p,
+                    unit_price: bulkOrderPrices[idx] || 0,
+                    accessories: p.accessories?.map((acc, accIdx) => ({
+                      ...acc,
+                      unit_price: bulkAccessoryPrices[`${idx}-${accIdx}`] || 0
+                    }))
+                  })),
+                  engraving_price: bulkEngravingPrice
+                };
+                
+                const { error } = await supabaseAdmin
+                  .from('bulk_orders')
+                  .update({ 
+                    pricing_data: pricingData,
+                    last_edited_by: adminUser?.name || 'Admin',
+                    last_edited_at: new Date().toISOString()
+                  })
+                  .eq('id', editingBulkOrder.id);
+                
+                if (error) throw error;
+                
+                toast.success('Bulk order pricing updated');
+                await fetchBulkOrders();
+                setIsBulkEditDialogOpen(false);
+              } catch (error) {
+                console.error('Error saving pricing:', error);
+                toast.error('Failed to save pricing');
+              }
+            }}>Save Pricing</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
