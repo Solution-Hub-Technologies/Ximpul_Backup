@@ -1593,13 +1593,13 @@ export const AdminOrders = () => {
                                 <p className="text-xl font-bold text-green-700">
                                   {(() => {
                                     const productTotal = order.pricing_data.products?.reduce((sum, p, idx) => {
-                                      const prodPrice = (p.unit_price || 0) * order.products[idx].quantity;
+                                      const prodPrice = (p.unit_price || 0) * parseInt(order.products[idx].quantity || 0);
                                       const accPrice = p.accessories?.reduce((accSum, acc, accIdx) => 
-                                        accSum + ((acc.unit_price || 0) * order.products[idx].accessories[accIdx].quantity), 0) || 0;
+                                        accSum + ((acc.unit_price || 0) * parseInt(order.products[idx].accessories[accIdx].quantity || 0)), 0) || 0;
                                       return sum + prodPrice + accPrice;
                                     }, 0) || 0;
                                     const engravingTotal = (order.pricing_data.engraving_price || 0) * 
-                                      order.products.reduce((sum, p) => sum + p.quantity, 0);
+                                      order.products.reduce((sum, p) => sum + parseInt(p.quantity || 0), 0);
                                     return (productTotal + engravingTotal).toLocaleString();
                                   })()} BDT
                                 </p>
@@ -3506,7 +3506,7 @@ export const AdminOrders = () => {
                 <p className="text-xs text-yellow-700 mt-1">Engraving: {editingBulkOrder.engraving || 'No'}</p>
                 {bulkEngravingPrice > 0 && (
                   <p className="text-sm text-yellow-800 mt-2 font-medium">
-                    Total Engraving Cost: {(bulkEngravingPrice * bulkOrderProducts.reduce((sum, p) => sum + p.quantity, 0)).toLocaleString()} BDT
+                    Total Engraving Cost: {(bulkEngravingPrice * bulkOrderProducts.reduce((sum, p) => sum + parseInt(p.quantity || 0), 0)).toLocaleString()} BDT
                   </p>
                 )}
               </div>
@@ -3669,12 +3669,12 @@ export const AdminOrders = () => {
                   <span className="font-semibold text-gray-900">Grand Total:</span>
                   <span className="text-xl font-bold text-primary">
                     {(bulkOrderProducts.reduce((sum, product, idx) => {
-                      const productTotal = (bulkOrderPrices[idx] || 0) * product.quantity;
+                      const productTotal = (bulkOrderPrices[idx] || 0) * parseInt(product.quantity || 0);
                       const accessoriesTotal = (product.accessories || []).reduce((accSum, acc, accIdx) => 
-                        accSum + ((bulkAccessoryPrices[`${idx}-${accIdx}`] || 0) * acc.quantity), 0
+                        accSum + ((bulkAccessoryPrices[`${idx}-${accIdx}`] || 0) * parseInt(acc.quantity || 0)), 0
                       );
                       return sum + productTotal + accessoriesTotal;
-                    }, 0) + (bulkEngravingPrice * bulkOrderProducts.reduce((sum, p) => sum + p.quantity, 0))).toLocaleString()} BDT
+                    }, 0) + (bulkEngravingPrice * bulkOrderProducts.reduce((sum, p) => sum + parseInt(p.quantity || 0), 0))).toLocaleString()} BDT
                   </span>
                 </div>
               </div>
