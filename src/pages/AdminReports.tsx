@@ -21,6 +21,7 @@ export const AdminReports = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalData, setModalData] = useState([]);
   const [modalTitle, setModalTitle] = useState('');
+  const [modalSearch, setModalSearch] = useState('');
 
   // Filter orders by date range and exclude pending payment, leads, and cancelled orders
   const getFilteredOrders = () => {
@@ -127,6 +128,7 @@ export const AdminReports = () => {
     
     setModalData(data);
     setModalTitle(title);
+    setModalSearch('');
     setModalOpen(true);
   };
 
@@ -1000,12 +1002,21 @@ export const AdminReports = () => {
           <div className="bg-white rounded-xl shadow-lg max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden">
             <div className="flex justify-between items-center p-6 border-b">
               <h3 className="text-xl font-semibold text-gray-900">{modalTitle}</h3>
-              <button 
-                onClick={() => setModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-4">
+                <Input
+                  type="text"
+                  placeholder="Search orders..."
+                  value={modalSearch}
+                  onChange={(e) => setModalSearch(e.target.value)}
+                  className="w-64"
+                />
+                <button 
+                  onClick={() => setModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
             <div className="p-6 overflow-y-auto max-h-[70vh]">
               <div className="overflow-x-auto">
@@ -1036,7 +1047,20 @@ export const AdminReports = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {modalData.map((order) => (
+                    {modalData.filter(order => {
+                      if (!modalSearch) return true;
+                      const searchTerm = modalSearch.toLowerCase();
+                      const orderId = modalTitle === 'Bulk Orders' ? order.id : order.order_id;
+                      return (
+                        orderId?.toString().toLowerCase().includes(searchTerm) ||
+                        order.customer_name?.toLowerCase().includes(searchTerm) ||
+                        order.customer_phone?.toLowerCase().includes(searchTerm) ||
+                        (modalTitle === 'Bulk Orders' ? 
+                          order.products?.some(p => p.model?.toLowerCase().includes(searchTerm) || p.color?.toLowerCase().includes(searchTerm)) :
+                          order.selected_edition?.toLowerCase().includes(searchTerm)
+                        )
+                      );
+                    }).map((order) => (
                       <tr key={order.order_id || order.id} className="hover:bg-gray-50">
                         {modalTitle === 'Bulk Orders' ? (
                           <>
