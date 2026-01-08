@@ -145,6 +145,26 @@ export const AdminOrders = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  
+  // Filter bulk orders by date
+  const getFilteredBulkOrders = () => {
+    return bulkOrders.filter(order => {
+      const orderDate = new Date(order.created_at);
+      const fromDate = dateFrom ? new Date(dateFrom) : null;
+      const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+      return (!fromDate || orderDate >= fromDate) && (!toDate || orderDate <= toDate);
+    });
+  };
+  
+  const filteredBulkOrders = getFilteredBulkOrders();
+  
+  // Apply date filter to regular orders for tab counts (recalculates on dateFrom/dateTo change)
+  const dateFilteredOrders = orders.filter(order => {
+    const orderDate = new Date(order.created_at);
+    const fromDate = dateFrom ? new Date(dateFrom) : null;
+    const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+    return (!fromDate || orderDate >= fromDate) && (!toDate || orderDate <= toDate);
+  });
   const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
   const [steadfastOrder, setSteadfastOrder] = useState<Order | null>(null);
   const [steadfastParcelId, setSteadfastParcelId] = useState<string>('');
@@ -249,22 +269,25 @@ export const AdminOrders = () => {
   };
 
   // Order statistics
+  // Order statistics - exclude pending_payment, leads, and cancelled
+  const validOrders = orders.filter(o => !(o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending') || o.order_status === 'cancelled'));
+  
   const orderStats = {
-    total: orders.length,
-    pending: orders.filter(order => order.order_status === 'pending').length,
-    processing: orders.filter(order => order.order_status === 'processing').length,
-    shipped: orders.filter(order => order.order_status === 'shipped').length,
-    delivered: orders.filter(order => order.order_status === 'delivered').length,
-    cancelled: orders.filter(order => order.order_status === 'cancelled').length,
-    private: orders.filter(order => order.privacy_preference).length,
-    public: orders.filter(order => !order.privacy_preference).length,
+    total: validOrders.length,
+    pending: validOrders.filter(order => order.order_status === 'pending').length,
+    processing: validOrders.filter(order => order.order_status === 'processing').length,
+    shipped: validOrders.filter(order => order.order_status === 'shipped').length,
+    delivered: validOrders.filter(order => order.order_status === 'delivered').length,
+    cancelled: 0,
+    private: validOrders.filter(order => order.privacy_preference).length,
+    public: validOrders.filter(order => !order.privacy_preference).length,
   };
 
   // Filter orders based on tab, privacy, search term, and date range
   const getFilteredOrders = (tabFilter: string) => {
     return orders.filter(order => {
-      // Exclude orders with pending payment from 'all' tab, but include pending orders with completed payment
-      if (tabFilter === 'all' && (order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending'))) {
+      // Exclude orders with pending payment, leads, and cancelled from 'all' tab
+      if (tabFilter === 'all' && (order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending') || order.order_status === 'cancelled')) {
         return false;
       }
       
@@ -1084,7 +1107,7 @@ export const AdminOrders = () => {
                   <Package className="h-4 w-4 md:h-5 md:w-5 text-gray-700" />
                 </div>
                 <p className="text-xs md:text-sm font-medium text-gray-600">Total Orders</p>
-                <p className="text-lg md:text-2xl font-bold text-gray-900">{getFilteredOrders('all').length}</p>
+                <p className="text-lg md:text-2xl font-bold text-gray-900">{orderStats.total}</p>
               </div>
             </div>
             
@@ -1284,22 +1307,22 @@ export const AdminOrders = () => {
           <TabsList className="grid grid-cols-5 w-full bg-white border border-gray-200 p-0.5 md:p-1 rounded-lg gap-0.5 md:gap-1">
             <TabsTrigger value="all" className="data-[state=active]:bg-gray-900 data-[state=active]:text-white text-[10px] md:text-sm py-1.5 md:py-2 px-1 md:px-3">
               <span className="hidden sm:inline">All Orders</span>
-              <span className="sm:hidden">All</span> ({orders.filter(o => !(o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending'))).length})
+              <span className="sm:hidden">All</span> ({dateFilteredOrders.filter(o => !(o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending') || o.order_status === 'cancelled')).length + filteredBulkOrders.length})
             </TabsTrigger>
             <TabsTrigger value="online" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white text-[10px] md:text-sm py-1.5 md:py-2 px-1 md:px-3">
               <span className="hidden sm:inline">Online Payment</span>
-              <span className="sm:hidden">Online</span> ({orders.filter(o => o.payment_method === 'online' && !(o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending'))).length})
+              <span className="sm:hidden">Online</span> ({dateFilteredOrders.filter(o => o.payment_method === 'online' && !(o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending') || o.order_status === 'cancelled')).length})
             </TabsTrigger>
             <TabsTrigger value="cod" className="data-[state=active]:bg-green-500 data-[state=active]:text-white text-[10px] md:text-sm py-1.5 md:py-2 px-1 md:px-3">
               <span className="hidden sm:inline">Cash on Delivery</span>
-              <span className="sm:hidden">COD</span> ({orders.filter(o => o.payment_method === 'cod' && !(o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending'))).length})
+              <span className="sm:hidden">COD</span> ({dateFilteredOrders.filter(o => o.payment_method === 'cod' && !(o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending') || o.order_status === 'cancelled')).length})
             </TabsTrigger>
             <TabsTrigger value="leads" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white text-[10px] md:text-sm py-1.5 md:py-2 px-1 md:px-3">
-              Leads ({orders.filter(o => o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending')).length})
+              Leads ({dateFilteredOrders.filter(o => o.order_status === 'pending_payment' || (o.order_status === 'pending' && o.payment_status === 'pending')).length})
             </TabsTrigger>
             <TabsTrigger value="bulk" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white text-[10px] md:text-sm py-1.5 md:py-2 px-1 md:px-3">
               <span className="hidden sm:inline">Bulk Orders</span>
-              <span className="sm:hidden">Bulk</span> ({bulkOrders.length})
+              <span className="sm:hidden">Bulk</span> ({filteredBulkOrders.length})
             </TabsTrigger>
           </TabsList>
           
@@ -1395,7 +1418,15 @@ export const AdminOrders = () => {
       {activeTab === 'bulk' && (
         <Card className="shadow-sm hover:shadow transition-shadow overflow-hidden bg-purple-50/30 border-purple-200">
           <CardHeader className="pb-2 px-3 md:px-6">
-            <CardTitle className="capitalize text-base md:text-lg">Bulk Orders ({bulkOrders.length})</CardTitle>
+            <CardTitle className="capitalize text-base md:text-lg">
+              Bulk Orders ({filteredBulkOrders.length})
+              {(() => {
+                const bulkQty = filteredBulkOrders.reduce((sum, bulkOrder) => {
+                  return sum + bulkOrder.products.reduce((pSum, p) => pSum + parseInt(p.quantity || 0), 0);
+                }, 0);
+                return <span className="ml-2 text-sm font-normal text-gray-600">• {bulkQty} qty sold</span>;
+              })()}
+            </CardTitle>
           </CardHeader>
           <CardContent className="px-3 md:px-6">
             <div className="space-y-3 md:space-y-4">
@@ -1404,14 +1435,14 @@ export const AdminOrders = () => {
                   <RefreshCw className="h-8 w-8 text-primary animate-spin mx-auto mb-2" />
                   <p>Loading bulk orders...</p>
                 </div>
-              ) : bulkOrders.length === 0 ? (
+              ) : filteredBulkOrders.length === 0 ? (
                 <div className="text-center py-12">
                   <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                   <h3 className="text-lg font-medium text-gray-900">No bulk orders found</h3>
                   <p className="text-gray-500">Bulk order requests will appear here</p>
                 </div>
               ) : (
-                bulkOrders.map((order) => (
+                filteredBulkOrders.map((order) => (
                   <div key={order.id} className="border border-gray-200 rounded-lg p-2 md:p-4 transition-all shadow-sm bg-white hover:bg-gray-50">
                     <div className="flex flex-col gap-2 md:gap-4">
                       <div className="flex flex-col gap-2 md:gap-4 pb-2 md:pb-3 border-b">
@@ -1651,13 +1682,13 @@ export const AdminOrders = () => {
           if (tab === 'bulk') return null;
           let baseOrders;
           if (tab === 'online') {
-            baseOrders = orders.filter(order => order.payment_method === 'online' && !(order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending')));
+            baseOrders = orders.filter(order => order.payment_method === 'online' && !(order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending') || order.order_status === 'cancelled'));
           } else if (tab === 'cod') {
-            baseOrders = orders.filter(order => order.payment_method === 'cod' && !(order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending')));
+            baseOrders = orders.filter(order => order.payment_method === 'cod' && !(order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending') || order.order_status === 'cancelled'));
           } else if (tab === 'leads') {
             baseOrders = orders.filter(order => order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending'));
           } else {
-            baseOrders = orders.filter(order => !(order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending')));
+            baseOrders = orders.filter(order => !(order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending') || order.order_status === 'cancelled'));
           }
           
           // Apply additional filters (search, privacy, date)
@@ -1713,7 +1744,27 @@ export const AdminOrders = () => {
                        tab === 'cod' ? 'Cash on Delivery Orders' :
                        tab === 'leads' ? 'Leads (Pending Payment)' :
                        tab === 'all_status' ? 'All Status Orders' :
-                       tab.replace('_', ' ')} ({tabOrders.length})
+                       tab.replace('_', ' ')} ({tab === 'all' ? tabOrders.length + filteredBulkOrders.length : tabOrders.length})
+                      {(tab === 'all' || tab === 'online' || tab === 'cod') && (() => {
+                        // Use tabOrders which already has all filters applied (date, search, privacy)
+                        const regularQty = tabOrders.reduce((sum, order) => {
+                          const edition = order.selected_edition.toLowerCase();
+                          if (edition.includes('×') || edition.includes('(')) {
+                            const parts = order.selected_edition.split(',');
+                            return sum + parts.reduce((partSum, part) => {
+                              const match = part.match(/×\s*(\d+)/);
+                              return partSum + (match ? parseInt(match[1]) : 1);
+                            }, 0);
+                          }
+                          return sum + 1;
+                        }, 0);
+                        
+                        const bulkQty = tab === 'all' ? filteredBulkOrders.reduce((sum, bulkOrder) => {
+                          return sum + bulkOrder.products.reduce((pSum, p) => pSum + parseInt(p.quantity || 0), 0);
+                        }, 0) : 0;
+                        
+                        return <span className="ml-2 text-sm font-normal text-gray-600">• {regularQty + bulkQty} qty sold</span>;
+                      })()}
                     </CardTitle>
                     <div className="flex flex-wrap items-center gap-2 md:gap-4">
                       {tabOrders.length > 0 && (

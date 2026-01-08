@@ -8,7 +8,7 @@ import { useBulkOrders } from '@/hooks/useBulkOrders';
 import { 
   Calendar, TrendingUp, DollarSign, Package, 
   CreditCard, Truck, BarChart3, PieChart,
-  FileSpreadsheet, Download, RefreshCw, Banknote, Smartphone
+  FileSpreadsheet, Download, RefreshCw, Banknote, Smartphone, Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -18,20 +18,46 @@ export const AdminReports = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalData, setModalData] = useState([]);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalSearch, setModalSearch] = useState('');
 
-  // Filter orders by date range and exclude pending payment and cancelled orders
+  // Filter orders by date range and exclude pending payment, leads, and cancelled orders
   const getFilteredOrders = () => {
     return orders.filter(order => {
       const orderDate = new Date(order.created_at);
       const fromDate = dateFrom ? new Date(dateFrom) : null;
       const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
       const matchesDateRange = (!fromDate || orderDate >= fromDate) && (!toDate || orderDate <= toDate);
-      const isValidOrder = order.order_status !== 'pending_payment' && order.order_status !== 'cancelled';
+      const isValidOrder = !(order.order_status === 'pending_payment' || (order.order_status === 'pending' && order.payment_status === 'pending') || order.order_status === 'cancelled');
       return matchesDateRange && isValidOrder;
     });
   };
 
   const filteredOrders = getFilteredOrders();
+
+  // Calculate bulk order revenue (all bulk orders, not just delivered)
+  const filteredBulkOrders = bulkOrders.filter(order => {
+    const orderDate = new Date(order.created_at);
+    const fromDate = dateFrom ? new Date(dateFrom) : null;
+    const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+    return (!fromDate || orderDate >= fromDate) && (!toDate || orderDate <= toDate);
+  });
+
+  const bulkRevenue = filteredBulkOrders.reduce((sum, order) => {
+    if (!order.pricing_data) return sum;
+    const productRevenue = order.pricing_data.products?.reduce((pSum, p, idx) => 
+      pSum + ((p.unit_price || 0) * parseInt(order.products[idx]?.quantity || 0)), 0) || 0;
+    const accessoryRevenue = order.pricing_data.products?.reduce((pSum, p, idx) => {
+      const accPrice = p.accessories?.reduce((aSum, acc, accIdx) => 
+        aSum + ((acc.unit_price || 0) * (order.products[idx]?.accessories?.[accIdx]?.quantity || 0)), 0) || 0;
+      return pSum + accPrice;
+    }, 0) || 0;
+    const engravingRevenue = (order.pricing_data.engraving_price || 0) * 
+      order.products.reduce((s, p) => s + parseInt(p.quantity || 0), 0);
+    return sum + productRevenue + accessoryRevenue + engravingRevenue;
+  }, 0);
 
   // Calculate metrics
   const totalRevenue = filteredOrders.reduce((sum, order) => sum + order.total_amount, 0);
@@ -40,18 +66,33 @@ export const AdminReports = () => {
   const codRevenue = codOrders.reduce((sum, order) => sum + order.total_amount, 0);
   const onlineRevenue = onlineOrders.reduce((sum, order) => sum + order.total_amount, 0);
   
+  // Count manual orders
+  const manualOrders = filteredOrders.filter(order => {
+    const edition = order.selected_edition.toLowerCase();
+    return edition.includes('×') || edition.includes('(');
+  });
+  const manualOrdersCount = manualOrders.length;
+  
   // Calculate engraving revenue (150 BDT per engraving)
   const engravingStats = filteredOrders.reduce((acc, order) => {
     let count = 0;
     let revenue = 0;
     
-    // Check if order has text_engraving_qty or logo_engraving_qty (manual orders)
-    const textQty = order.text_engraving_qty || 0;
-    const logoQty = order.logo_engraving_qty || 0;
+    const edition = order.selected_edition.toLowerCase();
     
-    if (textQty > 0 || logoQty > 0) {
-      count = textQty + logoQty;
-      revenue = (textQty + logoQty) * 150;
+    // Check if manual order with multiple editions
+    if (edition.includes('×') || edition.includes('(')) {
+      // Parse manual order to count total quantity
+      const parts = order.selected_edition.split(',').map(p => p.trim());
+      const totalQty = parts.reduce((sum, part) => {
+        const qtyMatch = part.match(/×\s*(\d+)/);
+        return sum + (qtyMatch ? parseInt(qtyMatch[1]) : 1);
+      }, 0);
+      
+      if (order.engraving_text && order.engraving_text.trim() !== '') {
+        count = totalQty;
+        revenue = totalQty * 150;
+      }
     } else if (order.engraving_text && order.engraving_text.trim() !== '') {
       // Regular orders with engraving
       count = 1;
@@ -65,6 +106,31 @@ export const AdminReports = () => {
   }, { count: 0, revenue: 0 });
   
   const engravingRevenue = engravingStats.revenue;
+  const totalEngravingCount = engravingStats.count;
+
+  const openModal = (type) => {
+    let data = [];
+    let title = '';
+    
+    if (type === 'total') {
+      data = filteredOrders;
+      title = 'All Orders';
+    } else if (type === 'online') {
+      data = onlineOrders;
+      title = 'Online Payment Orders';
+    } else if (type === 'cod') {
+      data = codOrders;
+      title = 'Cash on Delivery Orders';
+    } else if (type === 'bulk') {
+      data = filteredBulkOrders;
+      title = 'Bulk Orders';
+    }
+    
+    setModalData(data);
+    setModalTitle(title);
+    setModalSearch('');
+    setModalOpen(true);
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -73,21 +139,118 @@ export const AdminReports = () => {
   };
 
   const exportReport = (type: string) => {
-    // Filter out pending payment and cancelled orders for exports
-    const exportData = filteredOrders.filter(order => order.order_status !== 'pending_payment' && order.order_status !== 'cancelled');
-    const data = exportData.map(order => ({
-      'Order ID': order.order_id,
-      'Date': new Date(order.created_at).toLocaleDateString(),
-      'Customer': order.customer_name,
-      'Phone': order.customer_phone,
-      'Edition': order.selected_edition,
-      'Color': order.selected_color === 'obsidian' ? 'OBSIDIAN BLACK' : 'GRAPHITE GREY',
-      'Accessories': order.selected_accessories && order.selected_accessories.length > 0 ? order.selected_accessories.join(', ') : 'None',
-      'Payment Method': order.payment_method.toUpperCase(),
-      'Amount (৳)': order.total_amount,
-      'Status': order.order_status,
-      'Payment Status': order.payment_status
-    }));
+    if (type === 'complete') {
+      // Export both website and bulk orders in one CSV
+      const websiteData = filteredOrders.map(order => {
+        const edition = order.selected_edition.toLowerCase();
+        let totalQuantity = 1;
+        let isManual = false;
+        
+        // Calculate quantity for manual orders
+        if (edition.includes('×') || edition.includes('(')) {
+          isManual = true;
+          const parts = order.selected_edition.split(',').map(p => p.trim());
+          totalQuantity = parts.reduce((sum, part) => {
+            const qtyMatch = part.match(/×\s*(\d+)/);
+            return sum + (qtyMatch ? parseInt(qtyMatch[1]) : 1);
+          }, 0);
+        }
+        
+        return {
+          'Type': 'Website Order',
+          'Order ID': order.order_id,
+          'Manual': isManual ? 'Yes' : 'No',
+          'Date': new Date(order.created_at).toLocaleDateString(),
+          'Customer': order.customer_name,
+          'Phone': order.customer_phone,
+          'Email': order.customer_email || 'N/A',
+          'Location': order.customer_address || 'N/A',
+          'Products': order.selected_edition,
+          'Color': order.selected_color === 'obsidian' ? 'OBSIDIAN BLACK' : 'GRAPHITE GREY',
+          'Quantity': totalQuantity,
+          'Accessories': order.selected_accessories && order.selected_accessories.length > 0 ? order.selected_accessories.join(', ') : 'None',
+          'Payment Method': order.payment_method.toUpperCase(),
+          'Amount (৳)': order.total_amount,
+          'Status': order.order_status,
+          'Payment Status': order.payment_status
+        };
+      });
+
+      const bulkData = filteredBulkOrders.map(order => ({
+        'Type': 'Bulk Order',
+        'Order ID': order.id,
+        'Date': new Date(order.created_at).toLocaleDateString(),
+        'Customer': order.customer_name,
+        'Phone': order.customer_phone,
+        'Email': order.customer_email,
+        'Location': order.customer_location,
+        'Products': order.products.map(p => `${p.model} (${p.color}) × ${p.quantity}`).join(', '),
+        'Color': 'Multiple',
+        'Quantity': order.products.reduce((sum, p) => sum + parseInt(p.quantity || 0), 0),
+        'Accessories': order.products.some(p => p.accessories && p.accessories.length > 0) ? 'Yes' : 'None',
+        'Payment Method': 'BULK',
+        'Amount (৳)': order.pricing_data ? 
+          (order.pricing_data.products?.reduce((sum, p, idx) => 
+            sum + ((p.unit_price || 0) * parseInt(order.products[idx]?.quantity || 0)), 0) || 0) +
+          (order.pricing_data.products?.reduce((sum, p, idx) => {
+            const accPrice = p.accessories?.reduce((aSum, acc, accIdx) => 
+              aSum + ((acc.unit_price || 0) * (order.products[idx]?.accessories?.[accIdx]?.quantity || 0)), 0) || 0;
+            return sum + accPrice;
+          }, 0) || 0) +
+          ((order.pricing_data.engraving_price || 0) * order.products.reduce((s, p) => s + parseInt(p.quantity || 0), 0))
+          : 0,
+        'Status': order.status,
+        'Payment Status': 'N/A'
+      }));
+
+      const combinedData = [...websiteData, ...bulkData];
+      const headers = Object.keys(combinedData[0] || {});
+      const csvContent = [headers, ...combinedData.map(row => headers.map(h => row[h]))]
+        .map(row => row.map(field => `"${field}"`).join(','))
+        .join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `ximpul-complete-report-${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      toast.success('Complete report exported successfully');
+      return;
+    }
+
+    // Regular export for other types
+    const exportData = type === 'cod' ? codOrders : type === 'online' ? onlineOrders : filteredOrders;
+    const data = exportData.map(order => {
+      const edition = order.selected_edition.toLowerCase();
+      let totalQuantity = 1;
+      let isManual = false;
+      
+      // Calculate quantity for manual orders
+      if (edition.includes('×') || edition.includes('(')) {
+        isManual = true;
+        const parts = order.selected_edition.split(',').map(p => p.trim());
+        totalQuantity = parts.reduce((sum, part) => {
+          const qtyMatch = part.match(/×\s*(\d+)/);
+          return sum + (qtyMatch ? parseInt(qtyMatch[1]) : 1);
+        }, 0);
+      }
+      
+      return {
+        'Order ID': order.order_id,
+        'Manual': isManual ? 'Yes' : 'No',
+        'Date': new Date(order.created_at).toLocaleDateString(),
+        'Customer': order.customer_name,
+        'Phone': order.customer_phone,
+        'Edition': order.selected_edition,
+        'Color': order.selected_color === 'obsidian' ? 'OBSIDIAN BLACK' : 'GRAPHITE GREY',
+        'Quantity': totalQuantity,
+        'Accessories': order.selected_accessories && order.selected_accessories.length > 0 ? order.selected_accessories.join(', ') : 'None',
+        'Payment Method': order.payment_method.toUpperCase(),
+        'Amount (৳)': order.total_amount,
+        'Status': order.order_status,
+        'Payment Status': order.payment_status
+      };
+    });
 
     const headers = Object.keys(data[0] || {});
     const csvContent = [headers, ...data.map(row => headers.map(h => row[h]))]
@@ -100,6 +263,44 @@ export const AdminReports = () => {
     link.download = `ximpul-${type}-report-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     toast.success(`${type} report exported successfully`);
+  };
+
+  const exportBulkOrderReport = () => {
+    const data = filteredBulkOrders.map(order => ({
+      'Order ID': order.id,
+      'Date': new Date(order.created_at).toLocaleDateString(),
+      'Customer': order.customer_name,
+      'Email': order.customer_email,
+      'Phone': order.customer_phone,
+      'Location': order.customer_location,
+      'Products': order.products.map(p => `${p.model} (${p.color}) × ${p.quantity}`).join(', '),
+      'Total Quantity': order.products.reduce((sum, p) => sum + parseInt(p.quantity || 0), 0),
+      'Timeline': order.timeline || 'Not specified',
+      'Engraving': order.engraving || 'None',
+      'Status': order.status,
+      'Total Revenue': order.pricing_data ? 
+        (order.pricing_data.products?.reduce((sum, p, idx) => 
+          sum + ((p.unit_price || 0) * parseInt(order.products[idx]?.quantity || 0)), 0) || 0) +
+        (order.pricing_data.products?.reduce((sum, p, idx) => {
+          const accPrice = p.accessories?.reduce((aSum, acc, accIdx) => 
+            aSum + ((acc.unit_price || 0) * (order.products[idx]?.accessories?.[accIdx]?.quantity || 0)), 0) || 0;
+          return sum + accPrice;
+        }, 0) || 0) +
+        ((order.pricing_data.engraving_price || 0) * order.products.reduce((s, p) => s + parseInt(p.quantity || 0), 0))
+        : 0
+    }));
+
+    const headers = Object.keys(data[0] || {});
+    const csvContent = [headers, ...data.map(row => headers.map(h => row[h]))]
+      .map(row => row.map(field => `"${field}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `ximpul-bulk-orders-report-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    toast.success('Bulk order report exported successfully');
   };
 
   if (isLoading) {
@@ -183,24 +384,76 @@ export const AdminReports = () => {
           )}
         </div>
 
-        {/* Revenue Overview */}
+        {/* Overall Dashboard */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Revenue Overview</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 border border-green-200">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Overall Business Dashboard</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-6 border border-emerald-200">
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="text-sm font-medium text-green-700">Total Revenue Overview</p>
-                  <p className="text-3xl font-bold text-green-800">৳{totalRevenue.toLocaleString()}</p>
-                  <p className="text-sm text-green-600 mt-1">{filteredOrders.length} orders</p>
+                  <p className="text-sm font-medium text-emerald-700">Total Business Revenue</p>
+                  <p className="text-3xl font-bold text-emerald-800">৳{(totalRevenue + bulkRevenue).toLocaleString()}</p>
+                  <p className="text-sm text-emerald-600 mt-1">Website + Bulk Orders</p>
                 </div>
-                <div className="p-3 bg-green-200 rounded-lg flex items-center justify-center">
-                  <span className="text-2xl font-bold text-green-700">৳</span>
+                <div className="p-3 bg-emerald-200 rounded-lg flex items-center justify-center">
+                  <span className="text-2xl font-bold text-emerald-700">৳</span>
                 </div>
               </div>
             </div>
 
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-medium text-blue-700">Website Revenue</p>
+                  <p className="text-3xl font-bold text-blue-800">৳{totalRevenue.toLocaleString()}</p>
+                  <p className="text-sm text-blue-600 mt-1">{filteredOrders.length} orders</p>
+                </div>
+                <div className="p-3 bg-blue-200 rounded-lg">
+                  <Smartphone className="h-6 w-6 text-blue-700" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-lg p-6 border border-indigo-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-medium text-indigo-700">Bulk Order Revenue</p>
+                  <p className="text-3xl font-bold text-indigo-800">৳{bulkRevenue.toLocaleString()}</p>
+                  <p className="text-sm text-indigo-600 mt-1">{filteredBulkOrders.length} orders</p>
+                </div>
+                <div className="p-3 bg-indigo-200 rounded-lg">
+                  <Package className="h-6 w-6 text-indigo-700" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Website Revenue Overview */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Website Revenue Overview</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 border border-green-200 relative">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-medium text-green-700">Total Revenue Overview</p>
+                  <p className="text-3xl font-bold text-green-800">৳{totalRevenue.toLocaleString()}</p>
+                  <p className="text-sm text-green-600 mt-1">{filteredOrders.length} orders ({manualOrdersCount} manual)</p>
+                </div>
+                <div className="p-3 bg-green-200 rounded-lg flex items-center justify-center">
+                  <span className="text-2xl font-bold text-green-700">৳</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => openModal('total')}
+                className="absolute top-2 right-2 p-2 bg-green-200/80 hover:bg-green-300 rounded-full transition-all duration-200 shadow-sm hover:shadow-md"
+                title="View all orders"
+              >
+                <Eye className="h-4 w-4 text-green-700" />
+              </button>
+            </div>
+
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200 relative">
               <div className="flex justify-between items-center">
                 <div>
                   <p className="text-sm font-medium text-blue-700">Online Payments</p>
@@ -211,9 +464,16 @@ export const AdminReports = () => {
                   <Smartphone className="h-6 w-6 text-blue-700" />
                 </div>
               </div>
+              <button 
+                onClick={() => openModal('online')}
+                className="absolute top-2 right-2 p-2 bg-blue-200/80 hover:bg-blue-300 rounded-full transition-all duration-200 shadow-sm hover:shadow-md"
+                title="View online orders"
+              >
+                <Eye className="h-4 w-4 text-blue-700" />
+              </button>
             </div>
 
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-6 border border-orange-200">
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-6 border border-orange-200 relative">
               <div className="flex justify-between items-center">
                 <div>
                   <p className="text-sm font-medium text-orange-700">Cash on Delivery</p>
@@ -224,6 +484,13 @@ export const AdminReports = () => {
                   <Banknote className="h-6 w-6 text-orange-700" />
                 </div>
               </div>
+              <button 
+                onClick={() => openModal('cod')}
+                className="absolute top-2 right-2 p-2 bg-orange-200/80 hover:bg-orange-300 rounded-full transition-all duration-200 shadow-sm hover:shadow-md"
+                title="View COD orders"
+              >
+                <Eye className="h-4 w-4 text-orange-700" />
+              </button>
             </div>
 
             <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6 border border-purple-200">
@@ -231,7 +498,7 @@ export const AdminReports = () => {
                 <div>
                   <p className="text-sm font-medium text-purple-700">Engraving Revenue</p>
                   <p className="text-3xl font-bold text-purple-800">৳{engravingRevenue.toLocaleString()}</p>
-                  <p className="text-sm text-purple-600 mt-1">{engravingStats.count} engravings</p>
+                  <p className="text-sm text-purple-600 mt-1">{totalEngravingCount} engravings</p>
                 </div>
                 <div className="p-3 bg-purple-200 rounded-lg">
                   <span className="text-2xl font-bold text-purple-700">✒</span>
@@ -392,18 +659,23 @@ export const AdminReports = () => {
                 }
                 
                 if (accessories.length > 0) {
-                  accessories.forEach(accessory => {
+                  accessories.forEach(accStr => {
+                    // Parse accessory name and quantity (e.g., "Straw Cap × 2")
+                    const match = accStr.match(/^(.+?)\s*×\s*(\d+)$/);
+                    const accessory = match ? match[1] : accStr;
+                    const qty = match ? parseInt(match[2]) : 1;
+                    
                     if (!accessoryStats[accessory]) {
                       accessoryStats[accessory] = { count: 0, revenue: 0 };
                     }
-                    accessoryStats[accessory].count += 1;
+                    accessoryStats[accessory].count += qty;
                     // Actual accessory prices
                     const accessoryPrice = accessory === 'Straw Cap' ? 350 : 
                                          accessory === 'Aluminium Hook' ? 90 : 
                                          accessory === 'Bottle Brush' ? 90 :
                                          accessory === 'Cleaning Brush' ? 90 :
                                          accessory === 'Straw Cleaning Brush' ? 50 : 0;
-                    accessoryStats[accessory].revenue += accessoryPrice;
+                    accessoryStats[accessory].revenue += accessoryPrice * qty;
                   });
                 }
               });
@@ -541,11 +813,21 @@ export const AdminReports = () => {
 
         {/* Bulk Order Sale Report */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Bulk Order Sale Report</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Bulk Order Sale Report</h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportBulkOrderReport}
+              className="flex items-center gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Export Bulk Orders
+            </Button>
+          </div>
           <div className="space-y-4">
             {(() => {
               const deliveredBulkOrders = bulkOrders.filter(order => {
-                if (order.status !== 'delivered') return false;
                 const orderDate = new Date(order.created_at);
                 const fromDate = dateFrom ? new Date(dateFrom) : null;
                 const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
@@ -603,9 +885,16 @@ export const AdminReports = () => {
               return (
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    <div className="bg-indigo-50 p-4 rounded-lg">
+                    <div className="bg-indigo-50 p-4 rounded-lg relative">
                       <p className="text-sm text-indigo-700">Total Bulk Orders</p>
                       <p className="text-2xl font-bold text-indigo-800">{deliveredBulkOrders.length}</p>
+                      <button 
+                        onClick={() => openModal('bulk')}
+                        className="absolute top-2 right-2 p-1.5 bg-indigo-200/80 hover:bg-indigo-300 rounded-full transition-all duration-200 shadow-sm hover:shadow-md"
+                        title="View bulk orders"
+                      >
+                        <Eye className="h-3 w-3 text-indigo-700" />
+                      </button>
                     </div>
                     <div className="bg-indigo-50 p-4 rounded-lg">
                       <p className="text-sm text-indigo-700">Total Products</p>
@@ -675,7 +964,7 @@ export const AdminReports = () => {
 
                   {deliveredBulkOrders.length === 0 && (
                     <div className="text-center py-4 text-gray-500">
-                      No delivered bulk orders in this period
+                      No bulk orders in this period
                     </div>
                   )}
                 </>
@@ -706,6 +995,132 @@ export const AdminReports = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h3 className="text-xl font-semibold text-gray-900">{modalTitle}</h3>
+              <div className="flex items-center gap-4">
+                <Input
+                  type="text"
+                  placeholder="Search orders..."
+                  value={modalSearch}
+                  onChange={(e) => setModalSearch(e.target.value)}
+                  className="w-64"
+                />
+                <button 
+                  onClick={() => setModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[70vh]">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {modalTitle === 'Bulk Orders' ? (
+                        <>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Products</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Edition</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {modalData.filter(order => {
+                      if (!modalSearch) return true;
+                      const searchTerm = modalSearch.toLowerCase();
+                      const orderId = modalTitle === 'Bulk Orders' ? order.id : order.order_id;
+                      return (
+                        orderId?.toString().toLowerCase().includes(searchTerm) ||
+                        order.customer_name?.toLowerCase().includes(searchTerm) ||
+                        order.customer_phone?.toLowerCase().includes(searchTerm) ||
+                        (modalTitle === 'Bulk Orders' ? 
+                          order.products?.some(p => p.model?.toLowerCase().includes(searchTerm) || p.color?.toLowerCase().includes(searchTerm)) :
+                          order.selected_edition?.toLowerCase().includes(searchTerm)
+                        )
+                      );
+                    }).map((order) => (
+                      <tr key={order.order_id || order.id} className="hover:bg-gray-50">
+                        {modalTitle === 'Bulk Orders' ? (
+                          <>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.id}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.customer_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.customer_phone}</td>
+                            <td className="px-6 py-4 text-sm text-gray-900">{order.products?.map(p => `${p.model} (${p.color})`).join(', ')}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.products?.reduce((sum, p) => sum + parseInt(p.quantity || 0), 0)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                                order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {order.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {new Date(order.created_at).toLocaleDateString()}
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              <div className="flex items-center gap-2">
+                                {order.order_id}
+                                {(order.selected_edition.toLowerCase().includes('×') || order.selected_edition.toLowerCase().includes('(')) && (
+                                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+                                    Manual
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.customer_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.customer_phone}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.selected_edition}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">৳{order.total_amount.toLocaleString()}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                order.order_status === 'delivered' ? 'bg-green-100 text-green-800' :
+                                order.order_status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {order.order_status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {new Date(order.created_at).toLocaleDateString()}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
