@@ -805,7 +805,7 @@ export const AdminOrders = () => {
   };
 
   const handleCreateManualOrder = async () => {
-    if (!manualOrderData.customer_name || !manualOrderData.customer_phone || !manualOrderData.customer_address || !manualOrderData.customer_email) {
+    if (!manualOrderData.customer_name || !manualOrderData.customer_phone || !manualOrderData.customer_address) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -3754,7 +3754,7 @@ export const AdminOrders = () => {
                 </div>
               </div>
               <div>
-                <Label htmlFor="customer_email">Email *</Label>
+                <Label htmlFor="customer_email">Email (Optional)</Label>
                 <Input
                   id="customer_email"
                   type="email"
