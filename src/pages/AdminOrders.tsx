@@ -179,10 +179,10 @@ export const AdminOrders = () => {
     accessory_quantities: {} as Record<string, number>,
     engraving_text: '',
     payment_method: 'cod',
-    base_black: 0,
-    base_grey: 0,
-    lifestyle_black: 0,
-    lifestyle_grey: 0,
+    base_black: '',
+    base_grey: '',
+    lifestyle_black: '',
+    lifestyle_grey: '',
     subtotal: 0,
     delivery_fee: 100,
     total_amount: 100,
@@ -557,6 +557,20 @@ export const AdminOrders = () => {
       }
     }
     
+    // Parse engraving text and quantity
+    let engravingText = '';
+    let textEngravingQty = 0;
+    if (order.engraving_text) {
+      const match = order.engraving_text.match(/^(.+?)\s*×\s*(\d+)$/);
+      if (match) {
+        engravingText = match[1];
+        textEngravingQty = parseInt(match[2]);
+      } else {
+        engravingText = order.engraving_text;
+        textEngravingQty = 1;
+      }
+    }
+    
     // Check if manual order with multiple editions
     const isManual = order.selected_edition.includes('×') || order.selected_edition.includes('(');
     
@@ -586,9 +600,9 @@ export const AdminOrders = () => {
         selected_color: 'mixed',
         selected_accessories: accessories,
         accessory_quantities: accessoryQty,
-        engraving_text: order.engraving_text || '',
+        engraving_text: engravingText,
         engraving_logo: '',
-        text_engraving_qty: order.engraving_text ? 1 : 0,
+        text_engraving_qty: textEngravingQty,
         logo_engraving_qty: 0,
         base_black: baseBlack,
         base_grey: baseGrey,
@@ -599,7 +613,8 @@ export const AdminOrders = () => {
       });
     } else {
       // Regular order
-      const normalizedEdition = order.selected_edition.toLowerCase().includes('base') ? 'base edition' : 
+      const normalizedEdition = order.selected_edition.toLowerCase().includes('accessories only') ? 'manual' :
+                                order.selected_edition.toLowerCase().includes('base') ? 'base edition' : 
                                 order.selected_edition.toLowerCase().includes('lifestyle') ? 'lifestyle edition' : 
                                 order.selected_edition;
       
@@ -608,9 +623,9 @@ export const AdminOrders = () => {
         selected_color: order.selected_color,
         selected_accessories: accessories,
         accessory_quantities: accessoryQty,
-        engraving_text: order.engraving_text || '',
+        engraving_text: engravingText,
         engraving_logo: '',
-        text_engraving_qty: order.engraving_text ? 1 : 0,
+        text_engraving_qty: textEngravingQty,
         logo_engraving_qty: 0,
         base_black: 0,
         base_grey: 0,
@@ -639,8 +654,8 @@ export const AdminOrders = () => {
         if (editOrderData.lifestyle_black > 0) editions.push(`Lifestyle Edition (Black) × ${editOrderData.lifestyle_black}`);
         if (editOrderData.lifestyle_grey > 0) editions.push(`Lifestyle Edition (Grey) × ${editOrderData.lifestyle_grey}`);
         
-        if (editions.length === 0) {
-          toast.error('Please select at least one edition with quantity');
+        if (editions.length === 0 && editOrderData.selected_accessories.length === 0) {
+          toast.error('Please select at least one edition or accessory');
           return;
         }
         
@@ -662,12 +677,10 @@ export const AdminOrders = () => {
         finalColor = editOrderData.selected_color;
         
         const basePrice = editOrderData.selected_edition === 'base edition' ? 1190 : 1650;
-        const accessoryPrice = editOrderData.selected_edition === 'base edition' 
-          ? editOrderData.selected_accessories.reduce((sum, acc) => {
-              const qty = editOrderData.accessory_quantities[acc] || 1;
-              return sum + (prices[acc] || 0) * qty;
-            }, 0)
-          : 0;
+        const accessoryPrice = editOrderData.selected_accessories.reduce((sum, acc) => {
+          const qty = editOrderData.accessory_quantities[acc] || 1;
+          return sum + (prices[acc] || 0) * qty;
+        }, 0);
         const engravingPrice = ((editOrderData.text_engraving_qty || 0) * 150) + ((editOrderData.logo_engraving_qty || 0) * 150);
         subtotal = basePrice + accessoryPrice + engravingPrice;
       }
@@ -681,13 +694,20 @@ export const AdminOrders = () => {
         return qty > 1 ? `${acc} × ${qty}` : acc;
       });
 
+      // Format engraving text with quantity
+      let finalEngravingText = '';
+      if (editOrderData.engraving_text) {
+        const textQty = editOrderData.text_engraving_qty || 1;
+        finalEngravingText = textQty > 1 ? `${editOrderData.engraving_text} × ${textQty}` : editOrderData.engraving_text;
+      }
+
       const { error } = await supabaseAdmin
         .from('orders')
         .update({
           selected_edition: finalEdition,
           selected_color: finalColor,
           selected_accessories: accessoriesWithQty,
-          engraving_text: editOrderData.engraving_text,
+          engraving_text: finalEngravingText,
           subtotal: subtotal,
           delivery_fee: deliveryFee,
           total_amount: totalAmount
@@ -833,9 +853,17 @@ export const AdminOrders = () => {
       return;
     }
 
-    const totalQty = manualOrderData.base_black + manualOrderData.base_grey + manualOrderData.lifestyle_black + manualOrderData.lifestyle_grey;
-    if (totalQty === 0) {
-      toast.error('Please select at least one edition with quantity');
+    const totalQty = (parseInt(manualOrderData.base_black) || 0) + (parseInt(manualOrderData.base_grey) || 0) + (parseInt(manualOrderData.lifestyle_black) || 0) + (parseInt(manualOrderData.lifestyle_grey) || 0);
+    const hasAccessories = manualOrderData.selected_accessories.length > 0;
+    const hasEngraving = manualOrderData.engraving_text.trim() !== '';
+    
+    if (totalQty === 0 && !hasAccessories) {
+      toast.error('Please select at least one edition or accessory');
+      return;
+    }
+    
+    if (hasEngraving && totalQty === 0) {
+      toast.error('Engraving requires at least 1 bottle. Please add a bottle to your order.');
       return;
     }
 
@@ -853,20 +881,25 @@ export const AdminOrders = () => {
 
       // Build edition string with quantities and colors
       const editions = [];
-      if (manualOrderData.base_black > 0) {
-        editions.push(`Base Edition (Black) × ${manualOrderData.base_black}`);
+      const baseBlack = parseInt(manualOrderData.base_black) || 0;
+      const baseGrey = parseInt(manualOrderData.base_grey) || 0;
+      const lifestyleBlack = parseInt(manualOrderData.lifestyle_black) || 0;
+      const lifestyleGrey = parseInt(manualOrderData.lifestyle_grey) || 0;
+      
+      if (baseBlack > 0) {
+        editions.push(`Base Edition (Black) × ${baseBlack}`);
       }
-      if (manualOrderData.base_grey > 0) {
-        editions.push(`Base Edition (Grey) × ${manualOrderData.base_grey}`);
+      if (baseGrey > 0) {
+        editions.push(`Base Edition (Grey) × ${baseGrey}`);
       }
-      if (manualOrderData.lifestyle_black > 0) {
-        editions.push(`Lifestyle Edition (Black) × ${manualOrderData.lifestyle_black}`);
+      if (lifestyleBlack > 0) {
+        editions.push(`Lifestyle Edition (Black) × ${lifestyleBlack}`);
       }
-      if (manualOrderData.lifestyle_grey > 0) {
-        editions.push(`Lifestyle Edition (Grey) × ${manualOrderData.lifestyle_grey}`);
+      if (lifestyleGrey > 0) {
+        editions.push(`Lifestyle Edition (Grey) × ${lifestyleGrey}`);
       }
-      const editionString = editions.join(', ');
-      const colorString = (manualOrderData.base_black + manualOrderData.lifestyle_black) > 0 && (manualOrderData.base_grey + manualOrderData.lifestyle_grey) > 0 ? 'mixed' : (manualOrderData.base_black + manualOrderData.lifestyle_black) > 0 ? 'obsidian' : 'graphite';
+      const editionString = editions.length > 0 ? editions.join(', ') : 'Accessories Only';
+      const colorString = editions.length === 0 ? 'none' : (baseBlack + lifestyleBlack) > 0 && (baseGrey + lifestyleGrey) > 0 ? 'mixed' : (baseBlack + lifestyleBlack) > 0 ? 'obsidian' : 'graphite';
 
       // Encode quantities in accessory names
       const accessoriesWithQty = manualOrderData.selected_accessories.map(acc => {
@@ -919,10 +952,10 @@ export const AdminOrders = () => {
         accessory_quantities: {},
         engraving_text: '',
         payment_method: 'cod',
-        base_black: 0,
-        base_grey: 0,
-        lifestyle_black: 0,
-        lifestyle_grey: 0,
+        base_black: '',
+        base_grey: '',
+        lifestyle_black: '',
+        lifestyle_grey: '',
         subtotal: 0,
         delivery_fee: 100,
         total_amount: 100,
@@ -938,8 +971,8 @@ export const AdminOrders = () => {
 
   const updateManualOrderPricing = () => {
     setManualOrderData(prev => {
-      const baseTotal = 1190 * (prev.base_black + prev.base_grey);
-      const lifestyleTotal = 1650 * (prev.lifestyle_black + prev.lifestyle_grey);
+      const baseTotal = 1190 * ((parseInt(prev.base_black) || 0) + (parseInt(prev.base_grey) || 0));
+      const lifestyleTotal = 1650 * ((parseInt(prev.lifestyle_black) || 0) + (parseInt(prev.lifestyle_grey) || 0));
       
       const accessoryPrices = {
         'Straw Cap': 350,
@@ -2667,11 +2700,8 @@ export const AdminOrders = () => {
                           const engravingPrice = ((editOrderData.text_engraving_qty || 0) * 150) + ((editOrderData.logo_engraving_qty || 0) * 150);
                           return (baseTotal + lifestyleTotal + accessoryTotal + engravingPrice).toLocaleString();
                         }
-                        const basePrice = editOrderData.selected_edition === 'base edition' ? 1190 : 1650;
-                        const accessoryPrice = editOrderData.selected_edition === 'base edition' 
-                          ? editOrderData.selected_accessories.reduce((sum, acc) => {
-                              return sum + (prices[acc] || 0) * (editOrderData.accessory_quantities[acc] || 1);
-                            }, 0) : 0;
+                        const basePrice = editOrderData.selected_edition === 'base edition' ? 1190 : editOrderData.selected_edition === 'lifestyle edition' ? 1650 : 0;
+                        const accessoryPrice = editOrderData.selected_accessories.reduce((sum, acc) => sum + (prices[acc] || 0) * (editOrderData.accessory_quantities[acc] || 1), 0);
                         const engravingPrice = ((editOrderData.text_engraving_qty || 0) * 150) + ((editOrderData.logo_engraving_qty || 0) * 150);
                         return (basePrice + accessoryPrice + engravingPrice).toLocaleString();
                       })()} BDT
@@ -2691,9 +2721,8 @@ export const AdminOrders = () => {
                           const engravingPrice = ((editOrderData.text_engraving_qty || 0) * 150) + ((editOrderData.logo_engraving_qty || 0) * 150);
                           subtotal = baseTotal + lifestyleTotal + accessoryTotal + engravingPrice;
                         } else {
-                          const basePrice = editOrderData.selected_edition === 'base edition' ? 1190 : 1650;
-                          const accessoryPrice = editOrderData.selected_edition === 'base edition' 
-                            ? editOrderData.selected_accessories.reduce((sum, acc) => sum + (prices[acc] || 0) * (editOrderData.accessory_quantities[acc] || 1), 0) : 0;
+                          const basePrice = editOrderData.selected_edition === 'base edition' ? 1190 : editOrderData.selected_edition === 'lifestyle edition' ? 1650 : 0;
+                          const accessoryPrice = editOrderData.selected_accessories.reduce((sum, acc) => sum + (prices[acc] || 0) * (editOrderData.accessory_quantities[acc] || 1), 0);
                           const engravingPrice = ((editOrderData.text_engraving_qty || 0) * 150) + ((editOrderData.logo_engraving_qty || 0) * 150);
                           subtotal = basePrice + accessoryPrice + engravingPrice;
                         }
@@ -3844,6 +3873,7 @@ export const AdminOrders = () => {
                           setManualOrderData(prev => ({ ...prev, base_black: parseInt(e.target.value) || 0 }));
                           setTimeout(updateManualOrderPricing, 0);
                         }}
+                        onWheel={(e) => e.currentTarget.blur()}
                         placeholder="Qty"
                       />
                     </div>
@@ -3858,6 +3888,7 @@ export const AdminOrders = () => {
                           setManualOrderData(prev => ({ ...prev, base_grey: parseInt(e.target.value) || 0 }));
                           setTimeout(updateManualOrderPricing, 0);
                         }}
+                        onWheel={(e) => e.currentTarget.blur()}
                         placeholder="Qty"
                       />
                     </div>
@@ -3878,6 +3909,7 @@ export const AdminOrders = () => {
                           setManualOrderData(prev => ({ ...prev, lifestyle_black: qty }));
                           setTimeout(updateManualOrderPricing, 0);
                         }}
+                        onWheel={(e) => e.currentTarget.blur()}
                         placeholder="Qty"
                       />
                     </div>
@@ -3893,6 +3925,7 @@ export const AdminOrders = () => {
                           setManualOrderData(prev => ({ ...prev, lifestyle_grey: qty }));
                           setTimeout(updateManualOrderPricing, 0);
                         }}
+                        onWheel={(e) => e.currentTarget.blur()}
                         placeholder="Qty"
                       />
                     </div>

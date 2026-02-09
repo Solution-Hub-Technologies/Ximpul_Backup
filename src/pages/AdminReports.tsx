@@ -78,25 +78,11 @@ export const AdminReports = () => {
     let count = 0;
     let revenue = 0;
     
-    const edition = order.selected_edition.toLowerCase();
-    
-    // Check if manual order with multiple editions
-    if (edition.includes('×') || edition.includes('(')) {
-      // Parse manual order to count total quantity
-      const parts = order.selected_edition.split(',').map(p => p.trim());
-      const totalQty = parts.reduce((sum, part) => {
-        const qtyMatch = part.match(/×\s*(\d+)/);
-        return sum + (qtyMatch ? parseInt(qtyMatch[1]) : 1);
-      }, 0);
-      
-      if (order.engraving_text && order.engraving_text.trim() !== '') {
-        count = totalQty;
-        revenue = totalQty * 150;
-      }
-    } else if (order.engraving_text && order.engraving_text.trim() !== '') {
-      // Regular orders with engraving
-      count = 1;
-      revenue = 150;
+    // Parse engraving text to get quantity
+    if (order.engraving_text && order.engraving_text.trim() !== '') {
+      const match = order.engraving_text.match(/\s*×\s*(\d+)$/);
+      count = match ? parseInt(match[1]) : 1;
+      revenue = count * 150;
     }
     
     return {
