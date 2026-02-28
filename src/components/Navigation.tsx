@@ -133,6 +133,9 @@ export const Navigation = () => {
     name: 'FAQ',
     action: () => scrollToSection('faq')
   }, {
+    name: 'Bulk Order',
+    action: () => navigateToPage('/bulk-order')
+  }, {
     name: '#TruePrice',
     action: () => navigateToPage('/trueprice')
   }];
@@ -159,6 +162,7 @@ export const Navigation = () => {
             {navItems.map(item => {
               const isActive = (item.name === 'Ximpul Flow' && location.pathname === '/' && activeSection === '') || 
                              (item.name === 'Specs' && location.pathname === '/specs') || 
+                             (item.name === 'Bulk Order' && location.pathname === '/bulk-order') ||
                              (item.name === '#TruePrice' && location.pathname === '/trueprice') ||
                              (item.name === 'Gallery' && activeSection === 'gallery') ||
                              (item.name === 'Compare' && activeSection === 'products') ||
@@ -214,6 +218,7 @@ export const Navigation = () => {
               {navItems.map(item => {
                 const isActive = (item.name === 'Ximpul Flow' && location.pathname === '/' && activeSection === '') || 
                                (item.name === 'Specs' && location.pathname === '/specs') || 
+                               (item.name === 'Bulk Order' && location.pathname === '/bulk-order') ||
                                (item.name === '#TruePrice' && location.pathname === '/trueprice') ||
                                (item.name === 'Gallery' && activeSection === 'gallery') ||
                                (item.name === 'Compare' && activeSection === 'products') ||
