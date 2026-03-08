@@ -171,7 +171,7 @@ export const Navigation = () => {
 
   return (
     <div className={`fixed top-0 w-full z-50 transition-all duration-300 ${isScrolled ? 'bg-background/95 backdrop-blur-sm border-b shadow-sm' : 'bg-white border-b border-white/10'}`}>
-      {/* Top bar */}
+      {/* Top bar (Temporarily Hidden)
       <div className={`bg-secondary/50 border-b border-border/50 transition-all duration-300 overflow-hidden ${isScrolled ? 'max-h-0 opacity-0' : 'max-h-20 opacity-100'
         }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-0.5">
@@ -224,6 +224,7 @@ export const Navigation = () => {
           </div>
         </div>
       </div>
+      */}
 
       <nav className="w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
