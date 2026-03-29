@@ -28,7 +28,7 @@ export const Navigation = () => {
   const location = useLocation();
 
   useEffect(() => {
-    fetch('https://sohub.netlify.app/api/initiatives.json', {
+    fetch('https://sohub.com.bd/api/initiatives.json', {
       mode: 'cors',
       headers: {
         'Accept': 'application/json'
@@ -171,7 +171,6 @@ export const Navigation = () => {
 
   return (
     <div className={`fixed top-0 w-full z-50 transition-all duration-300 ${isScrolled ? 'bg-background/95 backdrop-blur-sm border-b shadow-sm' : 'bg-white border-b border-white/10'}`}>
-      {/* Top bar (Temporarily Hidden)
       <div className={`bg-secondary/50 border-b border-border/50 transition-all duration-300 overflow-hidden ${isScrolled ? 'max-h-0 opacity-0' : 'max-h-20 opacity-100'
         }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-0.5">
@@ -193,7 +192,6 @@ export const Navigation = () => {
               <DropdownMenuContent align="end" className="w-[320px] p-3">
                 <div className="grid grid-cols-3 gap-3">
                   {initiatives.map((initiative) => {
-                    const isCurrentSite = initiative.id === 'ximpul' || initiative.name.toLowerCase().includes('ximpul');
                     return initiative.href ? (
                       <a
                         key={initiative.id}
@@ -202,19 +200,16 @@ export const Navigation = () => {
                         rel="noopener noreferrer"
                         onMouseDown={(e) => e.preventDefault()}
                         style={{ WebkitTapHighlightColor: 'transparent', outline: 'none' }}
-                        className={`flex items-center justify-center p-4 rounded-lg border ${isCurrentSite
-                            ? 'border-primary bg-primary/10 ring-2 ring-primary/30'
-                            : 'border-border'
-                          }`}
+                        className="flex items-center justify-center p-4 rounded-lg border border-border"
                       >
-                        <img src={`https://sohub.netlify.app${initiative.logo}`} alt={initiative.name} className="w-full h-full object-contain" />
+                        <img src={`https://sohub.com.bd${initiative.logo}`} alt={initiative.name} className="w-full h-full object-contain" />
                       </a>
                     ) : (
                       <div
                         key={initiative.id}
                         className="flex items-center justify-center p-4 rounded-lg border border-border opacity-50 cursor-not-allowed"
                       >
-                        <img src={`https://sohub.netlify.app${initiative.logo}`} alt={initiative.name} className="w-full h-full object-contain" />
+                        <img src={`https://sohub.com.bd${initiative.logo}`} alt={initiative.name} className="w-full h-full object-contain" />
                       </div>
                     );
                   })}
@@ -224,7 +219,6 @@ export const Navigation = () => {
           </div>
         </div>
       </div>
-      */}
 
       <nav className="w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

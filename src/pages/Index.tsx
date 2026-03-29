@@ -12,6 +12,7 @@ import { HeroSectionNew } from '@/components/HeroSectionNew';
 import { HeroSectionDemo } from '@/components/HeroSectionDemo';
 import { LifestyleGallery } from '@/components/LifestyleGallery';
 import { ProductDetailImagesSection } from '@/components/ProductDetailImagesSection';
+import { OurInitiatives } from '@/components/OurInitiatives';
 import { useHeroAnimations } from '@/hooks/useHeroAnimations';
 
 const Index = () => {
@@ -61,6 +62,9 @@ const Index = () => {
 
       {/* Hashtag Movement Section - moved after FAQ */}
       <HashtagSection />
+      
+      {/* Our Initiatives Section */}
+      <OurInitiatives />
       
       {/* Footer */}
       <Footer />
