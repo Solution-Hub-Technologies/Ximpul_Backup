@@ -1,10 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
-import { ZoomIn, X } from 'lucide-react';
+import { ZoomIn, X, Play } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import useEmblaCarousel from 'embla-carousel-react';
+
+interface VideoItem {
+  id: string;
+  title: string;
+  isShort?: boolean;
+}
+
 export const LifestyleGallery = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<VideoItem | null>(null);
+
   const productImages = [{
     image: '/ximpul-uploads/a44c6b1e-d7be-4764-be5b-56df9fac3e9a.png',
     title: 'Complete Set'
@@ -67,20 +78,59 @@ export const LifestyleGallery = () => {
     title: 'Silver Cap Top View'
   }];
 
-  // Autoplay functionality
+  const videos: VideoItem[] = [
+    { id: 'vDaA02pMqII', title: 'Ximpul Flow' },
+    { id: 'MvNgPx2GF_Y', title: 'Ximpul Flow' },
+    { id: 'AGtwbu8ENlI', title: 'Ximpul Flow', isShort: true },
+    { id: '3QRH1kzw1MQ', title: 'Ximpul Flow', isShort: true },
+    { id: 'iMLDizW4zSc', title: 'Ximpul Flow', isShort: true },
+    { id: '6A7EhdtcUtk', title: 'Ximpul Flow', isShort: true },
+    { id: 'LE6x3NH1ETY', title: 'Ximpul Flow', isShort: true },
+    { id: '0b_Djn60pgg', title: 'Ximpul Flow', isShort: true },
+    { id: '86t5ERfQLYU', title: 'Ximpul Flow', isShort: true },
+  ];
+
+  // Image carousel - autoplay scrolling LEFT (scrollNext)
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: true,
     align: 'start'
   });
+
+  // Video carousel - same as image carousel but scrolls RIGHT (scrollPrev)
+  const [videoEmblaRef, videoEmblaApi] = useEmblaCarousel({
+    loop: true,
+    align: 'start'
+  });
+
   useEffect(() => {
     if (!emblaApi) return;
     const autoplay = () => {
       emblaApi.scrollNext();
     };
-    const interval = setInterval(autoplay, 3000); // Auto-scroll every 3 seconds
-
+    const interval = setInterval(autoplay, 3000);
     return () => clearInterval(interval);
   }, [emblaApi]);
+
+  // Video carousel scrolls RIGHT
+  useEffect(() => {
+    if (!videoEmblaApi) return;
+    const autoplay = () => {
+      videoEmblaApi.scrollPrev();
+    };
+    const interval = setInterval(autoplay, 3000);
+    return () => clearInterval(interval);
+  }, [videoEmblaApi]);
+
+  // Lock body scroll when video modal is open
+  useEffect(() => {
+    if (selectedVideo) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [selectedVideo]);
+
   const ImageZoomModal = ({
     imageSrc,
     title,
@@ -105,7 +155,8 @@ export const LifestyleGallery = () => {
         </div>
       </div>;
   };
-  return <section id="gallery" className="py-16 bg-background fade-on-scroll">
+
+  return <><section id="gallery" className="py-16 bg-background fade-on-scroll">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold leading-tight tracking-tight apple-gradient-text mb-6">
@@ -116,6 +167,7 @@ export const LifestyleGallery = () => {
           </p>
         </div>
 
+        {/* ── Image Carousel (scrolls LEFT) ── */}
         <div className="relative">
           <div ref={emblaRef} className="overflow-hidden">
             <div className="flex -ml-2 md:-ml-4 py-[40px]">
@@ -159,9 +211,116 @@ export const LifestyleGallery = () => {
             Premium real detail shots • Tap any image to zoom
           </p>
         </div>
-      </div>
 
-      {/* Zoom Modal */}
-      {selectedImage && <ImageZoomModal imageSrc={selectedImage} title={productImages.find(img => img.image === selectedImage)?.title || ''} isOpen={!!selectedImage} onClose={() => setSelectedImage(null)} />}
-    </section>;
+        {/* ── Video Carousel (scrolls RIGHT — same Embla structure as image carousel) ── */}
+        <div className="relative">
+          <div ref={videoEmblaRef} className="overflow-hidden">
+            <div className="flex -ml-2 md:-ml-4 py-[40px]">
+              {videos.map((video, index) => <div key={video.id} className="pl-2 md:pl-4 basis-4/5 sm:basis-1/2 md:basis-1/3 lg:basis-1/4 xl:basis-1/5 min-w-0 shrink-0">
+                  <div className="group relative">
+                    <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 rounded-lg overflow-hidden bg-white py-0 cursor-pointer" onClick={() => setSelectedVideo(video)}>
+                      <CardContent className="p-0 relative py-[14px]">
+                        <div className="relative overflow-hidden aspect-square py-0">
+                          <img
+                            src={`https://img.youtube.com/vi/${video.id}/hqdefault.jpg`}
+                            alt={video.title}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            loading="lazy"
+                          />
+                          
+                          {/* Play button overlay */}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-center justify-center">
+                            <div className="bg-white/90 group-hover:bg-white rounded-full p-3 md:p-4 backdrop-blur-sm shadow-lg group-hover:scale-110 transition-all duration-300">
+                              <Play className="w-5 h-5 md:w-6 md:h-6 text-gray-800 fill-gray-800 ml-0.5" />
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>)}
+            </div>
+          </div>
+
+          {/* Mobile swipe indicator for videos */}
+          <div className="flex md:hidden justify-center mt-6 space-x-2">
+            <div className="text-sm text-muted-foreground flex items-center space-x-2">
+              <span>Swipe to watch</span>
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-muted-foreground/30 rounded-full"></div>
+                <div className="w-2 h-2 bg-muted-foreground/60 rounded-full"></div>
+                <div className="w-2 h-2 bg-muted-foreground/30 rounded-full"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Video indicator */}
+        <div className="text-center mt-8">
+          <p className="text-sm text-muted-foreground">
+            Watch Ximpul Flow in action • Tap any video to play
+          </p>
+        </div>
+      </div>
+    </section>
+
+    {/* Portaled modals — rendered at body level to escape transform stacking context */}
+    {selectedImage && createPortal(
+      <ImageZoomModal imageSrc={selectedImage} title={productImages.find(img => img.image === selectedImage)?.title || ''} isOpen={!!selectedImage} onClose={() => setSelectedImage(null)} />,
+      document.body
+    )}
+
+    {createPortal(
+      <AnimatePresence>
+        {selectedVideo && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8"
+            onClick={() => setSelectedVideo(null)}
+          >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+
+            {/* Modal content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className={`relative w-full z-10 ${selectedVideo.isShort ? 'max-w-sm' : 'max-w-3xl'}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <button
+                onClick={() => setSelectedVideo(null)}
+                className="absolute -top-12 right-0 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+
+              {/* Video player card */}
+              <div className="rounded-2xl overflow-hidden shadow-2xl border-2 border-white/10">
+                <div className={`bg-black ${selectedVideo.isShort ? 'aspect-[9/16]' : 'aspect-video'}`}>
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&rel=0`}
+                    title={selectedVideo.title}
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>,
+      document.body
+    )}
+  </>;
 };

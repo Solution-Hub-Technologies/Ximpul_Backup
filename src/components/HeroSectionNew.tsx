@@ -74,7 +74,7 @@ export const HeroSectionNew = () => {
       </div>
 
       {/* Content Container - Mobile Layout */}
-      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center md:hidden pt-16 pb-8">
+      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center md:hidden pt-28 pb-8">
         {/* Animated Underline Text for product name on mobile */}
         <div className="hero-product-name text-2xl text-[#1d1d1f] mb-4 font-semibold">
           <AnimatedText text="Introducing Flow" textClassName="text-2xl text-[#1d1d1f] font-semibold" underlineClassName="w-full text-primary" />

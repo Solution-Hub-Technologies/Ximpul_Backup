@@ -335,3 +335,13 @@ html {
     font-size: 1.2rem !important;
   }
 }
+
+/* Infinite scrolling video carousel — moves RIGHT */
+@keyframes scrollRight {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
