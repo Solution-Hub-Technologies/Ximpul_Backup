@@ -48,7 +48,7 @@ export const ProductShowcase = () => {
     }, {
       icon: <Thermometer className="w-5 h-5" />,
       title: 'Advanced Temperature Control',
-      description: 'Keeps drinks hot for 12 hours, cold for 24 hours'
+      description: 'Keep Hot/Cold about 20-24 hours'
     }, {
       icon: <Shield className="w-5 h-5" />,
       title: 'Food-Grade Safety',
@@ -85,7 +85,7 @@ export const ProductShowcase = () => {
     }, {
       icon: <Thermometer className="w-5 h-5" />,
       title: 'Advanced Temperature Control',
-      description: 'Keeps drinks hot for 12 hours, cold for 24 hours'
+      description: 'Keep Hot/Cold about 20-24 hours'
     }, {
       icon: <Shield className="w-5 h-5" />,
       title: 'Food-Grade Safety',
@@ -126,23 +126,22 @@ export const ProductShowcase = () => {
               <div key={index} className="text-center space-y-4">
                 {/* Product Image */}
                 <div className="bg-muted/30 rounded-xl p-4 sm:p-8 h-32 sm:h-48 md:h-64 flex items-center justify-center">
-                  <img 
-                    src={product.images[selectedColors[index]]} 
-                    alt={`${product.name} ${product.edition} - ${product.colors.find(c => c.value === selectedColors[index])?.name}`} 
-                    className="max-h-full w-auto object-contain" 
+                  <img
+                    src={product.images[selectedColors[index]]}
+                    alt={`${product.name} ${product.edition} - ${product.colors.find(c => c.value === selectedColors[index])?.name}`}
+                    className="max-h-full w-auto object-contain"
                   />
                 </div>
 
                 {/* Color Options */}
                 <div className="flex justify-center gap-2">
                   {product.colors.map((color, colorIndex) => (
-                    <div 
+                    <div
                       key={colorIndex}
-                      className={`w-6 h-6 rounded-full border-2 cursor-pointer hover:scale-110 transition-transform ${
-                        selectedColors[index] === color.value 
-                          ? 'border-foreground ring-2 ring-foreground/20' 
-                          : 'border-gray-300'
-                      }`}
+                      className={`w-6 h-6 rounded-full border-2 cursor-pointer hover:scale-110 transition-transform ${selectedColors[index] === color.value
+                        ? 'border-foreground ring-2 ring-foreground/20'
+                        : 'border-gray-300'
+                        }`}
                       style={{ backgroundColor: color.color }}
                       title={color.name}
                       onClick={() => handleColorChange(index, color.value)}
@@ -192,9 +191,9 @@ export const ProductShowcase = () => {
 
           {/* Centered Full Specifications Button */}
           <div className="flex justify-center items-center mt-8">
-            <Button 
-              variant="outline" 
-              onClick={goToSpecs} 
+            <Button
+              variant="outline"
+              onClick={goToSpecs}
               className="px-8 py-3 hover:bg-foreground hover:text-background"
             >
               Full Specifications
