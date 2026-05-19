@@ -555,17 +555,8 @@ export const AdminReports = () => {
                       }
                     });
                   } else {
-                    // Handle regular orders - include only valid product editions/colors
-                    if (!edition.includes('base') && !edition.includes('lifestyle')) {
-                      return;
-                    }
-
-                    const normalizedColor = (order.selected_color || '').toLowerCase();
-                    if (normalizedColor !== 'obsidian' && normalizedColor !== 'graphite') {
-                      return;
-                    }
-
-                    const color = normalizedColor === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey';
+                    // Handle regular orders
+                    const color = order.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey';
                     
                     // Normalize edition name
                     let editionType = '';
@@ -573,9 +564,6 @@ export const AdminReports = () => {
                       editionType = 'base edition';
                     } else if (edition.includes('lifestyle')) {
                       editionType = 'lifestyle edition';
-                    }
-                    if (!editionType) {
-                      return;
                     }
                     
                     const key = `Ximpul-${editionType}-${color}`;

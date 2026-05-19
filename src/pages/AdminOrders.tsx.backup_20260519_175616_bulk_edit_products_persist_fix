@@ -3764,17 +3764,6 @@ export const AdminOrders = () => {
             <Button variant="outline" onClick={() => setIsBulkEditDialogOpen(false)}>Cancel</Button>
             <Button onClick={async () => {
               try {
-                // Normalize products before save (trim and type coercion)
-                const normalizedProducts = bulkOrderProducts.map(p => ({
-                  model: p.model?.trim() || '',
-                  color: p.color?.trim() || '',
-                  quantity: String(parseInt(p.quantity) || 0),
-                  accessories: p.accessories?.map(acc => ({
-                    name: acc.name?.trim() || '',
-                    quantity: parseInt(acc.quantity) || 0
-                  })) || []
-                }));
-                
                 const pricingData = {
                   products: bulkOrderProducts.map((p, idx) => ({
                     ...p,
@@ -3790,7 +3779,6 @@ export const AdminOrders = () => {
                 const { error } = await supabaseAdmin
                   .from('bulk_orders')
                   .update({ 
-                    products: normalizedProducts,
                     pricing_data: pricingData,
                     last_edited_by: adminUser?.name || 'Admin',
                     last_edited_at: new Date().toISOString()
