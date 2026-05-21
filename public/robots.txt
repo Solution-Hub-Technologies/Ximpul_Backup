@@ -4,8 +4,32 @@ Disallow: /admin/
 Disallow: /api/
 Disallow: /private/
 
+# AI crawlers (explicitly allowed for AI citations)
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
 # Sitemap
 Sitemap: https://ximpul.com/sitemap.xml
 
-# Crawl-delay
 Crawl-delay: 1
