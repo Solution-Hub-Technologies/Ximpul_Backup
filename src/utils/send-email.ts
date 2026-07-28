@@ -13,7 +13,7 @@ export interface SendEmailParams {
 
 export const sendEmail = async (params: SendEmailParams): Promise<{ success: boolean; error?: string }> => {
   try {
-    const response = await fetch('/api/send-email', {
+    let response = await fetch('/api/send-email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -28,10 +28,35 @@ export const sendEmail = async (params: SendEmailParams): Promise<{ success: boo
       }),
     });
 
-    const result = await response.json().catch(() => null);
+    let result = await response.json().catch(() => null);
+
+    // Direct Lambda fallback if /api/send-email returns 404 (e.g. running locally via Vite dev server)
+    if ((!response.ok || response.status === 404) && (import.meta.env.VITE_LAMBDA_API_URL || (import.meta.env as any).LAMBDA_API_URL)) {
+      const lambdaUrl = import.meta.env.VITE_LAMBDA_API_URL || (import.meta.env as any).LAMBDA_API_URL;
+      const lambdaSecret = import.meta.env.VITE_LAMBDA_SECRET || (import.meta.env as any).LAMBDA_SECRET || '';
+      if (lambdaUrl) {
+        console.log('Falling back to direct Lambda endpoint...');
+        response = await fetch(lambdaUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: params.from_name || 'Ximpul Shop',
+            email: 'razinahmed60@gmail.com',
+            to: params.to,
+            subject: params.subject,
+            source: 'Ximpul Flow',
+            secretKey: lambdaSecret,
+            htmlTemplate: params.message,
+            cc: params.cc,
+            attachments: params.attachments,
+          }),
+        });
+        result = await response.json().catch(() => null);
+      }
+    }
 
     if (!response.ok || !result?.success) {
-      console.error('Failed to send email via /api/send-email:', result);
+      console.error('Failed to send email:', result);
       return {
         success: false,
         error: result?.error || 'Failed to send email',
