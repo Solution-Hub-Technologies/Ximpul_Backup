@@ -20,14 +20,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const lambdaUrl = process.env.LAMBDA_API_URL || process.env.VITE_LAMBDA_API_URL || '';
   const lambdaSecret = process.env.LAMBDA_SECRET || '';
-  const adminEmail = process.env.ADMIN_EMAIL || 'razinahmed60@gmail.com';
+  let adminEmail = (process.env.ADMIN_EMAIL || 'razinahmed60@gmail.com').trim();
+  if (adminEmail.includes('razinahmed45')) {
+    adminEmail = 'razinahmed60@gmail.com';
+  }
 
   if (!lambdaUrl || !lambdaSecret) {
     console.error('Email configuration error: LAMBDA_API_URL or LAMBDA_SECRET missing');
     return res.status(500).json({ success: false, error: 'Email service is not configured on server' });
   }
 
-  const { to, subject, message, from_name = 'Ximpul Shop', cc, attachments } = req.body || {};
+  let { to, subject, message, from_name = 'Ximpul Shop', cc, attachments } = req.body || {};
+
+  // Force legacy email replacement to razinahmed60@gmail.com
+  if (to && typeof to === 'string') {
+    to = to.replace(/razinahmed45@gmail\.com/gi, 'razinahmed60@gmail.com')
+           .replace(/solutionhubtechnologies@gmail\.com/gi, 'razinahmed60@gmail.com');
+  }
 
   if (!to || !subject || !message) {
     return res.status(400).json({ success: false, error: 'Recipient (to), subject, and message are required' });
