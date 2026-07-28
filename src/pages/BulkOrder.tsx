@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Package, Plus, X, Check } from 'lucide-react';
 import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 import { toast } from 'sonner';
+import { sendEmail } from '@/utils/send-email';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -112,7 +113,7 @@ const BulkOrder = () => {
       
       if (isDevelopment) {
         console.log('🔧 Development mode: Skipping email send');
-        console.log('📧 Would send admin email to:', 'ximpulshop@gmail.com');
+        console.log('📧 Would send admin email to:', 'razinahmed60@gmail.com');
         console.log('📧 Would send customer email to:', formData.email);
         console.log('📎 PDF attachment ready:', pdfBase64.substring(0, 50) + '...');
       }
@@ -127,7 +128,7 @@ const BulkOrder = () => {
           .eq('config_type', 'customer');
         
         // Use configured emails or fallback to default
-        let adminEmails = 'ximpulshop@gmail.com';
+        let adminEmails = 'razinahmed60@gmail.com';
         let ccEmails = '';
         
         if (emailConfig && emailConfig.length > 0) {
@@ -182,26 +183,20 @@ const BulkOrder = () => {
           adminEmailHTML = `<h2>Bulk Order Request</h2><p><strong>Customer:</strong> ${formData.name}</p><p><strong>Phone:</strong> ${formData.phone}</p><p><strong>Email:</strong> ${formData.email}</p><p><strong>Location:</strong> ${formData.location}</p><p><strong>Products:</strong> ${productsSummary}</p><p><strong>Timeline:</strong> ${formData.timeline || 'Not specified'}</p><p><strong>Engraving:</strong> ${formData.engraving || 'No'}</p><p><strong>Message:</strong> ${formData.message || 'None'}</p>`;
         }
         
-        const adminEmailParams: any = {
+        const pdfAttachment = pdfBase64 ? [{
+          filename: `Bulk_Order_Quotation_${formData.name.replace(/\s+/g, '_')}.pdf`,
+          content: pdfBase64,
+          encoding: 'base64'
+        }] : undefined;
+
+        await sendEmail({
           to: adminEmails,
           subject: adminSubject,
           message: adminEmailHTML,
           from_name: 'Ximpul Shop',
-          attachment: pdfBase64,
-          attachment_name: `Bulk_Order_Quotation_${formData.name.replace(/\s+/g, '_')}.pdf`
-        };
-        
-        if (ccEmails) {
-          adminEmailParams.cc = ccEmails;
-        }
-        
-        if (!isDevelopment) {
-          await fetch('https://ximpul.com/smtp-mailer.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams(adminEmailParams)
-          });
-        }
+          cc: ccEmails || undefined,
+          attachments: pdfAttachment
+        });
         
         // Send confirmation email to customer
         const { data: customerTemplate } = await supabase
@@ -233,20 +228,13 @@ const BulkOrder = () => {
           `;
         }
         
-        if (!isDevelopment) {
-          await fetch('https://ximpul.com/smtp-mailer.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-              to: formData.email,
-              subject: customerSubject,
-              message: customerEmailHTML,
-              from_name: 'Ximpul Shop',
-              attachment: pdfBase64,
-              attachment_name: `Bulk_Order_Quotation_${formData.name.replace(/\s+/g, '_')}.pdf`
-            })
-          });
-        }
+        await sendEmail({
+          to: formData.email,
+          subject: customerSubject,
+          message: customerEmailHTML,
+          from_name: 'Ximpul Shop',
+          attachments: pdfAttachment
+        });
       } catch (emailError) {
         console.error('Email error:', emailError);
         if (!isDevelopment) {

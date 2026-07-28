@@ -12,6 +12,7 @@ import { X, Mail, Settings, TestTube, Shield, Eye, EyeOff, Edit, Save, Copy, Tra
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { sendEmail } from '@/utils/send-email';
 
 interface EmailTemplate {
   id: string;
@@ -42,7 +43,7 @@ interface SMTPConfig {
 export const AdminSMTPConfig = () => {
   const { adminUser, hasPermission } = useAdminAuth();
   const [emailData, setEmailData] = useState({
-    to: 'ximpulshop@gmail.com',
+    to: 'razinahmed60@gmail.com',
     subject: 'Test Email',
     message: 'This is a test email from the admin panel.',
     cc: ''
@@ -269,28 +270,14 @@ export const AdminSMTPConfig = () => {
       addLog(`CC: ${emailData.cc || 'None'}`);
       addLog(`Subject: ${finalSubject}`);
       
-      const params = new URLSearchParams({
+      const result = await sendEmail({
         to: emailData.to,
         subject: finalSubject,
         message: finalMessage,
-        from_name: smtpConfig.from_name
+        from_name: smtpConfig.from_name || 'Ximpul Shop',
+        cc: emailData.cc || undefined
       });
       
-      if (emailData.cc) {
-        params.append('cc', emailData.cc);
-      }
-      
-      const response = await fetch('https://ximpul.com/smtp-mailer.php', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: params
-      });
-      
-      addLog(`Response status: ${response.status}`);
-      
-      const result = await response.json();
       addLog(`Response: ${JSON.stringify(result)}`);
       
       if (result.success) {
@@ -1397,27 +1384,14 @@ export const AdminSMTPConfig = () => {
                             return;
                           }
                           
-                          // Test email params
-                          const testParams: any = {
+                          const result = await sendEmail({
                             to: toEmails,
                             subject: 'Test Admin Email - Ximpul System',
                             message: '<h2>Test Email</h2><p>This is a test email to verify admin email configuration.</p><p>If you receive this, the admin email system is working correctly.</p>',
-                            from_name: 'Ximpul Shop'
-                          };
-                          
-                          if (ccEmails) {
-                            testParams.cc = ccEmails;
-                          }
-                          
-                          console.log('🧪 Sending test email with params:', testParams);
-                          
-                          const response = await fetch('https://ximpul.com/smtp-mailer.php', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: new URLSearchParams(testParams)
+                            from_name: 'Ximpul Shop',
+                            cc: ccEmails || undefined
                           });
                           
-                          const result = await response.json();
                           console.log('🧪 Test email response:', result);
                           
                           if (result.success) {

@@ -3,7 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 // Initialize Supabase client with service role key for admin operations
 const supabaseAdmin = createClient(
   import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
+  {
+    db: {
+      schema: 'ximpul',
+    }
+  }
 );
 
 export async function updateProductPrice(req, res) {

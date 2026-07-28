@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { sendEmail } from '@/utils/send-email';
 
 type InitiativeType = 'team' | 'invest' | 'supplier' | '';
 
@@ -68,7 +69,7 @@ const JoinInitiative = () => {
         .select('*')
         .eq('config_type', 'customer');
       
-      let adminEmails = 'ximpulshop@gmail.com';
+      let adminEmails = 'razinahmed60@gmail.com';
       let ccEmails = '';
       
       if (emailConfig && emailConfig.length > 0) {
@@ -188,32 +189,19 @@ const JoinInitiative = () => {
           </div>
         </div>`;
       
-      const adminParams: any = {
+      await sendEmail({
         to: adminEmails,
         subject: `New Join Initiative: ${initiativeTitle}`,
         message: adminEmailHTML,
-        from_name: 'Ximpul Website'
-      };
-      
-      if (ccEmails) {
-        adminParams.cc = ccEmails;
-      }
-      
-      await fetch('https://ximpul.com/smtp-mailer.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams(adminParams)
+        from_name: 'Ximpul Website',
+        cc: ccEmails || undefined
       });
       
-      await fetch('https://ximpul.com/smtp-mailer.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          to: formData.email,
-          subject: 'Thank You for Joining Ximpul Initiative!',
-          message: customerEmailHTML,
-          from_name: 'Ximpul'
-        })
+      await sendEmail({
+        to: formData.email,
+        subject: 'Thank You for Joining Ximpul Initiative!',
+        message: customerEmailHTML,
+        from_name: 'Ximpul'
       });
 
       toast.success('Thank you! We will review your submission and get back to you soon.');

@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 import { triggerOrderNotification } from '@/utils/order-notification';
 import { sendOrderEmails } from '@/utils/emailjs-service';
+import { sendEmail } from '@/utils/send-email';
 
 interface OrderData {
   customerName: string;
@@ -141,18 +142,12 @@ export const useOrderSubmission = () => {
               customerEmailHTML = `<h2>Order Confirmation</h2><p>Dear ${orderData.customerName},</p><p>Your order has been confirmed!</p><br><strong>Order Details:</strong><br>Order ID: #${(order as any).order_id}<br>Product: ${orderData.selectedEdition} Edition<br>Color: ${orderData.selectedColor}<br>Payment: ${paymentMethod}<br>Total: ${orderData.totalAmount} BDT<br><br><p>Thank you for choosing Ximpul!</p>`;
             }
             
-            const customerEmailResponse = await fetch('https://ximpul.com/smtp-mailer.php', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: new URLSearchParams({
-                to: orderData.customerEmail,
-                subject: customerSubject,
-                message: customerEmailHTML,
-                from_name: 'Ximpul Shop'
-              })
+            const customerEmailResult = await sendEmail({
+              to: orderData.customerEmail,
+              subject: customerSubject,
+              message: customerEmailHTML,
+              from_name: 'Ximpul Shop'
             });
-            
-            const customerEmailResult = await customerEmailResponse.json();
             console.log('📧 Customer email response:', customerEmailResult);
             
             if (!customerEmailResult.success) {
@@ -238,31 +233,19 @@ export const useOrderSubmission = () => {
               adminEmailHTML = `<h2>New Order Alert</h2><p><strong>Order #${(order as any).order_id}</strong><br>Total: ${orderData.totalAmount} BDT</p><br><h3>Customer Information</h3><strong>Name:</strong><br>${orderData.customerName}<br><strong>Phone:</strong><br>${orderData.customerPhone || 'Not provided'}<br><strong>Email:</strong><br>${orderData.customerEmail || 'Not provided'}<br><strong>Address:</strong><br>${orderData.customerAddress || 'Not provided'}<br><br><h3>Product Details</h3><strong>Edition:</strong><br>${orderData.selectedEdition || 'Not specified'}<br><strong>Color:</strong><br>${orderData.selectedColor || 'Not specified'}<br>${orderData.engravingText ? `<strong>Engraving:</strong><br>${orderData.engravingText}<br>` : ''}<strong>Payment Method:</strong><br>${paymentStatus}<br><br><p>Please process this order.</p>`;
             }
             
-            const emailParams: any = {
-              to: adminEmails,
-              subject: adminSubject,
-              message: adminEmailHTML,
-              from_name: 'Ximpul Shop'
-            };
-            
-            // Add CC emails if configured
-            if (ccEmails) {
-              emailParams.cc = ccEmails;
-            }
-            
             // Skip email if no admin emails configured
             if (!adminEmails) {
               console.log('⚠️ No admin emails configured, skipping admin notification');
             } else {
               console.log('📧 STEP 3.2: Sending admin email for COD order');
               
-              const adminEmailResponse = await fetch('https://ximpul.com/smtp-mailer.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams(emailParams)
+              const adminEmailResult = await sendEmail({
+                to: adminEmails,
+                subject: adminSubject,
+                message: adminEmailHTML,
+                from_name: 'Ximpul Shop',
+                cc: ccEmails || undefined
               });
-              
-              const adminEmailResult = await adminEmailResponse.json();
               console.log('📧 Admin email response:', adminEmailResult);
               
               if (!adminEmailResult.success) {

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { sendEmail } from '@/utils/send-email';
 
 export interface Contact {
   id: string;
@@ -25,6 +26,7 @@ export const useContacts = () => {
       const { data, error } = await supabase
         .from('contacts')
         .select('*')
+        .range(0, 9999)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -79,7 +81,7 @@ Team Ximpul
       
       // Send notification email to admin
       const adminEmail = {
-        to: 'ximpulshop@gmail.com',
+        to: 'razinahmed60@gmail.com',
         subject: `New Contact Form Submission: ${contactData.subject}`,
         message: `New contact form submission received:
 
@@ -127,15 +129,11 @@ Please respond to the customer within 24 hours.`
             customerEmailHTML = `<h2>Thank You for Contacting Us</h2><p>Dear ${contactData.name},</p><p>Thank you for reaching out to us regarding "${contactData.subject}".</p><p>We have received your message and our team will get back to you within 24 hours.</p><p><strong>Your message:</strong><br>"${contactData.message}"</p><p>We appreciate your interest in Ximpul Flow and our mission to make water free again.</p><p>Best regards,<br>Team Ximpul</p><p>💧 Your Water. Your Freedom.</p>`;
           }
           
-          await fetch('https://ximpul.com/smtp-mailer.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-              to: contactData.email,
-              subject: customerSubject,
-              message: customerEmailHTML,
-              from_name: 'Ximpul Shop'
-            })
+          await sendEmail({
+            to: contactData.email,
+            subject: customerSubject,
+            message: customerEmailHTML,
+            from_name: 'Ximpul Shop'
           });
         }
         
@@ -149,7 +147,7 @@ Please respond to the customer within 24 hours.`
         console.log('📧 Contact email config result:', { emailConfig, emailConfigError });
         
         // Use configured emails or fallback to default
-        let adminEmails = 'ximpulshop@gmail.com';
+        let adminEmails = 'razinahmed60@gmail.com';
         let ccEmails = '';
         
         if (emailConfig && emailConfig.length > 0) {
@@ -197,34 +195,17 @@ Please respond to the customer within 24 hours.`
           adminEmailHTML = `<h2>New Contact Form Submission</h2><p><strong>Name:</strong> ${contactData.name}</p><p><strong>Email:</strong> ${contactData.email}</p><p><strong>Subject:</strong> ${contactData.subject}</p><p><strong>Message:</strong></p><p>${contactData.message}</p><p>Please respond to the customer within 24 hours.</p>`;
         }
         
-        const emailParams: any = {
+        console.log('📧 Sending contact admin email...');
+        
+        const adminEmailResult = await sendEmail({
           to: adminEmails,
           subject: adminSubject,
           message: adminEmailHTML,
-          from_name: 'Ximpul Shop'
-        };
-        
-        // Add CC emails if configured
-        if (ccEmails) {
-          emailParams.cc = ccEmails;
-        }
-        
-        console.log('📧 Sending contact admin email with params:', emailParams);
-        
-        const adminEmailResponse = await fetch('https://ximpul.com/smtp-mailer.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams(emailParams)
+          from_name: 'Ximpul Shop',
+          cc: ccEmails || undefined
         });
         
-        const adminEmailResult = await adminEmailResponse.json();
         console.log('📧 Contact admin email response:', adminEmailResult);
-        
-        if (!adminEmailResult.success) {
-          console.error('❌ Contact admin email failed:', adminEmailResult.error);
-        } else {
-          console.log('✅ Contact admin email sent successfully');
-        }
         
       } catch (emailError) {
         console.error('Email sending failed, but contact was saved:', emailError);

@@ -258,6 +258,7 @@ export const AdminOrders = () => {
       const { data, error } = await supabaseAdmin
         .from('deleted_orders')
         .select('*')
+        .range(0, 9999)
         .order('deleted_at', { ascending: false });
       
       if (error) throw error;

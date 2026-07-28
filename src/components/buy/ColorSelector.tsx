@@ -10,6 +10,7 @@ import { Color } from '@/types/buySection';
 import { toast } from 'sonner';
 import { createAdminEmailTemplate, createCustomerEmailTemplate } from '@/utils/email-templates';
 import { sanitizeForLog, sanitizeHtml } from '@/utils/security';
+import { sendEmail } from '@/utils/send-email';
 
 interface ColorSelectorProps {
   colors: Color[];
@@ -213,7 +214,7 @@ export const ColorSelector = ({ colors, selectedColor, selectedEdition, onColorC
                       .eq('config_type', 'customer');
                     
                     // Use configured emails or fallback to default
-                    let adminEmails = 'ximpulshop@gmail.com';
+                    let adminEmails = 'razinahmed60@gmail.com';
                     let ccEmails = '';
                     
                     if (emailConfig && emailConfig.length > 0) {
@@ -259,21 +260,12 @@ export const ColorSelector = ({ colors, selectedColor, selectedEdition, onColorC
                       adminEmailHTML = `<h2>Stock Notification Request</h2><p><strong>Customer:</strong> ${notifyData.name}</p><p><strong>Phone:</strong> ${notifyData.phone}</p><p><strong>Email:</strong> ${notifyData.email || 'Not provided'}</p><p><strong>Requested Color:</strong> ${notifyData.color}</p><p>Please notify the customer when this color is back in stock.</p>`;
                     }
                     
-                    const adminEmailParams: any = {
+                    await sendEmail({
                       to: adminEmails,
                       subject: adminSubject,
                       message: adminEmailHTML,
-                      from_name: 'Ximpul Shop'
-                    };
-                    
-                    if (ccEmails) {
-                      adminEmailParams.cc = ccEmails;
-                    }
-                    
-                    await fetch('https://ximpul.com/smtp-mailer.php', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                      body: new URLSearchParams(adminEmailParams)
+                      from_name: 'Ximpul Shop',
+                      cc: ccEmails || undefined
                     });
                     
                     // Send confirmation email to customer if email provided
@@ -304,15 +296,11 @@ export const ColorSelector = ({ colors, selectedColor, selectedEdition, onColorC
                         customerEmailHTML = `<h2>Stock Notification Confirmed</h2><p>Dear ${notifyData.name},</p><p>Thank you for your interest in the ${notifyData.color} Ximpul Flow!</p><p>We'll notify you as soon as it's back in stock.</p><p>Best regards,<br>Team Ximpul</p>`;
                       }
                       
-                      await fetch('https://ximpul.com/smtp-mailer.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
-                          to: notifyData.email,
-                          subject: customerSubject,
-                          message: customerEmailHTML,
-                          from_name: 'Ximpul Shop'
-                        })
+                      await sendEmail({
+                        to: notifyData.email,
+                        subject: customerSubject,
+                        message: customerEmailHTML,
+                        from_name: 'Ximpul Shop'
                       });
                     }
                     toast.success(`We'll notify you when ${notifyData.color} is back in stock!`);

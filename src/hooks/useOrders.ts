@@ -48,16 +48,39 @@ export const useOrders = () => {
       setIsLoading(true);
       console.log('Fetching orders from database...');
       
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .order('updated_at', { ascending: false });
+      let allOrders: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) {
-        console.error('Error fetching orders:', sanitizeForLog(error?.message || 'Unknown error'));
-        throw error;
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        const { data: pageData, error } = await supabase
+          .from('orders')
+          .select('*')
+          .order('updated_at', { ascending: false })
+          .range(from, to);
+
+        if (error) {
+          console.error('Error fetching orders:', sanitizeForLog(error?.message || 'Unknown error'));
+          throw error;
+        }
+
+        if (pageData && pageData.length > 0) {
+          allOrders = [...allOrders, ...pageData];
+          if (pageData.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
       }
-      
+
+      const data = allOrders;
       console.log('Orders fetched successfully:', sanitizeForLog(String(data?.length || 0)), 'orders');
       
       // Fetch admin names for orders with processed_by
@@ -66,10 +89,14 @@ export const useOrders = () => {
       
       let adminNames: Record<string, string> = {};
       if (uniqueAdminIds.length > 0) {
-        const { data: adminData } = await supabase
+        const { data: adminData, error: adminErr } = await supabaseAdmin
           .from('admin_users')
           .select('id, name')
           .in('id', uniqueAdminIds);
+          
+        if (adminErr) {
+          console.error('Error fetching admin names:', adminErr);
+        }
         
         if (adminData) {
           adminNames = adminData.reduce((acc, admin) => {

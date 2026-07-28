@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Navigation } from '@/components/Navigation';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
+import { sendEmail } from '@/utils/send-email';
 interface Order {
   id: string;
   order_id: string;
@@ -143,15 +144,11 @@ const ThankYou = () => {
               .replace(/\$\{orderId\}/g, order.order_id)
               .replace(/{{orderId}}/g, order.order_id);
             
-            await fetch('https://ximpul.com/smtp-mailer.php', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: new URLSearchParams({
-                to: order.customer_email,
-                subject: customerSubject,
-                message: customerEmailHTML,
-                from_name: 'Ximpul Shop'
-              })
+            await sendEmail({
+              to: order.customer_email,
+              subject: customerSubject,
+              message: customerEmailHTML,
+              from_name: 'Ximpul Shop'
             });
           }
           
@@ -188,19 +185,12 @@ const ThankYou = () => {
                 .replace(/\$\{orderId\}/g, order.order_id)
                 .replace(/{{orderId}}/g, order.order_id);
               
-              const emailParams: any = {
+              await sendEmail({
                 to: adminEmails,
                 subject: adminSubject,
                 message: adminEmailHTML,
-                from_name: 'Ximpul Shop'
-              };
-              
-              if (ccEmails) emailParams.cc = ccEmails;
-              
-              await fetch('https://ximpul.com/smtp-mailer.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams(emailParams)
+                from_name: 'Ximpul Shop',
+                cc: ccEmails || undefined
               });
             }
           }

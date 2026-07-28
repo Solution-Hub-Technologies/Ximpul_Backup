@@ -12,6 +12,9 @@ export const supabaseAdmin = createClient<Database>(
   SUPABASE_URL, 
   SUPABASE_SERVICE_ROLE_KEY,
   {
+    db: {
+      schema: 'ximpul',
+    },
     auth: {
       autoRefreshToken: false,
       persistSession: false

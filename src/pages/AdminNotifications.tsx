@@ -10,6 +10,7 @@ import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 import { Bell, Mail, Phone, Calendar, Check, X, Send, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
+import { sendEmail } from '@/utils/send-email';
 
 interface StockNotification {
   id: string;
@@ -130,15 +131,11 @@ export const AdminNotifications = () => {
         customerEmailHTML = `<h2>Good News!</h2><p>Dear ${notification.customer_name},</p><p>${finalMessage}</p><p>Visit our website to place your order now!</p><p>Best regards,<br>Team Ximpul</p>`;
       }
       
-      await fetch('https://ximpul.com/smtp-mailer.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          to: notification.customer_email,
-          subject: customerSubject,
-          message: customerEmailHTML,
-          from_name: 'Ximpul Shop'
-        })
+      await sendEmail({
+        to: notification.customer_email,
+        subject: customerSubject,
+        message: customerEmailHTML,
+        from_name: 'Ximpul Shop'
       });
     }
     
@@ -186,21 +183,12 @@ export const AdminNotifications = () => {
       adminEmailHTML = `<h2>Customer Notification Sent</h2><p><strong>Customer:</strong> ${notification.customer_name}</p><p><strong>Email:</strong> ${notification.customer_email}</p><p><strong>Phone:</strong> ${notification.customer_phone}</p><p><strong>Color:</strong> ${notification.color_requested}</p><p><strong>Message Sent:</strong> ${finalMessage}</p><p>Customer has been notified about stock availability.</p>`;
     }
     
-    const adminEmailParams: any = {
+    await sendEmail({
       to: adminEmails,
       subject: adminSubject,
       message: adminEmailHTML,
-      from_name: 'Ximpul Shop'
-    };
-    
-    if (ccEmails) {
-      adminEmailParams.cc = ccEmails;
-    }
-    
-    await fetch('https://ximpul.com/smtp-mailer.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams(adminEmailParams)
+      from_name: 'Ximpul Shop',
+      cc: ccEmails || undefined
     });
 
     // Update notification status

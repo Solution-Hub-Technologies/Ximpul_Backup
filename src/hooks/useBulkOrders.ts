@@ -33,6 +33,7 @@ export const useBulkOrders = () => {
       const { data, error } = await supabaseAdmin
         .from('bulk_orders')
         .select('*')
+        .range(0, 9999)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
