@@ -118,186 +118,166 @@ export const useOrderSubmission = () => {
 
       console.log('✅ STEP 2 SUCCESS: Order created:', order.id, 'with order_id:', order.order_id);
       
-      // Skip email sending - will be sent from Thank You page
-      console.log('📧 STEP 3: Email sending skipped - will be triggered from Thank You page');
-      
-      if (false) { // Disabled - emails will be sent from Thank You page
+      // Send Emails
+      try {
+        console.log('📧 STEP 3: Dispatching order notification emails...');
 
-          console.log('📧 Sending emails for order:', order.id);
-          
-          // Fetch email templates from database
-          console.log('📧 Fetching customer email template...');
-          const { data: customerTemplate, error: customerTemplateError } = await supabase
-            .from('email_templates')
-            .select('*')
-            .eq('type', 'order_customer')
-            .single();
-          
-          console.log('📧 Customer template result:', { customerTemplate, customerTemplateError });
+        const paymentMethodLabel = orderData.paymentMethod === 'cod' 
+          ? 'Cash on Delivery' 
+          : orderData.paymentMethod === 'online' 
+          ? 'Online Payment' 
+          : orderData.paymentMethod || 'Not specified';
 
-          // Send customer email only for COD orders
-          if (orderData.customerEmail && orderData.paymentMethod === 'cod') {
-            console.log('📧 Sending customer email to:', orderData.customerEmail);
-            const paymentMethod = orderData.paymentMethod === 'cod' ? 'Cash on Delivery' : (orderData.paymentMethod === 'online' ? 'Online Payment' : orderData.paymentMethod || 'Not specified');
-            
-            let customerEmailHTML = '';
-            let customerSubject = `Order Confirmation - ${(order as any).order_id} | Ximpul Flow`;
-            
-            if (customerTemplate) {
-              console.log('✅ Using admin portal customer template:', customerTemplate.name);
-              // Use template from admin panel
-              customerEmailHTML = customerTemplate.template
-                .replace(/\$\{customerName\}/g, orderData.customerName)
-                .replace(/\$\{orderId\}/g, (order as any).order_id)
-                .replace(/\$\{selectedEdition\}/g, orderData.selectedEdition || 'Not specified')
-                .replace(/\$\{selectedColor\}/g, orderData.selectedColor || 'Not specified')
-                .replace(/\$\{paymentMethod\}/g, paymentMethod)
-                .replace(/\$\{totalAmount\}/g, orderData.totalAmount?.toString() || 'Not specified')
-                .replace(/\$\{customerPhone\}/g, orderData.customerPhone || 'Not provided')
-                .replace(/\$\{customerEmail\}/g, orderData.customerEmail || 'Not provided')
-                .replace(/\$\{customerAddress\}/g, orderData.customerAddress || 'Not provided')
-                .replace(/\$\{engravingText\}/g, orderData.engravingText || '')
-                .replace(/{{customerName}}/g, orderData.customerName)
-                .replace(/{{orderId}}/g, (order as any).order_id)
-                .replace(/{{selectedEdition}}/g, orderData.selectedEdition || 'Not specified')
-                .replace(/{{selectedColor}}/g, orderData.selectedColor || 'Not specified')
-                .replace(/{{paymentMethod}}/g, paymentMethod)
-                .replace(/{{totalAmount}}/g, orderData.totalAmount?.toString() || 'Not specified')
-                .replace(/{{customerPhone}}/g, orderData.customerPhone || 'Not provided')
-                .replace(/{{customerEmail}}/g, orderData.customerEmail || 'Not provided')
-                .replace(/{{customerAddress}}/g, orderData.customerAddress || 'Not provided')
-                .replace(/{{engravingText}}/g, orderData.engravingText || '');
-              
-              customerSubject = customerTemplate.subject
-                .replace(/\$\{orderId\}/g, (order as any).order_id)
-                .replace(/{{orderId}}/g, (order as any).order_id);
-            } else {
-              console.log('⚠️ No customer portal templates available - using fallback template');
-              console.log('⚠️ To use custom templates, create "order_customer" type template in Admin > SMTP Config > Templates');
-              // Fallback to detailed template
-              customerEmailHTML = `<h2>Order Confirmation</h2><p>Dear ${orderData.customerName},</p><p>Your order has been confirmed!</p><br><strong>Order Details:</strong><br>Order ID: #${(order as any).order_id}<br>Product: ${orderData.selectedEdition} Edition<br>Color: ${orderData.selectedColor}<br>Payment: ${paymentMethod}<br>Total: ${orderData.totalAmount} BDT<br><br><p>Thank you for choosing Ximpul!</p>`;
-            }
-            
-            const customerEmailResult = await sendEmail({
-              to: orderData.customerEmail,
-              subject: customerSubject,
-              message: customerEmailHTML,
-              from_name: 'Ximpul Shop'
-            });
-            console.log('📧 Customer email response:', customerEmailResult);
-            
-            if (!customerEmailResult.success) {
-              console.error('❌ Customer email failed:', customerEmailResult.error);
-            } else {
-              console.log('✅ Customer email sent successfully');
-            }
-          } else if (!orderData.customerEmail) {
-            console.log('📧 No customer email provided, skipping customer notification');
-          } else {
-            console.log('📧 Skipping customer email for online payment - will be sent after payment confirmation');
+        // Fetch Email Templates & Config
+        const { data: customerTemplate } = await supabase
+          .from('email_templates')
+          .select('*')
+          .eq('type', 'order_customer')
+          .single();
+
+        const { data: adminTemplate } = await supabase
+          .from('email_templates')
+          .select('*')
+          .eq('type', 'order_admin')
+          .single();
+
+        const { data: emailConfig } = await supabase
+          .from('email_config')
+          .select('*')
+          .eq('config_type', 'customer');
+
+        let adminEmails = 'razinahmed60@gmail.com';
+        let ccEmails = '';
+        if (emailConfig && emailConfig.length > 0) {
+          const config = emailConfig[0];
+          if (config?.to_emails && config.to_emails.length > 0) {
+            adminEmails = config.to_emails.join(',');
           }
-          
-          // Send admin email only for COD orders
-          if (orderData.paymentMethod === 'cod') {
-            console.log('📧 STEP 3.1: Fetching admin email configuration for COD order...');
-            const { data: emailConfig, error: emailConfigError } = await supabase
-              .from('email_config')
-              .select('*')
-              .eq('config_type', 'customer');
-            
-            console.log('📧 Email config query result:', { emailConfig, emailConfigError });
-            
-            // Use configured emails only
-            let adminEmails = '';
-            let ccEmails = '';
-            
-            if (emailConfig && emailConfig.length > 0) {
-              const config = emailConfig[0];
-              if (config?.to_emails?.length > 0) {
-                adminEmails = config.to_emails.join(',');
-                console.log('📧 Using configured TO emails:', adminEmails);
-              }
-              if (config?.cc_emails?.length > 0) {
-                ccEmails = config.cc_emails.join(',');
-                console.log('📧 Using configured CC emails:', ccEmails);
-              }
-            }
-            
-            // Fetch admin email template
-            console.log('📧 Fetching admin email template...');
-            const { data: adminTemplate } = await supabase
-              .from('email_templates')
-              .select('*')
-              .eq('type', 'order_admin')
-              .single();
-            
-            // Send admin emails
-            const paymentStatus = 'Cash on Delivery';
-            
-            let adminEmailHTML = '';
-            let adminSubject = `New Ximpul Order - ${(order as any).order_id}`;
-            
-            if (adminTemplate) {
-              console.log('✅ Using admin portal template:', adminTemplate.name);
-              adminEmailHTML = adminTemplate.template
-                .replace(/\$\{customerName\}/g, orderData.customerName)
-                .replace(/\$\{customerPhone\}/g, orderData.customerPhone || 'Not provided')
-                .replace(/\$\{customerEmail\}/g, orderData.customerEmail || 'Not provided')
-                .replace(/\$\{customerAddress\}/g, orderData.customerAddress || 'Not provided')
-                .replace(/\$\{orderId\}/g, (order as any).order_id)
-                .replace(/\$\{selectedEdition\}/g, orderData.selectedEdition || 'Not specified')
-                .replace(/\$\{selectedColor\}/g, orderData.selectedColor || 'Not specified')
-                .replace(/\$\{engravingText\}/g, orderData.engravingText || '')
-                .replace(/\$\{paymentMethod\}/g, paymentStatus)
-                .replace(/\$\{totalAmount\}/g, orderData.totalAmount?.toString() || 'Not specified')
-                .replace(/{{customerName}}/g, orderData.customerName)
-                .replace(/{{customerPhone}}/g, orderData.customerPhone || 'Not provided')
-                .replace(/{{customerEmail}}/g, orderData.customerEmail || 'Not provided')
-                .replace(/{{customerAddress}}/g, orderData.customerAddress || 'Not provided')
-                .replace(/{{orderId}}/g, (order as any).order_id)
-                .replace(/{{selectedEdition}}/g, orderData.selectedEdition || 'Not specified')
-                .replace(/{{selectedColor}}/g, orderData.selectedColor || 'Not specified')
-                .replace(/{{engravingText}}/g, orderData.engravingText || '')
-                .replace(/{{paymentMethod}}/g, paymentStatus)
-                .replace(/{{totalAmount}}/g, orderData.totalAmount?.toString() || 'Not specified');
-              
-              adminSubject = adminTemplate.subject
-                .replace(/\$\{orderId\}/g, (order as any).order_id)
-                .replace(/{{orderId}}/g, (order as any).order_id);
-            } else {
-              console.log('⚠️ No admin portal templates available - using fallback template');
-              adminEmailHTML = `<h2>New Order Alert</h2><p><strong>Order #${(order as any).order_id}</strong><br>Total: ${orderData.totalAmount} BDT</p><br><h3>Customer Information</h3><strong>Name:</strong><br>${orderData.customerName}<br><strong>Phone:</strong><br>${orderData.customerPhone || 'Not provided'}<br><strong>Email:</strong><br>${orderData.customerEmail || 'Not provided'}<br><strong>Address:</strong><br>${orderData.customerAddress || 'Not provided'}<br><br><h3>Product Details</h3><strong>Edition:</strong><br>${orderData.selectedEdition || 'Not specified'}<br><strong>Color:</strong><br>${orderData.selectedColor || 'Not specified'}<br>${orderData.engravingText ? `<strong>Engraving:</strong><br>${orderData.engravingText}<br>` : ''}<strong>Payment Method:</strong><br>${paymentStatus}<br><br><p>Please process this order.</p>`;
-            }
-            
-            // Skip email if no admin emails configured
-            if (!adminEmails) {
-              console.log('⚠️ No admin emails configured, skipping admin notification');
-            } else {
-              console.log('📧 STEP 3.2: Sending admin email for COD order');
-              
-              const adminEmailResult = await sendEmail({
-                to: adminEmails,
-                subject: adminSubject,
-                message: adminEmailHTML,
-                from_name: 'Ximpul Shop',
-                cc: ccEmails || undefined
-              });
-              console.log('📧 Admin email response:', adminEmailResult);
-              
-              if (!adminEmailResult.success) {
-                console.error('❌ Admin email failed:', adminEmailResult.error);
-              } else {
-                console.log('✅ Admin email sent successfully');
-              }
-            }
-          } else {
-            console.log('📧 Skipping admin email for online payment - will be sent after payment confirmation');
+          if (config?.cc_emails && config.cc_emails.length > 0) {
+            ccEmails = config.cc_emails.join(',');
           }
-          
-          const response = { ok: true };
-          
-        console.log('✅ STEP 3 SUCCESS: Emails sent successfully');
-      } // End of disabled email block
+        }
+
+        // Send Customer Email
+        if (orderData.customerEmail) {
+          let customerSubject = `Order Confirmation #${order.order_id} | Ximpul`;
+          let customerHTML = '';
+
+          if (customerTemplate) {
+            customerSubject = customerTemplate.subject
+              .replace(/\$\{orderId\}/g, order.order_id)
+              .replace(/{{orderId}}/g, order.order_id);
+
+            customerHTML = customerTemplate.template
+              .replace(/\$\{customerName\}/g, orderData.customerName)
+              .replace(/\$\{orderId\}/g, order.order_id)
+              .replace(/\$\{selectedEdition\}/g, orderData.selectedEdition || 'Standard')
+              .replace(/\$\{selectedColor\}/g, orderData.selectedColor || 'Standard')
+              .replace(/\$\{paymentMethod\}/g, paymentMethodLabel)
+              .replace(/\$\{totalAmount\}/g, orderData.totalAmount?.toString() || '0')
+              .replace(/{{customerName}}/g, orderData.customerName)
+              .replace(/{{orderId}}/g, order.order_id)
+              .replace(/{{selectedEdition}}/g, orderData.selectedEdition || 'Standard')
+              .replace(/{{selectedColor}}/g, orderData.selectedColor || 'Standard')
+              .replace(/{{paymentMethod}}/g, paymentMethodLabel)
+              .replace(/{{totalAmount}}/g, orderData.totalAmount?.toString() || '0');
+          } else {
+            customerHTML = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                <h2 style="color: #333;">Thank You for Your Order!</h2>
+                <p>Dear ${orderData.customerName},</p>
+                <p>We have successfully received your order <strong>#${order.order_id}</strong>.</p>
+                <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                  <h3 style="margin-top: 0;">Order Summary</h3>
+                  <p><strong>Order ID:</strong> #${order.order_id}</p>
+                  <p><strong>Edition:</strong> ${orderData.selectedEdition}</p>
+                  <p><strong>Color:</strong> ${orderData.selectedColor}</p>
+                  <p><strong>Payment Method:</strong> ${paymentMethodLabel}</p>
+                  <p><strong>Total Amount:</strong> ৳${orderData.totalAmount}</p>
+                </div>
+                <p>We will process your order shortly.</p>
+                <p>Best regards,<br><strong>Ximpul Team</strong></p>
+              </div>
+            `;
+          }
+
+          console.log('📧 Sending customer email to:', orderData.customerEmail);
+          const custResult = await sendEmail({
+            to: orderData.customerEmail,
+            subject: customerSubject,
+            message: customerHTML,
+            from_name: 'Ximpul'
+          });
+          console.log('📧 Customer email result:', custResult);
+        }
+
+        // Send Admin Email
+        let adminSubject = `New Order Received: #${order.order_id} | Ximpul`;
+        let adminHTML = '';
+
+        if (adminTemplate) {
+          adminSubject = adminTemplate.subject
+            .replace(/\$\{orderId\}/g, order.order_id)
+            .replace(/{{orderId}}/g, order.order_id);
+
+          adminHTML = adminTemplate.template
+            .replace(/\$\{customerName\}/g, orderData.customerName)
+            .replace(/\$\{customerPhone\}/g, orderData.customerPhone)
+            .replace(/\$\{customerEmail\}/g, orderData.customerEmail || 'Not provided')
+            .replace(/\$\{customerAddress\}/g, orderData.customerAddress)
+            .replace(/\$\{orderId\}/g, order.order_id)
+            .replace(/\$\{selectedEdition\}/g, orderData.selectedEdition)
+            .replace(/\$\{selectedColor\}/g, orderData.selectedColor)
+            .replace(/\$\{engravingText\}/g, orderData.engravingText || 'None')
+            .replace(/\$\{paymentMethod\}/g, paymentMethodLabel)
+            .replace(/\$\{totalAmount\}/g, orderData.totalAmount?.toString() || '0')
+            .replace(/{{customerName}}/g, orderData.customerName)
+            .replace(/{{customerPhone}}/g, orderData.customerPhone)
+            .replace(/{{customerEmail}}/g, orderData.customerEmail || 'Not provided')
+            .replace(/{{customerAddress}}/g, orderData.customerAddress)
+            .replace(/{{orderId}}/g, order.order_id)
+            .replace(/{{selectedEdition}}/g, orderData.selectedEdition)
+            .replace(/{{selectedColor}}/g, orderData.selectedColor)
+            .replace(/{{engravingText}}/g, orderData.engravingText || 'None')
+            .replace(/{{paymentMethod}}/g, paymentMethodLabel)
+            .replace(/{{totalAmount}}/g, orderData.totalAmount?.toString() || '0');
+        } else {
+          adminHTML = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+              <h2 style="color: #111;">New Order Alert!</h2>
+              <p>A new order <strong>#${order.order_id}</strong> has been placed on Ximpul.</p>
+              <div style="background-color: #f4f4f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                <h3 style="margin-top: 0;">Order & Customer Details</h3>
+                <p><strong>Order ID:</strong> #${order.order_id}</p>
+                <p><strong>Customer Name:</strong> ${orderData.customerName}</p>
+                <p><strong>Phone:</strong> ${orderData.customerPhone}</p>
+                <p><strong>Email:</strong> ${orderData.customerEmail || 'Not provided'}</p>
+                <p><strong>Address:</strong> ${orderData.customerAddress}</p>
+                <p><strong>Edition:</strong> ${orderData.selectedEdition}</p>
+                <p><strong>Color:</strong> ${orderData.selectedColor}</p>
+                <p><strong>Engraving:</strong> ${orderData.engravingText || 'None'}</p>
+                <p><strong>Payment Method:</strong> ${paymentMethodLabel}</p>
+                <p><strong>Total Amount:</strong> ৳${orderData.totalAmount}</p>
+              </div>
+            </div>
+          `;
+        }
+
+        console.log('📧 Sending admin email to:', adminEmails);
+        const admResult = await sendEmail({
+          to: adminEmails,
+          subject: adminSubject,
+          message: adminHTML,
+          from_name: 'Ximpul Order Alert',
+          cc: ccEmails || undefined
+        });
+        console.log('📧 Admin email result:', admResult);
+
+        sessionStorage.setItem(`emailSent_${order.id}`, 'true');
+        console.log('✅ STEP 3 SUCCESS: All order emails processed');
+      } catch (emailErr) {
+        console.error('⚠️ STEP 3 WARNING: Error sending order emails:', emailErr);
+      }
       
       console.log('✅ STEP 3 SKIPPED: Emails will be sent from Thank You page');
 
