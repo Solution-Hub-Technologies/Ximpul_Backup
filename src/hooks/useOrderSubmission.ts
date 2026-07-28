@@ -32,55 +32,91 @@ export const useOrderSubmission = () => {
       
       console.log('💾 STEP 2: Creating order in database...');
       
-      // Get next order ID manually - find highest numeric order_id
-      const { data: allOrders } = await supabase
+      // Get next order ID manually by querying most recent orders sorted by created_at and order_id
+      const { data: recentOrders } = await supabase
         .from('orders')
-        .select('order_id');
-      
-      let maxOrderId = 100274; // Start from last known good order
-      if (allOrders) {
-        allOrders.forEach(order => {
-          const numId = parseInt(order.order_id);
-          if (!isNaN(numId) && numId > maxOrderId) {
-            maxOrderId = numId;
-          }
-        });
-      }
-      
-      const nextOrderId = (maxOrderId + 1).toString();
-      
-      console.log('Max existing order ID:', maxOrderId, 'Next order ID will be:', nextOrderId);
-      
-      // First, create the order in database
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert([{
-          order_id: nextOrderId,
-          customer_name: orderData.customerName,
-          customer_phone: orderData.customerPhone,
-          customer_email: orderData.customerEmail || null,
-          customer_address: orderData.customerAddress,
-          selected_edition: orderData.selectedEdition,
-          selected_color: orderData.selectedColor,
-          selected_accessories: orderData.selectedAccessories,
-          engraving_text: orderData.engravingText?.trim() || null,
-          payment_method: orderData.paymentMethod,
-          subtotal: orderData.subtotal,
-          delivery_fee: orderData.deliveryFee,
-          total_amount: orderData.totalAmount,
-          order_status: orderData.paymentMethod === 'online' ? 'pending_payment' : 'pending',
-          payment_status: orderData.paymentMethod === 'online' ? 'pending' : 'pending',
-          privacy_preference: orderData.privacyPreference
-        }])
-        .select()
-        .single();
+        .select('order_id')
+        .order('created_at', { ascending: false })
+        .limit(100);
 
-      if (orderError) {
+      const { data: maxOrders } = await supabase
+        .from('orders')
+        .select('order_id')
+        .order('order_id', { ascending: false })
+        .limit(100);
+
+      let maxOrderId = 100274;
+      const processOrders = (ordersList: any[] | null) => {
+        if (ordersList) {
+          ordersList.forEach(orderItem => {
+            const numId = parseInt(orderItem.order_id);
+            if (!isNaN(numId) && numId > maxOrderId) {
+              maxOrderId = numId;
+            }
+          });
+        }
+      };
+
+      processOrders(recentOrders);
+      processOrders(maxOrders);
+
+      console.log('Max existing order ID:', maxOrderId);
+
+      let currentCandidateId = maxOrderId + 1;
+      let order: any = null;
+      let orderError: any = null;
+      let attempts = 0;
+
+      while (attempts < 10) {
+        attempts++;
+        const nextOrderId = currentCandidateId.toString();
+        
+        console.log(`Attempt ${attempts}: Trying order_id ${nextOrderId}`);
+
+        const result = await supabase
+          .from('orders')
+          .insert([{
+            order_id: nextOrderId,
+            customer_name: orderData.customerName,
+            customer_phone: orderData.customerPhone,
+            customer_email: orderData.customerEmail || null,
+            customer_address: orderData.customerAddress,
+            selected_edition: orderData.selectedEdition,
+            selected_color: orderData.selectedColor,
+            selected_accessories: orderData.selectedAccessories,
+            engraving_text: orderData.engravingText?.trim() || null,
+            payment_method: orderData.paymentMethod,
+            subtotal: orderData.subtotal,
+            delivery_fee: orderData.deliveryFee,
+            total_amount: orderData.totalAmount,
+            order_status: orderData.paymentMethod === 'online' ? 'pending_payment' : 'pending',
+            payment_status: orderData.paymentMethod === 'online' ? 'pending' : 'pending',
+            privacy_preference: orderData.privacyPreference
+          }])
+          .select()
+          .single();
+
+        if (!result.error && result.data) {
+          order = result.data;
+          orderError = null;
+          break;
+        }
+
+        if (result.error?.code === '23505') {
+          console.warn(`⚠️ Order ID ${nextOrderId} already exists, retrying with ${currentCandidateId + 1}...`);
+          currentCandidateId++;
+        } else {
+          orderError = result.error;
+          break;
+        }
+      }
+
+      if (orderError || !order) {
         console.error('❌ STEP 2 FAILED: Order creation error:', orderError);
         throw orderError;
       }
 
-      console.log('✅ STEP 2 SUCCESS: Order created:', order.id);
+      console.log('✅ STEP 2 SUCCESS: Order created:', order.id, 'with order_id:', order.order_id);
       
       // Skip email sending - will be sent from Thank You page
       console.log('📧 STEP 3: Email sending skipped - will be triggered from Thank You page');
