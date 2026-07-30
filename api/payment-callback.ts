@@ -27,6 +27,82 @@ function extractParams(req: VercelRequest): Record<string, any> {
 const isUuidPattern = (str: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
+async function createSteadfastParcel(supabase: any, orderRecord: any) {
+  if (!orderRecord || orderRecord.tracking_number) {
+    return orderRecord?.tracking_number || null;
+  }
+
+  try {
+    const { data: vendors } = await supabase
+      .from('courier_vendors')
+      .select('*')
+      .eq('type', 'steadfast')
+      .eq('status', 'active')
+      .limit(1);
+
+    if (!vendors || vendors.length === 0) {
+      console.warn('⚠️ Steadfast auto-creation skipped: No active vendor found.');
+      return null;
+    }
+
+    const steadfastVendor = vendors[0];
+    if (!steadfastVendor.api_key || !steadfastVendor.secret_key) {
+      console.warn('⚠️ Steadfast auto-creation skipped: API credentials missing.');
+      return null;
+    }
+
+    const codAmount = orderRecord.payment_method === 'online' ? 0 : orderRecord.total_amount;
+    const colorLabel = orderRecord.selected_color === 'obsidian' ? 'Obsidian Black' : (orderRecord.selected_color || 'Graphite Grey');
+    const engravingPart = orderRecord.engraving_text ? ` - Engraved: "${orderRecord.engraving_text}"` : '';
+
+    const steadfastData = {
+      invoice: orderRecord.order_id,
+      recipient_name: orderRecord.customer_name,
+      recipient_phone: orderRecord.customer_phone,
+      recipient_address: orderRecord.customer_address,
+      cod_amount: codAmount,
+      note: `Ximpul Flow - ${orderRecord.selected_edition} - ${colorLabel}${engravingPart}`
+    };
+
+    const baseUrl = (steadfastVendor.base_url || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
+    const apiUrl = `${baseUrl}/create_order`;
+
+    console.log(`📦 Creating Steadfast parcel for order #${orderRecord.order_id}...`);
+
+    const sfRes = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Api-Key': steadfastVendor.api_key,
+        'Secret-Key': steadfastVendor.secret_key,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(steadfastData)
+    });
+
+    const sfResult = await sfRes.json();
+    console.log('📦 Steadfast API response:', sfResult);
+
+    if (sfResult && (sfResult.status === 200 || sfResult.status === '200') && sfResult.consignment) {
+      const consignmentId = String(sfResult.consignment.consignment_id);
+      console.log(`✅ Steadfast parcel created! Consignment ID: ${consignmentId}`);
+
+      // Update tracking number in database
+      await supabase
+        .from('orders')
+        .update({ tracking_number: consignmentId })
+        .eq('id', orderRecord.id);
+
+      orderRecord.tracking_number = consignmentId;
+      return consignmentId;
+    } else {
+      console.error('❌ Steadfast parcel creation failed:', sfResult);
+    }
+  } catch (sfErr) {
+    console.error('⚠️ Steadfast parcel creation exception:', sfErr);
+  }
+  return null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -129,7 +205,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     updatedOrder = await updateOrderInDb(orderId, 'completed', 'processing', val_id || 'online_paid');
   }
 
-  // 3. Dispatch Notification Emails using the exact same DB templates as COD
+  // 3. Auto-Create Steadfast Parcel for completed online order
+  if (updatedOrder) {
+    await createSteadfastParcel(supabase, updatedOrder);
+  }
+
+  // 4. Dispatch Notification Emails using the exact same DB templates as COD
   if (updatedOrder || isPaymentVerified || statusParam === 'success') {
     try {
       const orderRecord = updatedOrder || {};

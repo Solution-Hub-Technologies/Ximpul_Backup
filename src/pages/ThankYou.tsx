@@ -111,6 +111,58 @@ const ThankYou = () => {
                 data.payment_status = 'completed';
                 data.order_status = 'processing';
               }
+
+              // Auto-create Steadfast parcel if tracking_number is not set yet
+              if (!data.tracking_number) {
+                try {
+                  const { data: vendors } = await supabase
+                    .from('courier_vendors')
+                    .select('*')
+                    .eq('type', 'steadfast')
+                    .eq('status', 'active')
+                    .limit(1);
+
+                  if (vendors && vendors.length > 0) {
+                    const steadfastVendor = vendors[0];
+                    if (steadfastVendor.api_key && steadfastVendor.secret_key) {
+                      const colorLabel = data.selected_color === 'obsidian' ? 'Obsidian Black' : (data.selected_color || 'Graphite Grey');
+                      const engravingPart = data.engraving_text ? ` - Engraved: "${data.engraving_text}"` : '';
+
+                      const sfData = {
+                        invoice: data.order_id,
+                        recipient_name: data.customer_name,
+                        recipient_phone: data.customer_phone,
+                        recipient_address: data.customer_address,
+                        cod_amount: 0,
+                        note: `Ximpul Flow - ${data.selected_edition} - ${colorLabel}${engravingPart}`
+                      };
+
+                      const baseUrl = (steadfastVendor.base_url || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
+                      const sfRes = await fetch(`${baseUrl}/create_order`, {
+                        method: 'POST',
+                        headers: {
+                          'Api-Key': steadfastVendor.api_key,
+                          'Secret-Key': steadfastVendor.secret_key,
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(sfData)
+                      });
+
+                      const sfResult = await sfRes.json();
+                      if (sfResult && (sfResult.status === 200 || sfResult.status === '200') && sfResult.consignment) {
+                        const consignmentId = String(sfResult.consignment.consignment_id);
+                        await supabase
+                          .from('orders')
+                          .update({ tracking_number: consignmentId })
+                          .eq('id', data.id);
+                        data.tracking_number = consignmentId;
+                      }
+                    }
+                  }
+                } catch (sfErr) {
+                  console.error('Steadfast parcel creation error on ThankYou page:', sfErr);
+                }
+              }
             }
 
             setOrder(data);
