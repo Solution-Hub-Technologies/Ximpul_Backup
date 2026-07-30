@@ -291,34 +291,60 @@ export const useOrderSubmission = () => {
 
       // If payment method is online, initialize SSLCommerz payment
       if (orderData.paymentMethod === 'online') {
-		  console.log('💳 STEP 4: Initializing online payment for order:', order.id);
-		  
-		  // Create form and submit to payment handler
-		  const form = document.createElement('form');
-		  form.method = 'POST';
-		  form.action = 'https://ximpul.com/payment-form.php';
-		  
-		  const fields = {
-			customerName: orderData.customerName,
-			customerPhone: orderData.customerPhone,
-			customerEmail: orderData.customerEmail || `noemail+${order.id}@ximpul.com`,
-			customerAddress: orderData.customerAddress,
-			totalAmount: orderData.totalAmount,
-			orderId: order.id
-		  };
-		  
-		  Object.keys(fields).forEach(key => {
-			const input = document.createElement('input');
-			input.type = 'hidden';
-			input.name = key;
-			input.value = fields[key];
-			form.appendChild(input);
-		  });
-		  
-		  document.body.appendChild(form);
-		  form.submit();
-		  return order;
-		}
+        console.log('💳 STEP 4: Initializing online payment via Vercel serverless function for order:', order.id);
+
+        try {
+          const response = await fetch('/api/payment-init', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              orderId: order.order_id || order.id,
+              customerName: orderData.customerName,
+              customerPhone: orderData.customerPhone,
+              customerEmail: orderData.customerEmail || `noemail+${order.id}@ximpul.com`,
+              customerAddress: orderData.customerAddress,
+              totalAmount: orderData.totalAmount,
+            }),
+          });
+
+          const data = await response.json();
+          if (data && data.success && data.url) {
+            console.log('🔗 Redirecting to SSLCommerz gateway:', data.url);
+            window.location.href = data.url;
+            return order;
+          }
+        } catch (apiErr) {
+          console.warn('⚠️ Vercel /api/payment-init call failed, falling back to form submission:', apiErr);
+        }
+
+        // Fallback form post
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = 'https://ximpul.com/payment-form.php';
+
+        const fields: Record<string, any> = {
+          customerName: orderData.customerName,
+          customerPhone: orderData.customerPhone,
+          customerEmail: orderData.customerEmail || `noemail+${order.id}@ximpul.com`,
+          customerAddress: orderData.customerAddress,
+          totalAmount: orderData.totalAmount,
+          orderId: order.order_id || order.id
+        };
+
+        Object.keys(fields).forEach(key => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = fields[key];
+          form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+        return order;
+      }
 
 
 

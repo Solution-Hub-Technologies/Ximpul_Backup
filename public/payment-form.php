@@ -85,10 +85,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception('SSL configuration not found');
         }
     } catch (Exception $e) {
-        // Fallback to environment variables if database fetch fails
-        $store_id = $env['SSLCOMMERZ_STORE_ID'] ?? 'sohubshop0live';
-        $store_passwd = $env['SSLCOMMERZ_STORE_PASSWORD'] ?? '65FAB9002A98896874';
-        $is_live = ($env['SSLCOMMERZ_IS_LIVE'] ?? 'true') === 'true';
+        // Read from environment variables
+        $store_id = $env['SSLCOMMERZ_STORE_ID'] ?? getenv('SSLCOMMERZ_STORE_ID') ?? '';
+        $store_passwd = $env['SSLCOMMERZ_STORE_PASSWORD'] ?? getenv('SSLCOMMERZ_STORE_PASSWORD') ?? '';
+        $is_live = ($env['SSLCOMMERZ_IS_LIVE'] ?? getenv('SSLCOMMERZ_IS_LIVE') ?? 'true') !== 'false';
     }
 
     $post_data = array();

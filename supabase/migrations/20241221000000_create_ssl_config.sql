@@ -9,8 +9,7 @@ CREATE TABLE IF NOT EXISTS ssl_config (
 );
 
 -- Insert default SSL configuration
-INSERT INTO ssl_config (store_id, store_password, is_live) VALUES 
-('sohubshop0live', '65FAB9002A98896874', true);
+INSERT INTO ssl_config (store_id, store_password, is_live) VALUES ('YOUR_SSLCOMMERZ_STORE_ID', 'YOUR_SSLCOMMERZ_STORE_PASSWORD', true);
 
 -- Enable RLS
 ALTER TABLE ssl_config ENABLE ROW LEVEL SECURITY;
