@@ -170,15 +170,23 @@ export const useOrderSubmission = () => {
 
             customerHTML = customerTemplate.template
               .replace(/\$\{customerName\}/g, orderData.customerName)
+              .replace(/\$\{customerPhone\}/g, orderData.customerPhone || '')
+              .replace(/\$\{customerEmail\}/g, orderData.customerEmail || 'Not provided')
+              .replace(/\$\{customerAddress\}/g, orderData.customerAddress || '')
               .replace(/\$\{orderId\}/g, order.order_id)
               .replace(/\$\{selectedEdition\}/g, orderData.selectedEdition || 'Standard')
               .replace(/\$\{selectedColor\}/g, orderData.selectedColor || 'Standard')
+              .replace(/\$\{engravingText\}/g, orderData.engravingText || 'None')
               .replace(/\$\{paymentMethod\}/g, paymentMethodLabel)
               .replace(/\$\{totalAmount\}/g, orderData.totalAmount?.toString() || '0')
               .replace(/{{customerName}}/g, orderData.customerName)
+              .replace(/{{customerPhone}}/g, orderData.customerPhone || '')
+              .replace(/{{customerEmail}}/g, orderData.customerEmail || 'Not provided')
+              .replace(/{{customerAddress}}/g, orderData.customerAddress || '')
               .replace(/{{orderId}}/g, order.order_id)
               .replace(/{{selectedEdition}}/g, orderData.selectedEdition || 'Standard')
               .replace(/{{selectedColor}}/g, orderData.selectedColor || 'Standard')
+              .replace(/{{engravingText}}/g, orderData.engravingText || 'None')
               .replace(/{{paymentMethod}}/g, paymentMethodLabel)
               .replace(/{{totalAmount}}/g, orderData.totalAmount?.toString() || '0');
           } else {

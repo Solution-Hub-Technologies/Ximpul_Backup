@@ -129,15 +129,23 @@ const ThankYou = () => {
             if (customerTemplate) {
               customerEmailHTML = customerTemplate.template
                 .replace(/\$\{customerName\}/g, order.customer_name)
+                .replace(/\$\{customerPhone\}/g, order.customer_phone || '')
+                .replace(/\$\{customerEmail\}/g, order.customer_email || 'Not provided')
+                .replace(/\$\{customerAddress\}/g, order.customer_address || '')
                 .replace(/\$\{orderId\}/g, order.order_id)
                 .replace(/\$\{selectedEdition\}/g, order.selected_edition)
                 .replace(/\$\{selectedColor\}/g, order.selected_color)
+                .replace(/\$\{engravingText\}/g, order.engraving_text || 'None')
                 .replace(/\$\{paymentMethod\}/g, paymentMethod)
                 .replace(/\$\{totalAmount\}/g, order.total_amount.toString())
                 .replace(/{{customerName}}/g, order.customer_name)
+                .replace(/{{customerPhone}}/g, order.customer_phone || '')
+                .replace(/{{customerEmail}}/g, order.customer_email || 'Not provided')
+                .replace(/{{customerAddress}}/g, order.customer_address || '')
                 .replace(/{{orderId}}/g, order.order_id)
                 .replace(/{{selectedEdition}}/g, order.selected_edition)
                 .replace(/{{selectedColor}}/g, order.selected_color)
+                .replace(/{{engravingText}}/g, order.engraving_text || 'None')
                 .replace(/{{paymentMethod}}/g, paymentMethod)
                 .replace(/{{totalAmount}}/g, order.total_amount.toString());
               
