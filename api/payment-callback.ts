@@ -243,7 +243,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select('*')
         .eq('config_type', 'customer');
 
-      let adminEmails = (process.env.ADMIN_EMAIL || 'razinahmed60@gmail.com').trim();
+      let adminEmails = (process.env.ADMIN_EMAIL || 'ximpulshop@gmail.com').trim();
       let ccEmails = '';
       if (emailConfig && emailConfig.length > 0) {
         const config = emailConfig[0];

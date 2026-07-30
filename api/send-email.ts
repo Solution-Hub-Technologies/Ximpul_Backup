@@ -20,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const lambdaUrl = process.env.LAMBDA_API_URL || process.env.VITE_LAMBDA_API_URL || '';
   const lambdaSecret = process.env.LAMBDA_SECRET || '';
-  const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'razinahmed60@gmail.com').trim();
+  const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'ximpulshop@gmail.com').trim();
 
   if (!lambdaUrl || !lambdaSecret) {
     console.error('Email configuration error: LAMBDA_API_URL or LAMBDA_SECRET missing');
