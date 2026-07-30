@@ -129,65 +129,192 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     updatedOrder = await updateOrderInDb(orderId, 'completed', 'processing', val_id || 'online_paid');
   }
 
-  // 3. Dispatch Notification Emails for Confirmed Online Payment
+  // 3. Dispatch Notification Emails using the exact same DB templates as COD
   if (updatedOrder || isPaymentVerified || statusParam === 'success') {
     try {
-      const customerEmail = updatedOrder?.customer_email || params.cus_email;
-      const customerName = updatedOrder?.customer_name || params.cus_name || 'Customer';
-      const orderCode = updatedOrder?.order_id || orderId;
-      const totalAmount = updatedOrder?.total_amount || params.amount || '0';
+      const orderRecord = updatedOrder || {};
+      const orderCode = orderRecord.order_id || orderId;
+      const customerName = orderRecord.customer_name || params.cus_name || 'Customer';
+      const customerPhone = orderRecord.customer_phone || params.cus_phone || '';
+      const customerEmail = orderRecord.customer_email || params.cus_email || '';
+      const customerAddress = orderRecord.customer_address || params.cus_add1 || '';
+      const selectedEdition = orderRecord.selected_edition || 'Standard';
+      const selectedColor = orderRecord.selected_color || 'Standard';
+      const engravingText = orderRecord.engraving_text || 'None';
+      const paymentMethodLabel = 'Online Payment';
+      const totalAmount = (orderRecord.total_amount || params.amount || '0').toString();
+
+      // Fetch Email Templates & Config from Supabase
+      const { data: customerTemplate } = await supabase
+        .from('email_templates')
+        .select('*')
+        .eq('type', 'order_customer')
+        .maybeSingle();
+
+      const { data: adminTemplate } = await supabase
+        .from('email_templates')
+        .select('*')
+        .eq('type', 'order_admin')
+        .maybeSingle();
+
+      const { data: emailConfig } = await supabase
+        .from('email_config')
+        .select('*')
+        .eq('config_type', 'customer');
+
+      let adminEmails = (process.env.ADMIN_EMAIL || 'razinahmed60@gmail.com').trim();
+      let ccEmails = '';
+      if (emailConfig && emailConfig.length > 0) {
+        const config = emailConfig[0];
+        if (config?.to_emails && config.to_emails.length > 0) {
+          adminEmails = config.to_emails.join(',');
+        }
+        if (config?.cc_emails && config.cc_emails.length > 0) {
+          ccEmails = config.cc_emails.join(',');
+        }
+      }
 
       const lambdaUrl = process.env.LAMBDA_API_URL || process.env.VITE_LAMBDA_API_URL || 'https://v1t9e2n4qf.execute-api.ap-south-1.amazonaws.com/send-email';
       const lambdaSecret = process.env.LAMBDA_SECRET || process.env.VITE_LAMBDA_SECRET || '';
-      const adminEmail = (process.env.ADMIN_EMAIL || 'razinahmed60@gmail.com').trim();
 
-      console.log(`📧 Sending payment confirmation emails for order #${orderCode} to ${customerEmail}...`);
+      console.log(`📧 Dispatching template-based emails for order #${orderCode}...`);
 
+      // 1. Send Customer Email
       if (customerEmail && lambdaUrl) {
+        let customerSubject = `Order Confirmation #${orderCode} | Ximpul`;
+        let customerHTML = '';
+
+        if (customerTemplate) {
+          customerSubject = customerTemplate.subject
+            .replace(/\$\{orderId\}/g, orderCode)
+            .replace(/{{orderId}}/g, orderCode);
+
+          customerHTML = customerTemplate.template
+            .replace(/\$\{customerName\}/g, customerName)
+            .replace(/\$\{customerPhone\}/g, customerPhone)
+            .replace(/\$\{customerEmail\}/g, customerEmail || 'Not provided')
+            .replace(/\$\{customerAddress\}/g, customerAddress)
+            .replace(/\$\{orderId\}/g, orderCode)
+            .replace(/\$\{selectedEdition\}/g, selectedEdition)
+            .replace(/\$\{selectedColor\}/g, selectedColor)
+            .replace(/\$\{engravingText\}/g, engravingText)
+            .replace(/\$\{paymentMethod\}/g, paymentMethodLabel)
+            .replace(/\$\{totalAmount\}/g, totalAmount)
+            .replace(/{{customerName}}/g, customerName)
+            .replace(/{{customerPhone}}/g, customerPhone)
+            .replace(/{{customerEmail}}/g, customerEmail || 'Not provided')
+            .replace(/{{customerAddress}}/g, customerAddress)
+            .replace(/{{orderId}}/g, orderCode)
+            .replace(/{{selectedEdition}}/g, selectedEdition)
+            .replace(/{{selectedColor}}/g, selectedColor)
+            .replace(/{{engravingText}}/g, engravingText)
+            .replace(/{{paymentMethod}}/g, paymentMethodLabel)
+            .replace(/{{totalAmount}}/g, totalAmount);
+        } else {
+          customerHTML = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+              <h2>Thank You for Your Order!</h2>
+              <p>Dear ${customerName},</p>
+              <p>We have successfully received your order <strong>#${orderCode}</strong>.</p>
+              <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                <h3>Order Summary</h3>
+                <p><strong>Order ID:</strong> #${orderCode}</p>
+                <p><strong>Edition:</strong> ${selectedEdition}</p>
+                <p><strong>Color:</strong> ${selectedColor}</p>
+                <p><strong>Payment Method:</strong> ${paymentMethodLabel}</p>
+                <p><strong>Total Amount:</strong> ৳${totalAmount}</p>
+              </div>
+              <p>We will process your order shortly.</p>
+              <p>Best regards,<br><strong>Ximpul Team</strong></p>
+            </div>
+          `;
+        }
+
         await fetch(lambdaUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: 'Ximpul',
-            email: adminEmail,
+            email: adminEmails.split(',')[0] || 'razinahmed60@gmail.com',
             to: customerEmail,
-            subject: `Payment Confirmed - Order #${orderCode} | Ximpul`,
+            subject: customerSubject,
             source: 'Ximpul Flow',
             secretKey: lambdaSecret,
-            htmlTemplate: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-                <h2 style="color: #10b981;">Payment Received & Order Confirmed!</h2>
-                <p>Dear ${customerName},</p>
-                <p>Your online payment of <strong>৳${totalAmount}</strong> for order <strong>#${orderCode}</strong> was successfully received.</p>
-                <p>We are processing your order for delivery.</p>
-                <p>Best regards,<br><strong>Ximpul Team</strong></p>
-              </div>
-            `
+            htmlTemplate: customerHTML,
           })
         }).catch(e => console.error('Customer mail fetch error:', e));
       }
 
+      // 2. Send Admin Email
       if (lambdaUrl) {
-        await fetch(lambdaUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: 'Ximpul Order Alert',
-            email: adminEmail,
-            to: adminEmail,
-            subject: `Payment Received - Order #${orderCode} | Ximpul`,
-            source: 'Ximpul Flow',
-            secretKey: lambdaSecret,
-            htmlTemplate: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-                <h2 style="color: #10b981;">Online Payment Received!</h2>
-                <p>Order <strong>#${orderCode}</strong> payment of ৳${totalAmount} has been verified.</p>
-                <p><strong>Customer:</strong> ${customerName} (${customerEmail || 'No email'})</p>
-                <p><strong>Transaction ID:</strong> ${val_id || 'Online'}</p>
+        let adminSubject = `New Order Received: #${orderCode} | Ximpul`;
+        let adminHTML = '';
+
+        if (adminTemplate) {
+          adminSubject = adminTemplate.subject
+            .replace(/\$\{orderId\}/g, orderCode)
+            .replace(/{{orderId}}/g, orderCode);
+
+          adminHTML = adminTemplate.template
+            .replace(/\$\{customerName\}/g, customerName)
+            .replace(/\$\{customerPhone\}/g, customerPhone)
+            .replace(/\$\{customerEmail\}/g, customerEmail || 'Not provided')
+            .replace(/\$\{customerAddress\}/g, customerAddress)
+            .replace(/\$\{orderId\}/g, orderCode)
+            .replace(/\$\{selectedEdition\}/g, selectedEdition)
+            .replace(/\$\{selectedColor\}/g, selectedColor)
+            .replace(/\$\{engravingText\}/g, engravingText)
+            .replace(/\$\{paymentMethod\}/g, paymentMethodLabel)
+            .replace(/\$\{totalAmount\}/g, totalAmount)
+            .replace(/{{customerName}}/g, customerName)
+            .replace(/{{customerPhone}}/g, customerPhone)
+            .replace(/{{customerEmail}}/g, customerEmail || 'Not provided')
+            .replace(/{{customerAddress}}/g, customerAddress)
+            .replace(/{{orderId}}/g, orderCode)
+            .replace(/{{selectedEdition}}/g, selectedEdition)
+            .replace(/{{selectedColor}}/g, selectedColor)
+            .replace(/{{engravingText}}/g, engravingText)
+            .replace(/{{paymentMethod}}/g, paymentMethodLabel)
+            .replace(/{{totalAmount}}/g, totalAmount);
+        } else {
+          adminHTML = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+              <h2>New Order Alert!</h2>
+              <p>A new order <strong>#${orderCode}</strong> has been placed on Ximpul.</p>
+              <div style="background-color: #f4f4f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                <h3>Order & Customer Details</h3>
+                <p><strong>Order ID:</strong> #${orderCode}</p>
+                <p><strong>Customer Name:</strong> ${customerName}</p>
+                <p><strong>Phone:</strong> ${customerPhone}</p>
+                <p><strong>Email:</strong> ${customerEmail || 'Not provided'}</p>
+                <p><strong>Address:</strong> ${customerAddress}</p>
+                <p><strong>Edition:</strong> ${selectedEdition}</p>
+                <p><strong>Color:</strong> ${selectedColor}</p>
+                <p><strong>Engraving:</strong> ${engravingText}</p>
+                <p><strong>Payment Method:</strong> ${paymentMethodLabel}</p>
+                <p><strong>Total Amount:</strong> ৳${totalAmount}</p>
               </div>
-            `
-          })
-        }).catch(e => console.error('Admin mail fetch error:', e));
+            </div>
+          `;
+        }
+
+        const adminTargets = adminEmails.split(',').map(e => e.trim()).filter(Boolean);
+        for (const targetAdminEmail of adminTargets) {
+          await fetch(lambdaUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: 'Ximpul Order Alert',
+              email: targetAdminEmail,
+              to: targetAdminEmail,
+              subject: adminSubject,
+              source: 'Ximpul Flow',
+              secretKey: lambdaSecret,
+              htmlTemplate: adminHTML,
+              cc: ccEmails || undefined,
+            })
+          }).catch(e => console.error('Admin mail fetch error:', e));
+        }
       }
     } catch (mailErr) {
       console.error('⚠️ Exception sending payment emails:', mailErr);
