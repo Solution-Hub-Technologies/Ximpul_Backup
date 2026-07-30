@@ -255,8 +255,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
-      const lambdaUrl = process.env.LAMBDA_API_URL || process.env.VITE_LAMBDA_API_URL || 'https://v1t9e2n4qf.execute-api.ap-south-1.amazonaws.com/send-email';
-      const lambdaSecret = process.env.LAMBDA_SECRET || process.env.VITE_LAMBDA_SECRET || '';
+      const lambdaUrl = process.env.LAMBDA_API_URL || process.env.VITE_LAMBDA_API_URL || 'https://sohub.com.bd/api/send-email';
+      const lambdaSecret = process.env.LAMBDA_SECRET || process.env.VITE_LAMBDA_SECRET || 'sohub-mailer-secret-2026';
 
       console.log(`📧 Dispatching template-based emails for order #${orderCode}...`);
 

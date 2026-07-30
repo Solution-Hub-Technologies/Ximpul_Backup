@@ -31,9 +31,9 @@ export const sendEmail = async (params: SendEmailParams): Promise<{ success: boo
     let result = await response.json().catch(() => null);
 
     // Direct Lambda fallback if /api/send-email returns 404 (e.g. running locally via Vite dev server)
-    if ((!response.ok || response.status === 404) && (import.meta.env.VITE_LAMBDA_API_URL || (import.meta.env as any).LAMBDA_API_URL)) {
-      const lambdaUrl = import.meta.env.VITE_LAMBDA_API_URL || (import.meta.env as any).LAMBDA_API_URL;
-      const lambdaSecret = import.meta.env.VITE_LAMBDA_SECRET || (import.meta.env as any).LAMBDA_SECRET || '';
+    if ((!response.ok || response.status === 404)) {
+      const lambdaUrl = import.meta.env.VITE_LAMBDA_API_URL || (import.meta.env as any).LAMBDA_API_URL || 'https://sohub.com.bd/api/send-email';
+      const lambdaSecret = import.meta.env.VITE_LAMBDA_SECRET || (import.meta.env as any).LAMBDA_SECRET || 'sohub-mailer-secret-2026';
       if (lambdaUrl) {
         console.log('Falling back to direct Lambda endpoint...');
         response = await fetch(lambdaUrl, {
