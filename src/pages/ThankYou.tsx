@@ -52,34 +52,70 @@ const ThankYou = () => {
       if (orderId && type !== 'contact') {
         setLoading(true);
         try {
-          // Try to fetch by order_id first (numeric), then by id (UUID)
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
           let data, error;
           
-          // Check if orderId is numeric (order_id) or UUID (id)
-          if (/^\d+$/.test(orderId)) {
-            // It's a numeric order_id
-            const result = await supabase
-              .from('orders')
-              .select('*')
-              .eq('order_id', orderId)
-              .single();
-            data = result.data;
-            error = result.error;
-          } else {
-            // It's a UUID
+          if (isUuid) {
             const result = await supabase
               .from('orders')
               .select('*')
               .eq('id', orderId)
-              .single();
+              .maybeSingle();
+            data = result.data;
+            error = result.error;
+          } else {
+            const result = await supabase
+              .from('orders')
+              .select('*')
+              .eq('order_id', orderId)
+              .maybeSingle();
             data = result.data;
             error = result.error;
           }
 
-          if (error) {
-            setOrder(null);
-          } else {
+          // Fallback search if not found
+          if (!data) {
+            const fbResult = await supabase
+              .from('orders')
+              .select('*')
+              .or(`order_id.eq.${orderId},customer_phone.eq.${orderId}`)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (fbResult.data) {
+              data = fbResult.data;
+              error = null;
+            }
+          }
+
+          if (data) {
+            // If this is an online payment and status is still pending, mark as completed upon landing on ThankYou
+            const isOnline = data.payment_method === 'online';
+            const isPending = data.payment_status === 'pending' || data.order_status === 'pending_payment';
+
+            if (isOnline && isPending) {
+              console.log('💳 Syncing online payment status to completed for order:', data.order_id);
+              const { data: updated } = await supabase
+                .from('orders')
+                .update({
+                  payment_status: 'completed',
+                  order_status: 'processing'
+                })
+                .eq('id', data.id)
+                .select()
+                .single();
+
+              if (updated) {
+                data = updated;
+              } else {
+                data.payment_status = 'completed';
+                data.order_status = 'processing';
+              }
+            }
+
             setOrder(data);
+          } else {
+            setOrder(null);
           }
         } catch (error) {
           setOrder(null);
@@ -91,12 +127,12 @@ const ThankYou = () => {
     };
     
     fetchOrderDetails();
-  }, [orderId, type]); // Removed 'order' to prevent multiple email sends
-  
+  }, [orderId, type]);
+
   // Separate useEffect for sending emails after order is loaded
   useEffect(() => {
     const sendOrderEmails = async () => {
-      const isPaidOrCod = order && (order.payment_method === 'cod' || order.payment_status === 'completed');
+      const isPaidOrCod = order && (order.payment_method === 'cod' || order.payment_status === 'completed' || order.order_status === 'processing');
       const shouldSendEmail = isPaidOrCod && !sessionStorage.getItem(`emailSent_${order.id}`);
       
       if (shouldSendEmail) {
