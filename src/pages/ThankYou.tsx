@@ -96,7 +96,8 @@ const ThankYou = () => {
   // Separate useEffect for sending emails after order is loaded
   useEffect(() => {
     const sendOrderEmails = async () => {
-      const shouldSendEmail = order && !sessionStorage.getItem(`emailSent_${order.id}`);
+      const isPaidOrCod = order && (order.payment_method === 'cod' || order.payment_status === 'completed');
+      const shouldSendEmail = isPaidOrCod && !sessionStorage.getItem(`emailSent_${order.id}`);
       
       if (shouldSendEmail) {
         try {

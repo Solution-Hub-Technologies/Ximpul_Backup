@@ -83,6 +83,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.error('⚠️ Database order update error:', updateErr);
         } else {
           console.log('✅ Database order updated successfully:', updatedOrders);
+
+          // Send confirmation emails after successful payment
+          try {
+            const orderRecord = updatedOrders && updatedOrders.length > 0 ? updatedOrders[0] : null;
+            const customerEmail = orderRecord?.customer_email || valData.cus_email;
+            const customerName = orderRecord?.customer_name || valData.cus_name || 'Customer';
+
+            const lambdaUrl = process.env.LAMBDA_API_URL || process.env.VITE_LAMBDA_API_URL || '';
+            const lambdaSecret = process.env.LAMBDA_SECRET || '';
+            const adminEmail = (process.env.ADMIN_EMAIL || 'razinahmed60@gmail.com').trim();
+
+            if (lambdaUrl && lambdaSecret) {
+              // 1. Send Customer Email
+              if (customerEmail) {
+                await fetch(lambdaUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    name: 'Ximpul',
+                    email: adminEmail,
+                    to: customerEmail,
+                    subject: `Payment Confirmed - Order #${actualOrderId} | Ximpul`,
+                    source: 'Ximpul Flow',
+                    secretKey: lambdaSecret,
+                    htmlTemplate: `
+                      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                        <h2 style="color: #10b981;">Payment Received & Order Confirmed!</h2>
+                        <p>Dear ${customerName},</p>
+                        <p>Your online payment of <strong>৳${totalAmount}</strong> for order <strong>#${actualOrderId}</strong> was successful.</p>
+                        <p>We are processing your order for delivery.</p>
+                        <p>Best regards,<br><strong>Ximpul Team</strong></p>
+                      </div>
+                    `
+                  })
+                });
+              }
+
+              // 2. Send Admin Email
+              await fetch(lambdaUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  name: 'Ximpul Order Alert',
+                  email: adminEmail,
+                  to: adminEmail,
+                  subject: `Payment Received - Order #${actualOrderId} | Ximpul`,
+                  source: 'Ximpul Flow',
+                  secretKey: lambdaSecret,
+                  htmlTemplate: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                      <h2 style="color: #10b981;">Online Payment Received!</h2>
+                      <p>Order <strong>#${actualOrderId}</strong> payment of ৳${totalAmount} has been verified.</p>
+                      <p><strong>Customer:</strong> ${customerName} (${customerEmail})</p>
+                      <p><strong>Transaction ID:</strong> ${val_id}</p>
+                    </div>
+                  `
+                })
+              });
+            }
+          } catch (mailErr) {
+            console.error('⚠️ Failed sending payment confirmation emails:', mailErr);
+          }
         }
 
         return res.redirect(302, `${baseUrl}/thank-you?orderId=${encodeURIComponent(actualOrderId)}&totalAmount=${encodeURIComponent(totalAmount)}&paymentMethod=online`);

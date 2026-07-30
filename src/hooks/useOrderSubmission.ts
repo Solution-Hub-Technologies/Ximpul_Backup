@@ -118,15 +118,14 @@ export const useOrderSubmission = () => {
 
       console.log('✅ STEP 2 SUCCESS: Order created:', order.id, 'with order_id:', order.order_id);
       
-      // Send Emails
-      try {
-        console.log('📧 STEP 3: Dispatching order notification emails...');
+      // Send Emails (Only for COD orders during initial submission; online orders send emails after payment confirmation)
+      if (orderData.paymentMethod !== 'online') {
+        try {
+          console.log('📧 STEP 3: Dispatching order notification emails for COD order...');
 
-        const paymentMethodLabel = orderData.paymentMethod === 'cod' 
-          ? 'Cash on Delivery' 
-          : orderData.paymentMethod === 'online' 
-          ? 'Online Payment' 
-          : orderData.paymentMethod || 'Not specified';
+          const paymentMethodLabel = orderData.paymentMethod === 'cod' 
+            ? 'Cash on Delivery' 
+            : orderData.paymentMethod || 'Not specified';
 
         // Fetch Email Templates & Config
         const { data: customerTemplate } = await supabase
@@ -286,8 +285,9 @@ export const useOrderSubmission = () => {
       } catch (emailErr) {
         console.error('⚠️ STEP 3 WARNING: Error sending order emails:', emailErr);
       }
-      
-      console.log('✅ STEP 3 SKIPPED: Emails will be sent from Thank You page');
+      } else {
+        console.log('ℹ️ Online payment selected: Skipping initial email dispatch until payment is completed.');
+      }
 
       // If payment method is online, initialize SSLCommerz payment
       if (orderData.paymentMethod === 'online') {
