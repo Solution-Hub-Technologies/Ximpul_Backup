@@ -143,17 +143,28 @@ export const useOrderSubmission = () => {
         const { data: emailConfig } = await supabase
           .from('email_config')
           .select('*')
-          .eq('config_type', 'customer');
+          .in('config_type', ['customer', 'admin']);
 
-        let adminEmails = 'razinahmed60@gmail.com';
+        let adminEmails = 'ximpulshop@gmail.com';
         let ccEmails = '';
         if (emailConfig && emailConfig.length > 0) {
-          const config = emailConfig[0];
-          if (config?.to_emails && config.to_emails.length > 0) {
-            adminEmails = config.to_emails.join(',');
+          const toList: string[] = [];
+          const ccList: string[] = [];
+
+          emailConfig.forEach((cfg: any) => {
+            if (Array.isArray(cfg?.to_emails)) {
+              cfg.to_emails.forEach((e: string) => e && toList.push(e.trim()));
+            }
+            if (Array.isArray(cfg?.cc_emails)) {
+              cfg.cc_emails.forEach((e: string) => e && ccList.push(e.trim()));
+            }
+          });
+
+          if (toList.length > 0) {
+            adminEmails = Array.from(new Set(toList)).join(',');
           }
-          if (config?.cc_emails && config.cc_emails.length > 0) {
-            ccEmails = config.cc_emails.join(',');
+          if (ccList.length > 0) {
+            ccEmails = Array.from(new Set(ccList)).join(',');
           }
         }
 
@@ -275,7 +286,7 @@ export const useOrderSubmission = () => {
           to: adminEmails,
           subject: adminSubject,
           message: adminHTML,
-          from_name: 'Ximpul Order Alert',
+          from_name: 'Ximpul Shop',
           cc: ccEmails || undefined
         });
         console.log('📧 Admin email result:', admResult);
