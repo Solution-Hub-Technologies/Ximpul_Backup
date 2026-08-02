@@ -12,7 +12,24 @@ export interface SendEmailParams {
 }
 
 export const sendEmail = async (params: SendEmailParams): Promise<{ success: boolean; error?: string }> => {
+  const lambdaUrl = import.meta.env.VITE_LAMBDA_API_URL || (import.meta.env as any).LAMBDA_API_URL || 'https://fnpxbv3ywy27twncwnqx4odnje0ztrtj.lambda-url.ap-southeast-1.on.aws/';
+  const lambdaSecret = import.meta.env.VITE_LAMBDA_SECRET || (import.meta.env as any).LAMBDA_SECRET || 'sohub-mailer-secret-2026';
+
+  const payload = {
+    name: params.from_name || 'Ximpul Shop',
+    email: 'ximpulshop@gmail.com',
+    to: params.to,
+    subject: params.subject,
+    message: params.message,
+    source: 'Ximpul Flow',
+    secretKey: lambdaSecret,
+    htmlTemplate: params.message,
+    cc: params.cc,
+    attachments: params.attachments,
+  };
+
   try {
+    // 1. Try Vercel /api/send-email endpoint first
     let response = await fetch('/api/send-email', {
       method: 'POST',
       headers: {
@@ -30,43 +47,49 @@ export const sendEmail = async (params: SendEmailParams): Promise<{ success: boo
 
     let result = await response.json().catch(() => null);
 
-    // Direct Lambda fallback if /api/send-email returns 404 (e.g. running locally via Vite dev server)
-    if ((!response.ok || response.status === 404)) {
-      const lambdaUrl = import.meta.env.VITE_LAMBDA_API_URL || (import.meta.env as any).LAMBDA_API_URL || 'https://fnpxbv3ywy27twncwnqx4odnje0ztrtj.lambda-url.ap-southeast-1.on.aws/';
-      const lambdaSecret = import.meta.env.VITE_LAMBDA_SECRET || (import.meta.env as any).LAMBDA_SECRET || 'sohub-mailer-secret-2026';
-      if (lambdaUrl) {
-        console.log('Falling back to direct Lambda endpoint...');
-        response = await fetch(lambdaUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: params.from_name || 'Ximpul Shop',
-            email: 'ximpulshop@gmail.com',
-            to: params.to,
-            subject: params.subject,
-            message: params.message,
-            source: 'Ximpul Flow',
-            secretKey: lambdaSecret,
-            htmlTemplate: params.message,
-            cc: params.cc,
-            attachments: params.attachments,
-          }),
-        });
-        result = await response.json().catch(() => null);
-      }
+    if (response.ok && result?.success) {
+      console.log('✅ Email sent via /api/send-email');
+      return { success: true };
     }
 
-    if (!response.ok || !result?.success) {
-      console.error('Failed to send email:', result);
-      return {
-        success: false,
-        error: result?.error || 'Failed to send email',
-      };
+    console.warn('⚠️ /api/send-email endpoint failed or returned non-JSON. Falling back directly to AWS Lambda Function URL...', result);
+
+    // 2. Direct AWS Lambda fallback
+    response = await fetch(lambdaUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    result = await response.json().catch(() => null);
+
+    if (response.ok && result?.success) {
+      console.log('✅ Email sent directly via AWS Lambda Function URL');
+      return { success: true };
     }
 
-    return { success: true };
+    console.error('❌ Direct AWS Lambda email also failed:', result);
+    return {
+      success: false,
+      error: result?.error || result?.message || 'Failed to send email',
+    };
   } catch (error: any) {
     console.error('Error in sendEmail utility:', error);
+
+    try {
+      const fbResponse = await fetch(lambdaUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const fbResult = await fbResponse.json().catch(() => null);
+      if (fbResponse.ok && fbResult?.success) {
+        return { success: true };
+      }
+    } catch (fbErr) {
+      console.error('Fallback Lambda call error:', fbErr);
+    }
+
     return {
       success: false,
       error: error?.message || 'Network error sending email',
