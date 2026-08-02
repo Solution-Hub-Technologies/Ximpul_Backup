@@ -60,7 +60,7 @@ export const useOrders = () => {
         const { data: pageData, error } = await supabase
           .from('orders')
           .select('*')
-          .order('updated_at', { ascending: false })
+          .order('created_at', { ascending: false })
           .range(from, to);
 
         if (error) {
@@ -254,7 +254,8 @@ export const useOrders = () => {
               }
             : order
         );
-        return updatedOrders.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+        // Update local state immediately keeping order position (sorted by created_at)
+        return updatedOrders.sort((a, b) => new Date(b.created_at || b.updated_at).getTime() - new Date(a.created_at || a.updated_at).getTime());
       });
       
       toast.success('Order status updated successfully');
@@ -323,7 +324,8 @@ export const useOrders = () => {
             ? { ...order, payment_status: newPaymentStatus, admin_notes: notes || null, updated_at: now, processed_by: adminId, processed_at: order.processed_at || now, updated_by_name: adminData?.name, is_manual_order: order.is_manual_order }
             : order
         );
-        return updatedOrders.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+        // Update local state immediately keeping order position (sorted by created_at)
+        return updatedOrders.sort((a, b) => new Date(b.created_at || b.updated_at).getTime() - new Date(a.created_at || a.updated_at).getTime());
       });
       
       toast.success('Payment status updated successfully');
@@ -360,7 +362,8 @@ export const useOrders = () => {
             ? { ...order, tracking_number: trackingNumber, estimated_delivery: estimatedDelivery, updated_at: now, is_manual_order: order.is_manual_order }
             : order
         );
-        return updatedOrders.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+        // Update local state immediately keeping order position (sorted by created_at)
+        return updatedOrders.sort((a, b) => new Date(b.created_at || b.updated_at).getTime() - new Date(a.created_at || a.updated_at).getTime());
       });
       
       toast.success('Tracking information updated');
