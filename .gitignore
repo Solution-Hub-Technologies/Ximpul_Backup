@@ -28,3 +28,12 @@ dist-ssr
 # Database dumps
 *.sql
 
+# Build & Zip Archives
+*.zip
+dist-lambda/
+ximpul-mailer-zip/
+
+# Environment files
+.env
+.env.local
+.env.*.local

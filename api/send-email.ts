@@ -18,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
-  const lambdaUrl = process.env.LAMBDA_API_URL || process.env.VITE_LAMBDA_API_URL || 'https://sohub.com.bd/api/send-email';
+  const lambdaUrl = process.env.LAMBDA_API_URL || process.env.VITE_LAMBDA_API_URL || 'https://fnpxbv3ywy27twncwnqx4odnje0ztrtj.lambda-url.ap-southeast-1.on.aws/';
   const lambdaSecret = process.env.LAMBDA_SECRET || process.env.VITE_LAMBDA_SECRET || 'sohub-mailer-secret-2026';
   const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'ximpulshop@gmail.com').trim();
 
@@ -50,6 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       email: configuredAdminEmail,
       to: to,
       subject: subject,
+      message: message,
       source: 'Ximpul Flow',
       secretKey: lambdaSecret,
       htmlTemplate: message,
