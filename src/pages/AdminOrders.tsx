@@ -489,8 +489,8 @@ export const AdminOrders = () => {
       // Show success message with admin info
       toast.success(`Order status updated to ${pendingStatusUpdate.newStatus} by ${adminUser.name || adminUser.username}`);
       
-      // Auto create Steadfast parcel when status changes from pending to processing
-      if (order && pendingStatusUpdate.newStatus === 'processing' && order.order_status === 'pending' && !order.tracking_number) {
+      // Auto create Steadfast parcel when status changes to processing if tracking number is missing
+      if (order && pendingStatusUpdate.newStatus === 'processing' && !order.tracking_number) {
         toast.info('Creating Steadfast parcel automatically...');
         await handleSendToSteadfast(order);
       }

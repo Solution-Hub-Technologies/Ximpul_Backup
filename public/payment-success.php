@@ -553,6 +553,8 @@ if ($tran_id && $amount) {
                 curl_setopt($ch, CURLOPT_HTTPHEADER, [
                     'apikey: ' . $apiKey,
                     'Authorization: Bearer ' . $apiKey,
+                    'Accept-Profile: ximpul',
+                    'Content-Profile: ximpul',
                     'Content-Type: application/json'
                 ]);
                 

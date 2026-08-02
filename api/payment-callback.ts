@@ -133,7 +133,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://bvjgogntjsrzamskscbg.supabase.co';
   const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey || process.env.VITE_SUPABASE_ANON_KEY || '');
+  const supabase = createClient(supabaseUrl, supabaseServiceKey || process.env.VITE_SUPABASE_ANON_KEY || '', {
+    db: {
+      schema: 'ximpul',
+    },
+  });
 
   // Helper to safely update order status in Supabase
   const updateOrderInDb = async (targetId: string, paymentStatus: string, orderStatus: string, transactionId?: string) => {
