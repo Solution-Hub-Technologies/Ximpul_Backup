@@ -12,8 +12,8 @@ export interface SendEmailParams {
 }
 
 export const sendEmail = async (params: SendEmailParams): Promise<{ success: boolean; error?: string }> => {
-  const lambdaUrl = import.meta.env.VITE_LAMBDA_API_URL || (import.meta.env as any).LAMBDA_API_URL || 'https://fnpxbv3ywy27twncwnqx4odnje0ztrtj.lambda-url.ap-southeast-1.on.aws/';
-  const lambdaSecret = import.meta.env.VITE_LAMBDA_SECRET || (import.meta.env as any).LAMBDA_SECRET || 'sohub-mailer-secret-2026';
+  const lambdaUrl = import.meta.env.VITE_LAMBDA_API_URL || (import.meta.env as any).LAMBDA_API_URL;
+  const lambdaSecret = import.meta.env.VITE_LAMBDA_SECRET || (import.meta.env as any).LAMBDA_SECRET;
 
   const payload = {
     name: params.from_name || 'Ximpul Shop',
