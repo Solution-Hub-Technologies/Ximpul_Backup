@@ -14,6 +14,7 @@ import { LifestyleGallery } from '@/components/LifestyleGallery';
 import { ProductDetailImagesSection } from '@/components/ProductDetailImagesSection';
 import { OurInitiatives } from '@/components/OurInitiatives';
 import { useHeroAnimations } from '@/hooks/useHeroAnimations';
+import { BrandIntroAnimation } from '@/components/BrandIntroAnimation';
 
 const Index = () => {
   useHeroAnimations();
@@ -30,6 +31,9 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Brand Intro Animation (Plays on fresh browser session / reload, skips during in-app logo navigation) */}
+      <BrandIntroAnimation forceShow={false} />
+
       {/* Navigation */}
       <Navigation />
       

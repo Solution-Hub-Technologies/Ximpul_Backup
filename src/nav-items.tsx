@@ -15,7 +15,9 @@ import ReturnPolicy from "./pages/ReturnPolicy.tsx";
 import { TrackOrder } from "./pages/TrackOrder.tsx";
 import BulkOrder from "./pages/BulkOrder.tsx";
 import JoinInitiative from "./pages/JoinInitiative.tsx";
+import NewChapter from "./pages/NewChapter.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import { Sparkles } from "lucide-react";
 
 export const navItems = [
   {
@@ -107,6 +109,30 @@ export const navItems = [
     to: "/join-initiative",
     icon: <FileText className="h-4 w-4" />,
     page: <JoinInitiative />,
+  },
+  {
+    title: "New Lineup",
+    to: "/new-lineup",
+    icon: <Sparkles className="h-4 w-4" />,
+    page: <NewChapter />,
+  },
+  {
+    title: "New Lineup",
+    to: "/new-chapter",
+    icon: <Sparkles className="h-4 w-4" />,
+    page: <NewChapter />,
+  },
+  {
+    title: "New Lineup Alias",
+    to: "/newlineup",
+    icon: <Sparkles className="h-4 w-4" />,
+    page: <NewChapter />,
+  },
+  {
+    title: "New Lineup Alias",
+    to: "/newchapter",
+    icon: <Sparkles className="h-4 w-4" />,
+    page: <NewChapter />,
   },
   {
     title: "Not Found",

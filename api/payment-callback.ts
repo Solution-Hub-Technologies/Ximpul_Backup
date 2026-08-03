@@ -349,24 +349,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const adminSubject = `Payment Received - Order #${orderCode}`;
         const adminHTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Payment Received - Ximpul Admin</title></head><body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f1f5f9;"><div style="max-width: 650px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"><div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center;"><div style="background-color: rgba(255,255,255,0.2); width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 24px;">✓</span></div><h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 0 0 5px 0;">Payment Received</h1><p style="color: #d1fae5; font-size: 14px; margin: 0;">Online payment confirmed</p></div><div style="padding: 30px;"><div style="background: linear-gradient(135deg, #1f2937 0%, #374151 100%); border-radius: 12px; padding: 20px; margin-bottom: 25px; text-align: center;"><h2 style="color: #ffffff; font-size: 20px; font-weight: 600; margin: 0 0 10px 0;">Order #${orderCode}</h2><p style="color: #d1d5db; font-size: 14px; margin: 0;">Total: <span style="font-size: 18px; font-weight: 700; color: #10b981;">${totalAmount} BDT</span></p></div><div style="background-color: #f8fafc; border-radius: 12px; padding: 25px; margin-bottom: 25px;"><h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Customer Information</h3><div style="display: grid; gap: 12px;"><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Name:</span><span style="color: #1f2937; font-weight: 600;">${customerName}</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Phone:</span><span style="color: #1f2937; font-weight: 600;">${customerPhone}</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><span style="color: #64748b; font-weight: 500;">Email:</span><span style="color: #1f2937; font-weight: 600;">${customerEmail || 'Not provided'}</span></div><div style="padding: 8px 0;"><span style="color: #64748b; font-weight: 500; display: block; margin-bottom: 5px;">Address:</span><span style="color: #1f2937; font-weight: 600; background-color: #ffffff; padding: 10px; border-radius: 6px; display: block;">${customerAddress}</span></div></div></div><div style="background-color: #f0f9ff; border-radius: 12px; padding: 25px; margin-bottom: 25px;"><h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px;">Product Details</h3><div style="display: grid; gap: 12px;"><div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Edition:</span><span style="color: #1f2937; font-weight: 600;">${selectedEdition}</span></div><div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Color:</span><span style="color: #1f2937; font-weight: 600;">${selectedColor}</span></div>${engravingText && engravingText !== 'None' ? `<div style="padding: 8px 0;"><span style="color: #1e40af; font-weight: 500; display: block; margin-bottom: 5px;">Engraving:</span><span style="color: #1f2937; font-weight: 600; background-color: #ffffff; padding: 10px; border-radius: 6px; display: block; font-style: italic;">${engravingText}</span></div>` : ''}<div style="display: flex; justify-content: space-between; padding: 8px 0;"><span style="color: #1e40af; font-weight: 500;">Payment Method:</span><span style="color: #1f2937; font-weight: 600;">Online Payment</span></div></div></div><div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 12px; padding: 20px; text-align: center;"><h4 style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0 0 10px 0;">Action Required</h4><p style="color: #fef3c7; margin: 0 0 15px 0; font-size: 14px;">Please process this order in the admin dashboard</p><a href="https://ximpul.com/admin/orders" style="display: inline-block; background-color: #ffffff; color: #d97706; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">View in Dashboard</a></div></div><div style="background-color: #1f2937; padding: 20px; text-align: center;"><p style="color: #9ca3af; font-size: 12px; margin: 0;">Ximpul Admin Panel | Order Management System</p><p style="color: #6b7280; font-size: 11px; margin: 5px 0 0 0;">This is an automated notification</p></div></div></body></html>`;
 
-        const adminTargets = adminEmails.split(',').map(e => e.trim()).filter(Boolean);
-        for (const targetAdminEmail of adminTargets) {
-          await fetch(lambdaUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: 'Ximpul Shop',
-              email: targetAdminEmail,
-              to: targetAdminEmail,
-              subject: adminSubject,
-              message: adminHTML,
-              source: 'Ximpul Flow',
-              secretKey: lambdaSecret,
-              htmlTemplate: adminHTML,
-              cc: ccEmails || undefined,
-            })
-          }).catch(e => console.error('Admin mail fetch error:', e));
-        }
+        const primaryAdmin = adminEmails.split(',')[0]?.trim() || 'ximpulshop@gmail.com';
+        const otherAdmins = adminEmails.split(',').slice(1).map(e => e.trim()).filter(Boolean).join(',');
+        const combinedCC = [otherAdmins, ccEmails].filter(Boolean).join(',');
+
+        await fetch(lambdaUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: 'Ximpul Shop',
+            email: primaryAdmin,
+            to: primaryAdmin,
+            subject: adminSubject,
+            message: adminHTML,
+            source: 'Ximpul Flow',
+            secretKey: lambdaSecret,
+            htmlTemplate: adminHTML,
+            cc: combinedCC || undefined,
+          })
+        }).catch(e => console.error('Admin mail fetch error:', e));
       }
     } catch (mailErr) {
       console.error('⚠️ Exception sending payment emails:', mailErr);

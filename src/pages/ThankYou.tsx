@@ -185,7 +185,10 @@ const ThankYou = () => {
   useEffect(() => {
     const sendOrderEmails = async () => {
       const isPaidOrCod = order && (order.payment_method === 'cod' || order.payment_status === 'completed' || order.order_status === 'processing');
-      const shouldSendEmail = isPaidOrCod && !sessionStorage.getItem(`emailSent_${order.id}`);
+      const isAlreadySent = sessionStorage.getItem(`emailSent_${order.id}`) === 'true' || sessionStorage.getItem(`emailSent_${order.order_id}`) === 'true';
+      
+      // Skip duplicate dispatch if emails were already sent via useOrderSubmission (COD) or payment-callback (Online)
+      const shouldSendEmail = isPaidOrCod && !isAlreadySent && order.payment_method !== 'online';
       
       if (shouldSendEmail) {
         try {

@@ -38,7 +38,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     to === 'admin' || 
     to === 'ximpulshop@gmail.com' || 
     to === 'solutionhubtechnologies@gmail.com' ||
-    (subject && (subject.toLowerCase().includes('new order') || subject.toLowerCase().includes('order alert')));
+    (subject && (
+      subject.toLowerCase().includes('new order') || 
+      subject.toLowerCase().includes('order alert') ||
+      subject.toLowerCase().includes('early access') ||
+      subject.toLowerCase().includes('new lineup') ||
+      subject.toLowerCase().includes('waitlist')
+    ));
 
   if (isAdminNotification) {
     to = configuredAdminEmail;

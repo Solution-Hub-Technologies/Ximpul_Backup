@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Menu, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Menu, X, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { RainbowButton } from '@/components/ui/rainbow-button';
 import { sanitizeForLog } from '@/utils/security';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { LiquidMetalButton } from '@/components/ui/liquid-metal-button';
 
 interface Initiative {
   id: string;
@@ -182,40 +183,48 @@ export const Navigation = () => {
                 <span className="md:hidden">SOHUB owned & operated</span>
               </p>
             </a>
-            <DropdownMenu modal={false} onOpenChange={setInitiativesOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-xs hover:bg-transparent hover:text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 text-muted-foreground gap-1 md:mr-0 -mr-4">
-                  <span>Our Initiatives</span>
-                  {initiativesOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[320px] p-3">
-                <div className="grid grid-cols-3 gap-3">
-                  {initiatives.map((initiative) => {
-                    return initiative.href ? (
-                      <a
-                        key={initiative.id}
-                        href={initiative.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onMouseDown={(e) => e.preventDefault()}
-                        style={{ WebkitTapHighlightColor: 'transparent', outline: 'none' }}
-                        className="flex items-center justify-center p-4 rounded-lg border border-border"
-                      >
-                        <img src={`https://sohub.com.bd${initiative.logo}`} alt={initiative.name} className="w-full h-full object-contain" />
-                      </a>
-                    ) : (
-                      <div
-                        key={initiative.id}
-                        className="flex items-center justify-center p-4 rounded-lg border border-border opacity-50 cursor-not-allowed"
-                      >
-                        <img src={`https://sohub.com.bd${initiative.logo}`} alt={initiative.name} className="w-full h-full object-contain" />
-                      </div>
-                    );
-                  })}
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-2">
+              <LiquidMetalButton 
+                label="New Lineup" 
+                onClick={() => navigateToPage('/new-lineup')} 
+                className="translate-x-2 sm:translate-x-0 ml-1 sm:ml-0"
+              />
+
+              <DropdownMenu modal={false} onOpenChange={setInitiativesOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-xs hover:bg-transparent hover:text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 text-muted-foreground gap-1 md:mr-0 -mr-4">
+                    <span>Our Initiatives</span>
+                    {initiativesOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[320px] p-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    {initiatives.map((initiative) => {
+                      return initiative.href ? (
+                        <a
+                          key={initiative.id}
+                          href={initiative.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onMouseDown={(e) => e.preventDefault()}
+                          style={{ WebkitTapHighlightColor: 'transparent', outline: 'none' }}
+                          className="flex items-center justify-center p-4 rounded-lg border border-border"
+                        >
+                          <img src={`https://sohub.com.bd${initiative.logo}`} alt={initiative.name} className="w-full h-full object-contain" />
+                        </a>
+                      ) : (
+                        <div
+                          key={initiative.id}
+                          className="flex items-center justify-center p-4 rounded-lg border border-border opacity-50 cursor-not-allowed"
+                        >
+                          <img src={`https://sohub.com.bd${initiative.logo}`} alt={initiative.name} className="w-full h-full object-contain" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </div>

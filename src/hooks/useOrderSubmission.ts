@@ -292,6 +292,7 @@ export const useOrderSubmission = () => {
         console.log('📧 Admin email result:', admResult);
 
         sessionStorage.setItem(`emailSent_${order.id}`, 'true');
+        sessionStorage.setItem(`emailSent_${order.order_id}`, 'true');
         console.log('✅ STEP 3 SUCCESS: All order emails processed');
       } catch (emailErr) {
         console.error('⚠️ STEP 3 WARNING: Error sending order emails:', emailErr);
