@@ -64,7 +64,7 @@ export const NewChapter = () => {
             <p style="margin: 8px 0; font-size: 12px; color: #888888;"><strong>Submitted At:</strong> ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' })} (BD Time)</p>
           </div>
           <div style="text-align: center; margin-top: 25px; border-top: 1px solid #222222; padding-top: 15px;">
-            <p style="font-size: 11px; color: #555555; margin: 0;">Ximpul Automation & AWS Lambda Mailer System</p>
+            <p style="font-size: 11px; color: #555555; margin: 0;">Ximpul</p>
           </div>
         </div>
       `;
