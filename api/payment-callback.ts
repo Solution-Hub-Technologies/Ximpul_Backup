@@ -340,6 +340,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             secretKey: lambdaSecret,
             message: customerHTML,
             htmlTemplate: customerHTML,
+          })
         }).catch(e => console.error('Customer mail fetch error:', e));
       }
 

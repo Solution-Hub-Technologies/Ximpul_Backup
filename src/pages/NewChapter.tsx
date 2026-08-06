@@ -109,7 +109,7 @@ export const NewChapter = () => {
 
   return (
     <div className="fixed inset-0 h-screen w-screen bg-black text-white flex flex-col justify-between overflow-hidden selection:bg-amber-500/30">
-      <Navigation />
+      <Navigation hideNavHeader={true} />
 
       {/* 100% Viewport Height Hero Canvas - No Scroll, No Footer */}
       <main className="relative flex-1 w-full h-full flex flex-col items-center justify-center bg-black overflow-hidden px-4">
