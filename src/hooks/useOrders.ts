@@ -340,7 +340,7 @@ export const useOrders = () => {
     try {
       console.log('Updating tracking info:', { orderId: sanitizeForLog(orderId), trackingNumber: sanitizeForLog(trackingNumber), estimatedDelivery: sanitizeForLog(estimatedDelivery) });
       
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('orders')
         .update({
           tracking_number: trackingNumber,

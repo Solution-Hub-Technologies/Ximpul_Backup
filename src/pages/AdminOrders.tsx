@@ -801,6 +801,7 @@ export const AdminOrders = () => {
         
         // Update tracking number in database
         await updateTrackingInfo(order.id, parcelId, '');
+        await fetchOrders();
         
         toast.success('Order sent to Steadfast successfully!');
       } else {

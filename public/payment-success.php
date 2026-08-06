@@ -438,14 +438,27 @@ if ($tran_id && $amount) {
                 }
             }
             
-            // Check if emails already sent for this order (prevent duplicates)
-            $emailSentFlag = sys_get_temp_dir() . '/email_sent_' . $order['id'] . '.flag';
+            // Check if emails already sent for this order in database (prevent duplicates)
+            $isEmailSentInNotes = !empty($order['admin_notes']) && strpos($order['admin_notes'], 'email_sent') !== false;
             
-            if (file_exists($emailSentFlag)) {
+            if ($isEmailSentInNotes) {
                 error_log("⚠️ Emails already sent for order: " . $order['order_id'] . ", skipping duplicate");
             } else {
-                // Create flag file
-                file_put_contents($emailSentFlag, time());
+                // Update admin_notes to mark email sent
+                $newNotes = (!empty($order['admin_notes']) ? $order['admin_notes'] . ' | ' : '') . 'email_sent';
+                $notesUpdateData = json_encode(['admin_notes' => $newNotes]);
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $supabaseUrl . '/orders?id=eq.' . urlencode($tran_id));
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $notesUpdateData);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'apikey: ' . $apiKey,
+                    'Authorization: Bearer ' . $apiKey,
+                    'Content-Type: application/json'
+                ]);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_exec($ch);
+                curl_close($ch);
                 
                 // Send customer email with same format as COD
                 if (!empty($order['customer_email'])) {

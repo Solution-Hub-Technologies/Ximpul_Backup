@@ -187,8 +187,16 @@ const ThankYou = () => {
       const isPaidOrCod = order && (order.payment_method === 'cod' || order.payment_status === 'completed' || order.order_status === 'processing');
       const isAlreadySent = sessionStorage.getItem(`emailSent_${order.id}`) === 'true' || sessionStorage.getItem(`emailSent_${order.order_id}`) === 'true';
       
-      // Skip duplicate dispatch if emails were already sent via useOrderSubmission (COD) or payment-callback (Online)
-      const shouldSendEmail = isPaidOrCod && !isAlreadySent && order.payment_method !== 'online';
+      // Skip duplicate dispatch if emails were already sent via useOrderSubmission (COD) or payment-callback/payment-success (Online)
+      const isOnlinePayment = order && (
+        order.payment_method === 'online' || 
+        order.payment_method === 'online_payment' || 
+        order.payment_method === 'sslcommerz' || 
+        order.payment_method === 'bkash' ||
+        String(order.payment_method || '').toLowerCase().includes('online') ||
+        String(order.payment_method || '').toLowerCase().includes('ssl')
+      );
+      const shouldSendEmail = isPaidOrCod && !isAlreadySent && !isOnlinePayment;
       
       if (shouldSendEmail) {
         try {
