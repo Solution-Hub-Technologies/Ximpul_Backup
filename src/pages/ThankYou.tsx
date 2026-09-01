@@ -8,6 +8,7 @@ import { Navigation } from '@/components/Navigation';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
 import { sendEmail } from '@/utils/send-email';
+import { formatSteadfastPhone } from '@/utils/phoneUtils';
 interface Order {
   id: string;
   order_id: string;
@@ -128,17 +129,20 @@ const ThankYou = () => {
                       const colorLabel = data.selected_color === 'obsidian' ? 'Obsidian Black' : (data.selected_color || 'Graphite Grey');
                       const engravingPart = data.engraving_text ? ` - Engraved: "${data.engraving_text}"` : '';
 
-                      const sfData = {
-                        invoice: data.order_id,
-                        recipient_name: data.customer_name,
-                        recipient_phone: data.customer_phone,
-                        recipient_address: data.customer_address,
-                        cod_amount: 0,
-                        note: `Ximpul Flow - ${data.selected_edition} - ${colorLabel}${engravingPart}`
-                      };
+                      const cleanedPhone = formatSteadfastPhone(data.customer_phone);
+                      if (cleanedPhone && cleanedPhone.length >= 11) {
+                        const sfData = {
+                          invoice: String(data.order_id),
+                          recipient_name: data.customer_name,
+                          recipient_phone: cleanedPhone,
+                          recipient_address: data.customer_address,
+                          cod_amount: 0,
+                          note: `Ximpul Flow - ${data.selected_edition || 'Standard'} - ${colorLabel}${engravingPart}`
+                        };
 
-                      const baseUrl = (steadfastVendor.base_url || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
-                      const sfRes = await fetch(`${baseUrl}/create_order`, {
+                        const rawBaseUrl = (steadfastVendor.base_url || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
+                        const baseUrl = rawBaseUrl.includes('/api/v1') ? rawBaseUrl : `${rawBaseUrl}/api/v1`;
+                        const sfRes = await fetch(`${baseUrl}/create_order`, {
                         method: 'POST',
                         headers: {
                           'Api-Key': steadfastVendor.api_key,
@@ -149,13 +153,14 @@ const ThankYou = () => {
                       });
 
                       const sfResult = await sfRes.json();
-                      if (sfResult && (sfResult.status === 200 || sfResult.status === '200') && sfResult.consignment) {
-                        const consignmentId = String(sfResult.consignment.consignment_id);
-                        await supabase
-                          .from('orders')
-                          .update({ tracking_number: consignmentId })
-                          .eq('id', data.id);
-                        data.tracking_number = consignmentId;
+                        if (sfResult && (sfResult.status === 200 || sfResult.status === '200') && sfResult.consignment) {
+                          const consignmentId = String(sfResult.consignment.consignment_id);
+                          await supabase
+                            .from('orders')
+                            .update({ tracking_number: consignmentId })
+                            .eq('id', data.id);
+                          data.tracking_number = consignmentId;
+                        }
                       }
                     }
                   }

@@ -16,7 +16,7 @@ import {
   AlertTriangle, Wifi, WifiOff, User
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 
 interface Vendor {
   id: string;
@@ -49,7 +49,7 @@ export const AdminCourierManagement = () => {
   // Load vendors from database
   const loadVendors = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('courier_vendors')
         .select('*')
         .order('priority', { ascending: true });
@@ -143,7 +143,7 @@ export const AdminCourierManagement = () => {
     const newStatus = vendor.status === 'active' ? 'inactive' : 'active';
     
     try {
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('courier_vendors')
         .update({ status: newStatus })
         .eq('id', id);
@@ -182,7 +182,7 @@ export const AdminCourierManagement = () => {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('courier_vendors')
         .insert({
           name: formData.type === 'steadfast' ? 'SteadFast' : 
@@ -230,7 +230,7 @@ export const AdminCourierManagement = () => {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('courier_vendors')
         .update({
           name: formData.type === 'steadfast' ? 'SteadFast' : 
@@ -269,7 +269,7 @@ export const AdminCourierManagement = () => {
   const handleDeleteVendor = async () => {
     if (!selectedVendor) return;
     try {
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('courier_vendors')
         .delete()
         .eq('id', selectedVendor.id);
@@ -407,7 +407,7 @@ export const AdminCourierManagement = () => {
             }
 
             try {
-              await supabase
+              await supabaseAdmin
                 .from('courier_vendors')
                 .update({ 
                   api_status: 'connected', 
@@ -459,7 +459,7 @@ export const AdminCourierManagement = () => {
       console.error('API test error:', error);
       
       try {
-        await supabase
+        await supabaseAdmin
           .from('courier_vendors')
           .update({ api_status: 'disconnected' })
           .eq('id', vendor.id);

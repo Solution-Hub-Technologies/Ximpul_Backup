@@ -23,6 +23,7 @@ import {
 import { toast } from 'sonner';
 import JsBarcode from 'jsbarcode';
 import { OrderInvoiceDialog } from '@/components/admin/OrderInvoiceDialog';
+import { formatSteadfastPhone } from '@/utils/phoneUtils';
 
 const SteadfastStatusBadge = ({ trackingNumber, status, onRefresh }: { trackingNumber: string; status: any; onRefresh: () => void }) => {
   // Auto-retry on error after 3 seconds
@@ -770,18 +771,28 @@ export const AdminOrders = () => {
 
       const codAmount = order.payment_method === 'online' ? 0 : order.total_amount;
       
+      const cleanedPhone = formatSteadfastPhone(order.customer_phone);
+      if (!cleanedPhone || cleanedPhone.length < 11) {
+        throw new Error(`Invalid recipient phone: "${order.customer_phone}". Must be at least 11 digits (e.g. 01XXXXXXXXX).`);
+      }
+
+      const rawBaseUrl = (steadfastVendor.base_url || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
+      const baseUrl = rawBaseUrl.includes('/api/v1') ? rawBaseUrl : `${rawBaseUrl}/api/v1`;
+      const apiUrl = `${baseUrl}/create_order`;
+
+      const colorLabel = order.selected_color === 'obsidian' ? 'Obsidian Black' : (order.selected_color || 'Graphite Grey');
+      const engravingPart = order.engraving_text ? ` - Engraved: "${order.engraving_text}"` : '';
+
       const steadfastData = {
-        invoice: order.order_id,
+        invoice: String(order.order_id),
         recipient_name: order.customer_name,
-        recipient_phone: order.customer_phone,
+        recipient_phone: cleanedPhone,
         recipient_address: order.customer_address,
         cod_amount: codAmount,
-        note: `Ximpul Flow - ${order.selected_edition} - ${order.selected_color === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey'}${order.engraving_text ? ` - Engraved: "${order.engraving_text}"` : ''}`
+        note: `Ximpul Flow - ${order.selected_edition || 'Standard'} - ${colorLabel}${engravingPart}`
       };
 
-      const apiUrl = steadfastVendor.base_url.endsWith('/') 
-        ? `${steadfastVendor.base_url}create_order` 
-        : `${steadfastVendor.base_url}/create_order`;
+      console.log('Sending SteadFast order payload:', steadfastData);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -794,9 +805,10 @@ export const AdminOrders = () => {
       });
 
       const result = await response.json();
+      console.log('SteadFast API Response:', result);
       
-      if (result.status === 200 && result.consignment) {
-        const parcelId = result.consignment.consignment_id;
+      if ((result.status === 200 || result.status === '200') && result.consignment) {
+        const parcelId = String(result.consignment.consignment_id);
         setSteadfastParcelId(parcelId);
         setSteadfastOrder(order);
         
@@ -804,11 +816,20 @@ export const AdminOrders = () => {
         await updateTrackingInfo(order.id, parcelId, '');
         await fetchOrders();
         
-        toast.success('Order sent to Steadfast successfully!');
+        toast.success(`Steadfast parcel created! ID: ${parcelId}`);
       } else {
-        throw new Error(result.message || 'Failed to send to Steadfast');
+        let errMsg = result.message || '';
+        if (result.errors && typeof result.errors === 'object') {
+          const detailed = Object.entries(result.errors)
+            .map(([field, msg]) => `${field}: ${Array.isArray(msg) ? msg.join(', ') : msg}`)
+            .join(' | ');
+          if (detailed) {
+            errMsg = errMsg ? `${errMsg} (${detailed})` : detailed;
+          }
+        }
+        throw new Error(errMsg || 'Failed to send to Steadfast');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending to Steadfast:', error);
       toast.error(`Failed to send order to Steadfast: ${error.message}`);
     } finally {

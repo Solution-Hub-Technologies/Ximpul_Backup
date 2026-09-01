@@ -55,16 +55,29 @@ async function createSteadfastParcel(supabase: any, orderRecord: any) {
     const colorLabel = orderRecord.selected_color === 'obsidian' ? 'Obsidian Black' : (orderRecord.selected_color || 'Graphite Grey');
     const engravingPart = orderRecord.engraving_text ? ` - Engraved: "${orderRecord.engraving_text}"` : '';
 
+    let cleanedPhone = String(orderRecord.customer_phone || '').replace(/\D/g, '');
+    if (cleanedPhone.startsWith('880')) cleanedPhone = cleanedPhone.slice(2);
+    if (cleanedPhone.length === 10 && cleanedPhone.startsWith('1')) cleanedPhone = '0' + cleanedPhone;
+    const bdMatch = cleanedPhone.match(/(01[3-9]\d{8})/);
+    if (bdMatch) cleanedPhone = bdMatch[1];
+    else if (cleanedPhone.length > 11) cleanedPhone = cleanedPhone.slice(-11);
+
+    if (!cleanedPhone || cleanedPhone.length < 11) {
+      console.warn(`⚠️ Steadfast auto-creation skipped: Invalid phone number "${orderRecord.customer_phone}".`);
+      return null;
+    }
+
     const steadfastData = {
-      invoice: orderRecord.order_id,
+      invoice: String(orderRecord.order_id),
       recipient_name: orderRecord.customer_name,
-      recipient_phone: orderRecord.customer_phone,
+      recipient_phone: cleanedPhone,
       recipient_address: orderRecord.customer_address,
       cod_amount: codAmount,
-      note: `Ximpul Flow - ${orderRecord.selected_edition} - ${colorLabel}${engravingPart}`
+      note: `Ximpul Flow - ${orderRecord.selected_edition || 'Standard'} - ${colorLabel}${engravingPart}`
     };
 
-    const baseUrl = (steadfastVendor.base_url || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
+    const rawBaseUrl = (steadfastVendor.base_url || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
+    const baseUrl = rawBaseUrl.includes('/api/v1') ? rawBaseUrl : `${rawBaseUrl}/api/v1`;
     const apiUrl = `${baseUrl}/create_order`;
 
     console.log(`📦 Creating Steadfast parcel for order #${orderRecord.order_id}...`);
