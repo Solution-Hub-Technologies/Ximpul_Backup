@@ -95,10 +95,10 @@ export const AdminReports = () => {
   const engravingRevenue = engravingStats.revenue;
   const totalEngravingCount = engravingStats.count;
 
-  // Calculate bottle sales by color (Website + Delivered Bulk Orders)
-  const colorStats = (() => {
-    let websiteBlack = 0;
-    let websiteGrey = 0;
+  // Calculate bottle sales by edition (Website + Delivered Bulk Orders)
+  const editionBottleStats = (() => {
+    let websiteBase = 0;
+    let websiteLifestyle = 0;
 
     filteredOrders.forEach(order => {
       const edition = (order.selected_edition || '').toLowerCase();
@@ -108,56 +108,52 @@ export const AdminReports = () => {
           const qtyMatch = part.match(/×\s*(\d+)/);
           const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
           const pLower = part.toLowerCase();
-          if (pLower.includes('base') || pLower.includes('lifestyle')) {
-            if (pLower.includes('obsidian') || pLower.includes('black')) {
-              websiteBlack += qty;
-            } else if (pLower.includes('graphite') || pLower.includes('grey') || pLower.includes('gray')) {
-              websiteGrey += qty;
-            }
+          if (pLower.includes('base')) {
+            websiteBase += qty;
+          } else if (pLower.includes('lifestyle')) {
+            websiteLifestyle += qty;
           }
         });
       } else {
-        if (!edition.includes('base') && !edition.includes('lifestyle')) return;
-        const normalizedColor = (order.selected_color || '').toLowerCase();
-        if (normalizedColor.includes('obsidian') || normalizedColor.includes('black')) {
-          websiteBlack += 1;
-        } else if (normalizedColor.includes('graphite') || normalizedColor.includes('grey') || normalizedColor.includes('gray')) {
-          websiteGrey += 1;
+        if (edition.includes('base')) {
+          websiteBase += 1;
+        } else if (edition.includes('lifestyle')) {
+          websiteLifestyle += 1;
         }
       }
     });
 
-    let bulkBlack = 0;
-    let bulkGrey = 0;
+    let bulkBase = 0;
+    let bulkLifestyle = 0;
 
     filteredBulkOrders.forEach(order => {
       order.products?.forEach(p => {
         const qty = parseInt(p.quantity || 0);
-        const c = (p.color || '').toLowerCase();
-        if (c.includes('obsidian') || c.includes('black')) {
-          bulkBlack += qty;
-        } else if (c.includes('graphite') || c.includes('grey') || c.includes('gray')) {
-          bulkGrey += qty;
+        const m = (p.model || '').toLowerCase();
+        if (m.includes('base')) {
+          bulkBase += qty;
+        } else if (m.includes('lifestyle')) {
+          bulkLifestyle += qty;
         }
       });
     });
 
-    const totalBlack = websiteBlack + bulkBlack;
-    const totalGrey = websiteGrey + bulkGrey;
-    const totalBottles = totalBlack + totalGrey;
-    const blackPercent = totalBottles > 0 ? ((totalBlack / totalBottles) * 100).toFixed(1) : '0';
-    const greyPercent = totalBottles > 0 ? ((totalGrey / totalBottles) * 100).toFixed(1) : '0';
+    const totalBase = websiteBase + bulkBase;
+    const totalLifestyle = websiteLifestyle + bulkLifestyle;
+    const totalBottles = totalBase + totalLifestyle;
+    const basePercent = totalBottles > 0 ? ((totalBase / totalBottles) * 100).toFixed(1) : '0';
+    const lifestylePercent = totalBottles > 0 ? ((totalLifestyle / totalBottles) * 100).toFixed(1) : '0';
 
     return {
-      websiteBlack,
-      websiteGrey,
-      bulkBlack,
-      bulkGrey,
-      totalBlack,
-      totalGrey,
+      websiteBase,
+      websiteLifestyle,
+      bulkBase,
+      bulkLifestyle,
+      totalBase,
+      totalLifestyle,
       totalBottles,
-      blackPercent,
-      greyPercent,
+      basePercent,
+      lifestylePercent,
     };
   })();
 
@@ -1033,88 +1029,64 @@ export const AdminReports = () => {
           </div>
         </div>
 
-        {/* Bottle Sales by Color (Total Black & Grey) */}
+        {/* Bottle Sales by Edition (Base & Lifestyle) */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex justify-between items-center mb-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                 <Package className="h-5 w-5 text-gray-700" />
-                Bottle Sales by Color
+                Bottle Sales by Edition
               </h2>
-              <p className="text-sm text-gray-500 mt-0.5">Total Black and Grey bottles sold across Website and Bulk orders</p>
+              <p className="text-sm text-gray-500 mt-0.5">Total Base and Lifestyle edition bottles sold across Website and Bulk orders</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Obsidian Black */}
-            <div className="bg-gradient-to-br from-gray-900 to-slate-800 rounded-xl p-6 text-white border border-gray-800 shadow-sm relative overflow-hidden">
+            {/* Base Edition */}
+            <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 shadow-sm">
               <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 rounded-full bg-black border-2 border-gray-400 shadow-inner"></span>
-                  <p className="text-sm font-semibold tracking-wide text-gray-300 uppercase">Obsidian Black</p>
-                </div>
-                <span className="text-xs bg-gray-800/90 text-gray-300 px-2.5 py-1 rounded-full border border-gray-700 font-medium">
-                  {colorStats.blackPercent}%
+                <p className="text-sm font-semibold tracking-wide text-slate-700 uppercase">Base Edition</p>
+                <span className="text-xs bg-slate-200 text-slate-800 px-2.5 py-0.5 rounded-full font-semibold">
+                  {editionBottleStats.basePercent}%
                 </span>
               </div>
-              <p className="text-3xl font-bold text-white mt-3">
-                {colorStats.totalBlack} <span className="text-base font-normal text-gray-300">sold</span>
+              <p className="text-3xl font-bold text-slate-900 mt-2">
+                {editionBottleStats.totalBase} <span className="text-base font-normal text-slate-500">sold</span>
               </p>
-              <div className="flex items-center gap-3 mt-4 pt-3 border-t border-gray-700/60 text-xs text-gray-300">
-                <span>Website: <strong className="text-white font-semibold">{colorStats.websiteBlack}</strong></span>
-                <span className="text-gray-500">•</span>
-                <span>Bulk: <strong className="text-white font-semibold">{colorStats.bulkBlack}</strong></span>
-              </div>
             </div>
 
-            {/* Graphite Grey */}
-            <div className="bg-gradient-to-br from-slate-100 to-gray-200 rounded-xl p-6 text-gray-900 border border-gray-300 shadow-sm relative overflow-hidden">
+            {/* Lifestyle Edition */}
+            <div className="bg-blue-50/60 rounded-xl p-5 border border-blue-200/80 shadow-sm">
               <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 rounded-full bg-slate-500 border-2 border-slate-300 shadow-inner"></span>
-                  <p className="text-sm font-semibold tracking-wide text-gray-700 uppercase">Graphite Grey</p>
-                </div>
-                <span className="text-xs bg-white/80 text-gray-700 px-2.5 py-1 rounded-full border border-gray-300 font-medium">
-                  {colorStats.greyPercent}%
+                <p className="text-sm font-semibold tracking-wide text-blue-900 uppercase">Lifestyle Edition</p>
+                <span className="text-xs bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full font-semibold">
+                  {editionBottleStats.lifestylePercent}%
                 </span>
               </div>
-              <p className="text-3xl font-bold text-gray-900 mt-3">
-                {colorStats.totalGrey} <span className="text-base font-normal text-gray-600">sold</span>
+              <p className="text-3xl font-bold text-blue-900 mt-2">
+                {editionBottleStats.totalLifestyle} <span className="text-base font-normal text-blue-500">sold</span>
               </p>
-              <div className="flex items-center gap-3 mt-4 pt-3 border-t border-gray-300/80 text-xs text-gray-600">
-                <span>Website: <strong className="text-gray-900 font-semibold">{colorStats.websiteGrey}</strong></span>
-                <span className="text-gray-400">•</span>
-                <span>Bulk: <strong className="text-gray-900 font-semibold">{colorStats.bulkGrey}</strong></span>
-              </div>
             </div>
 
-            {/* Grand Total */}
-            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200 shadow-sm relative overflow-hidden">
+            {/* Total Bottles Sold */}
+            <div className="bg-indigo-50/60 rounded-xl p-5 border border-indigo-200/80 shadow-sm">
               <div className="flex justify-between items-center">
-                <p className="text-sm font-semibold tracking-wide text-indigo-700 uppercase">Total Bottles Sold</p>
-                <div className="p-2 bg-indigo-200/80 rounded-lg">
+                <p className="text-sm font-semibold tracking-wide text-indigo-900 uppercase">Total Bottles Sold</p>
+                <div className="p-1.5 bg-indigo-200/80 rounded-lg">
                   <Package className="h-4 w-4 text-indigo-700" />
                 </div>
               </div>
-              <p className="text-3xl font-bold text-indigo-900 mt-3">
-                {colorStats.totalBottles} <span className="text-base font-normal text-indigo-600">bottles</span>
+              <p className="text-3xl font-bold text-indigo-900 mt-2">
+                {editionBottleStats.totalBottles} <span className="text-base font-normal text-indigo-500">bottles</span>
               </p>
-              <div className="mt-3 pt-3 border-t border-indigo-200/80">
-                <div className="flex justify-between text-xs text-indigo-700 mb-1.5 font-medium">
-                  <span>Black: {colorStats.totalBlack} ({colorStats.blackPercent}%)</span>
-                  <span>Grey: {colorStats.totalGrey} ({colorStats.greyPercent}%)</span>
+              <div className="mt-3 pt-3 border-t border-indigo-200/70">
+                <div className="flex justify-between text-xs text-indigo-800 mb-1.5 font-medium">
+                  <span>Base: {editionBottleStats.totalBase} ({editionBottleStats.basePercent}%)</span>
+                  <span>Lifestyle: {editionBottleStats.totalLifestyle} ({editionBottleStats.lifestylePercent}%)</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5 flex overflow-hidden shadow-inner">
-                  <div 
-                    className="bg-gray-900 h-full transition-all duration-300" 
-                    style={{ width: `${colorStats.blackPercent}%` }}
-                    title={`Obsidian Black: ${colorStats.blackPercent}%`}
-                  />
-                  <div 
-                    className="bg-slate-400 h-full transition-all duration-300" 
-                    style={{ width: `${colorStats.greyPercent}%` }}
-                    title={`Graphite Grey: ${colorStats.greyPercent}%`}
-                  />
+                <div className="w-full bg-indigo-200/60 rounded-full h-2 flex overflow-hidden">
+                  <div className="bg-slate-700 h-full transition-all duration-300" style={{ width: `${editionBottleStats.basePercent}%` }} />
+                  <div className="bg-blue-500 h-full transition-all duration-300" style={{ width: `${editionBottleStats.lifestylePercent}%` }} />
                 </div>
               </div>
             </div>
