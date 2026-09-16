@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { X, Mail, Settings, TestTube, Shield, Eye, EyeOff, Edit, Save, Copy, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseAdmin as supabase } from '@/integrations/supabase/admin-client';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { sendEmail } from '@/utils/send-email';
 

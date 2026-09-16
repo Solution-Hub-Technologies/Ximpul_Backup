@@ -12,7 +12,7 @@ import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { Users, Plus, Edit, Trash2, Shield, UserCheck, UserX, Crown, Key, Eye, EyeOff, History, Monitor, Smartphone, Globe, MapPin, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { hashPassword, validatePasswordStrength, verifyPassword } from '@/utils/password';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseAdmin as supabase } from '@/integrations/supabase/admin-client';
 import { trackLogin } from '@/utils/login-tracker';
 import { requireAuth } from '@/utils/supabase-auth';
 
