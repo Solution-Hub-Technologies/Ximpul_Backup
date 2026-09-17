@@ -409,7 +409,7 @@ export const AdminReports = () => {
           'Email': order.customer_email || 'N/A',
           'Location': order.customer_address || 'N/A',
           'Products': order.selected_edition,
-          'Color': order.selected_color === 'obsidian' ? 'OBSIDIAN BLACK' : 'GRAPHITE GREY',
+          'Color': ((order.selected_color || '').toLowerCase().includes('grey') || (order.selected_color || '').toLowerCase().includes('graphite')) ? 'GRAPHITE GREY' : 'OBSIDIAN BLACK',
           'Quantity': totalQuantity,
           'Accessories': order.selected_accessories && order.selected_accessories.length > 0 ? order.selected_accessories.join(', ') : 'None',
           'Payment Method': order.payment_method.toUpperCase(),
@@ -485,7 +485,7 @@ export const AdminReports = () => {
         'Customer': order.customer_name,
         'Phone': order.customer_phone,
         'Edition': order.selected_edition,
-        'Color': order.selected_color === 'obsidian' ? 'OBSIDIAN BLACK' : 'GRAPHITE GREY',
+        'Color': ((order.selected_color || '').toLowerCase().includes('grey') || (order.selected_color || '').toLowerCase().includes('graphite')) ? 'GRAPHITE GREY' : 'OBSIDIAN BLACK',
         'Quantity': totalQuantity,
         'Accessories': order.selected_accessories && order.selected_accessories.length > 0 ? order.selected_accessories.join(', ') : 'None',
         'Payment Method': order.payment_method.toUpperCase(),
@@ -763,7 +763,7 @@ export const AdminReports = () => {
                 let lifestyleRevenue = 0;
                 
                 filteredOrders.forEach(order => {
-                  const edition = order.selected_edition.toLowerCase();
+                  const edition = (order.selected_edition || '').toLowerCase();
                   
                   // Check if this is a manual order (contains × or parentheses)
                   if (edition.includes('×') || edition.includes('(')) {
@@ -790,10 +790,17 @@ export const AdminReports = () => {
                       }
                       
                       // Determine color
-                      if (lowerPart.includes('black')) {
+                      if (lowerPart.includes('black') || lowerPart.includes('obsidian')) {
                         color = 'Obsidian Black';
-                      } else if (lowerPart.includes('grey') || lowerPart.includes('gray')) {
+                      } else if (lowerPart.includes('grey') || lowerPart.includes('gray') || lowerPart.includes('graphite')) {
                         color = 'Graphite Grey';
+                      } else {
+                        const c = (order.selected_color || '').toLowerCase();
+                        if (c.includes('grey') || c.includes('gray') || c.includes('graphite')) {
+                          color = 'Graphite Grey';
+                        } else {
+                          color = 'Obsidian Black';
+                        }
                       }
                       
                       if (editionType && color) {
@@ -817,12 +824,9 @@ export const AdminReports = () => {
                       return;
                     }
 
-                    const normalizedColor = (order.selected_color || '').toLowerCase();
-                    if (normalizedColor !== 'obsidian' && normalizedColor !== 'graphite') {
-                      return;
-                    }
-
-                    const color = normalizedColor === 'obsidian' ? 'Obsidian Black' : 'Graphite Grey';
+                    const c = (order.selected_color || '').toLowerCase();
+                    const isGrey = c.includes('grey') || c.includes('gray') || c.includes('graphite');
+                    const color = isGrey ? 'Graphite Grey' : 'Obsidian Black';
                     
                     // Normalize edition name
                     let editionType = '';
