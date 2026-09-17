@@ -22,6 +22,9 @@ export const AdminReports = () => {
   const [modalData, setModalData] = useState([]);
   const [modalTitle, setModalTitle] = useState('');
   const [modalSearch, setModalSearch] = useState('');
+  const [colorModalOpen, setColorModalOpen] = useState(false);
+  const [selectedColorEdition, setSelectedColorEdition] = useState<'base' | 'lifestyle' | null>(null);
+  const [colorModalSearch, setColorModalSearch] = useState('');
 
   // Filter orders by date range and exclude pending payment, leads, and cancelled orders
   const getFilteredOrders = () => {
@@ -95,10 +98,12 @@ export const AdminReports = () => {
   const engravingRevenue = engravingStats.revenue;
   const totalEngravingCount = engravingStats.count;
 
-  // Calculate bottle sales by edition (Website + Delivered Bulk Orders)
+  // Calculate bottle sales by edition & color (Website + Delivered Bulk Orders)
   const editionBottleStats = (() => {
-    let websiteBase = 0;
-    let websiteLifestyle = 0;
+    let websiteBaseBlack = 0;
+    let websiteBaseGrey = 0;
+    let websiteLifestyleBlack = 0;
+    let websiteLifestyleGrey = 0;
 
     filteredOrders.forEach(order => {
       const edition = (order.selected_edition || '').toLowerCase();
@@ -108,54 +113,243 @@ export const AdminReports = () => {
           const qtyMatch = part.match(/×\s*(\d+)/);
           const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
           const pLower = part.toLowerCase();
-          if (pLower.includes('base')) {
-            websiteBase += qty;
-          } else if (pLower.includes('lifestyle')) {
-            websiteLifestyle += qty;
+          const isBase = pLower.includes('base');
+          const isLifestyle = pLower.includes('lifestyle');
+
+          let isGrey = pLower.includes('graphite') || pLower.includes('grey') || pLower.includes('gray');
+          if (!isGrey && !pLower.includes('obsidian') && !pLower.includes('black')) {
+            const orderColor = (order.selected_color || '').toLowerCase();
+            isGrey = orderColor.includes('graphite') || orderColor.includes('grey') || orderColor.includes('gray');
+          }
+
+          if (isBase) {
+            if (isGrey) websiteBaseGrey += qty;
+            else websiteBaseBlack += qty;
+          } else if (isLifestyle) {
+            if (isGrey) websiteLifestyleGrey += qty;
+            else websiteLifestyleBlack += qty;
           }
         });
       } else {
-        if (edition.includes('base')) {
-          websiteBase += 1;
-        } else if (edition.includes('lifestyle')) {
-          websiteLifestyle += 1;
+        const isBase = edition.includes('base');
+        const isLifestyle = edition.includes('lifestyle');
+        const orderColor = (order.selected_color || '').toLowerCase();
+        const isGrey = orderColor.includes('graphite') || orderColor.includes('grey') || orderColor.includes('gray');
+
+        if (isBase) {
+          if (isGrey) websiteBaseGrey += 1;
+          else websiteBaseBlack += 1;
+        } else if (isLifestyle) {
+          if (isGrey) websiteLifestyleGrey += 1;
+          else websiteLifestyleBlack += 1;
         }
       }
     });
 
-    let bulkBase = 0;
-    let bulkLifestyle = 0;
+    let bulkBaseBlack = 0;
+    let bulkBaseGrey = 0;
+    let bulkLifestyleBlack = 0;
+    let bulkLifestyleGrey = 0;
 
     filteredBulkOrders.forEach(order => {
       order.products?.forEach(p => {
         const qty = parseInt(p.quantity || 0);
         const m = (p.model || '').toLowerCase();
-        if (m.includes('base')) {
-          bulkBase += qty;
-        } else if (m.includes('lifestyle')) {
-          bulkLifestyle += qty;
+        const isBase = m.includes('base');
+        const isLifestyle = m.includes('lifestyle');
+        const c = (p.color || '').toLowerCase();
+        const isGrey = c.includes('graphite') || c.includes('grey') || c.includes('gray');
+
+        if (isBase) {
+          if (isGrey) bulkBaseGrey += qty;
+          else bulkBaseBlack += qty;
+        } else if (isLifestyle) {
+          if (isGrey) bulkLifestyleGrey += qty;
+          else bulkLifestyleBlack += qty;
         }
       });
     });
 
-    const totalBase = websiteBase + bulkBase;
-    const totalLifestyle = websiteLifestyle + bulkLifestyle;
+    const totalBaseBlack = websiteBaseBlack + bulkBaseBlack;
+    const totalBaseGrey = websiteBaseGrey + bulkBaseGrey;
+    const totalBase = totalBaseBlack + totalBaseGrey;
+
+    const totalLifestyleBlack = websiteLifestyleBlack + bulkLifestyleBlack;
+    const totalLifestyleGrey = websiteLifestyleGrey + bulkLifestyleGrey;
+    const totalLifestyle = totalLifestyleBlack + totalLifestyleGrey;
+
     const totalBottles = totalBase + totalLifestyle;
     const basePercent = totalBottles > 0 ? ((totalBase / totalBottles) * 100).toFixed(1) : '0';
     const lifestylePercent = totalBottles > 0 ? ((totalLifestyle / totalBottles) * 100).toFixed(1) : '0';
 
+    const baseBlackPercent = totalBase > 0 ? ((totalBaseBlack / totalBase) * 100).toFixed(1) : '0';
+    const baseGreyPercent = totalBase > 0 ? ((totalBaseGrey / totalBase) * 100).toFixed(1) : '0';
+
+    const lifestyleBlackPercent = totalLifestyle > 0 ? ((totalLifestyleBlack / totalLifestyle) * 100).toFixed(1) : '0';
+    const lifestyleGreyPercent = totalLifestyle > 0 ? ((totalLifestyleGrey / totalLifestyle) * 100).toFixed(1) : '0';
+
     return {
-      websiteBase,
-      websiteLifestyle,
-      bulkBase,
-      bulkLifestyle,
+      websiteBase: websiteBaseBlack + websiteBaseGrey,
+      websiteLifestyle: websiteLifestyleBlack + websiteLifestyleGrey,
+      bulkBase: bulkBaseBlack + bulkBaseGrey,
+      bulkLifestyle: bulkLifestyleBlack + bulkLifestyleGrey,
       totalBase,
       totalLifestyle,
       totalBottles,
       basePercent,
       lifestylePercent,
+      base: {
+        total: totalBase,
+        black: totalBaseBlack,
+        grey: totalBaseGrey,
+        websiteBlack: websiteBaseBlack,
+        websiteGrey: websiteBaseGrey,
+        bulkBlack: bulkBaseBlack,
+        bulkGrey: bulkBaseGrey,
+        blackPercent: baseBlackPercent,
+        greyPercent: baseGreyPercent,
+      },
+      lifestyle: {
+        total: totalLifestyle,
+        black: totalLifestyleBlack,
+        grey: totalLifestyleGrey,
+        websiteBlack: websiteLifestyleBlack,
+        websiteGrey: websiteLifestyleGrey,
+        bulkBlack: bulkLifestyleBlack,
+        bulkGrey: bulkLifestyleGrey,
+        blackPercent: lifestyleBlackPercent,
+        greyPercent: lifestyleGreyPercent,
+      },
     };
   })();
+
+  const getColorModalItems = (targetEdition: 'base' | 'lifestyle') => {
+    const items: Array<{
+      id: string | number;
+      type: 'Website' | 'Bulk';
+      customer_name: string;
+      customer_phone: string;
+      edition: string;
+      color: 'Obsidian Black' | 'Graphite Grey';
+      quantity: number;
+      status: string;
+      date: string;
+    }> = [];
+
+    // From website orders
+    filteredOrders.forEach(order => {
+      const edition = (order.selected_edition || '').toLowerCase();
+      if (edition.includes('×') || edition.includes('(')) {
+        const parts = order.selected_edition.split(',').map(p => p.trim());
+        parts.forEach(part => {
+          const qtyMatch = part.match(/×\s*(\d+)/);
+          const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+          const pLower = part.toLowerCase();
+          const isTarget = targetEdition === 'base' ? pLower.includes('base') : pLower.includes('lifestyle');
+          if (!isTarget) return;
+
+          let isGrey = pLower.includes('graphite') || pLower.includes('grey') || pLower.includes('gray');
+          if (!isGrey && !pLower.includes('obsidian') && !pLower.includes('black')) {
+            const orderColor = (order.selected_color || '').toLowerCase();
+            isGrey = orderColor.includes('graphite') || orderColor.includes('grey') || orderColor.includes('gray');
+          }
+
+          items.push({
+            id: order.order_id,
+            type: 'Website',
+            customer_name: order.customer_name || 'N/A',
+            customer_phone: order.customer_phone || 'N/A',
+            edition: targetEdition === 'base' ? 'Base Edition' : 'Lifestyle Edition',
+            color: isGrey ? 'Graphite Grey' : 'Obsidian Black',
+            quantity: qty,
+            status: order.order_status,
+            date: new Date(order.created_at).toLocaleDateString(),
+          });
+        });
+      } else {
+        const isTarget = targetEdition === 'base' ? edition.includes('base') : edition.includes('lifestyle');
+        if (!isTarget) return;
+
+        const orderColor = (order.selected_color || '').toLowerCase();
+        const isGrey = orderColor.includes('graphite') || orderColor.includes('grey') || orderColor.includes('gray');
+
+        items.push({
+          id: order.order_id,
+          type: 'Website',
+          customer_name: order.customer_name || 'N/A',
+          customer_phone: order.customer_phone || 'N/A',
+          edition: targetEdition === 'base' ? 'Base Edition' : 'Lifestyle Edition',
+          color: isGrey ? 'Graphite Grey' : 'Obsidian Black',
+          quantity: 1,
+          status: order.order_status,
+          date: new Date(order.created_at).toLocaleDateString(),
+        });
+      }
+    });
+
+    // From bulk orders
+    filteredBulkOrders.forEach(order => {
+      order.products?.forEach(p => {
+        const qty = parseInt(p.quantity || 0);
+        const m = (p.model || '').toLowerCase();
+        const isTarget = targetEdition === 'base' ? m.includes('base') : m.includes('lifestyle');
+        if (!isTarget) return;
+
+        const c = (p.color || '').toLowerCase();
+        const isGrey = c.includes('graphite') || c.includes('grey') || c.includes('gray');
+
+        items.push({
+          id: order.id,
+          type: 'Bulk',
+          customer_name: order.customer_name || 'N/A',
+          customer_phone: order.customer_phone || 'N/A',
+          edition: targetEdition === 'base' ? 'Base Edition' : 'Lifestyle Edition',
+          color: isGrey ? 'Graphite Grey' : 'Obsidian Black',
+          quantity: qty,
+          status: order.status,
+          date: new Date(order.created_at).toLocaleDateString(),
+        });
+      });
+    });
+
+    return items;
+  };
+
+  const exportBottleSalesExcel = () => {
+    const baseItems = getColorModalItems('base');
+    const lifestyleItems = getColorModalItems('lifestyle');
+    const allItems = [...baseItems, ...lifestyleItems];
+
+    if (allItems.length === 0) {
+      toast.error('No bottle sales data to export for this period');
+      return;
+    }
+
+    const rows = allItems.map(item => ({
+      'Channel': item.type === 'Website' ? 'Website Order' : 'Bulk Order',
+      'Order ID': item.id,
+      'Date': item.date,
+      'Customer Name': item.customer_name,
+      'Customer Phone': item.customer_phone,
+      'Edition': item.edition,
+      'Color': item.color,
+      'Quantity': item.quantity,
+      'Status': item.status,
+    }));
+
+    const headers = Object.keys(rows[0]);
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => headers.map(h => `"${(row[h] ?? '').toString().replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `ximpul-bottle-sales-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    toast.success('Bottle sales Excel report downloaded successfully');
+  };
 
   const openModal = (type) => {
     let data = [];
@@ -1031,7 +1225,7 @@ export const AdminReports = () => {
 
         {/* Bottle Sales by Edition (Base & Lifestyle) */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                 <Package className="h-5 w-5 text-gray-700" />
@@ -1039,16 +1233,40 @@ export const AdminReports = () => {
               </h2>
               <p className="text-sm text-gray-500 mt-0.5">Total Base and Lifestyle edition bottles sold across Website and Bulk orders</p>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportBottleSalesExcel}
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-gray-900 border-gray-300 hover:bg-gray-50 shadow-sm self-start sm:self-auto"
+              title="Download Bottle Sales Excel (CSV)"
+            >
+              <Download className="h-4 w-4 text-gray-600" />
+              <span>Export Excel</span>
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Base Edition */}
-            <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 shadow-sm">
+            <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
               <div className="flex justify-between items-center">
                 <p className="text-sm font-semibold tracking-wide text-slate-700 uppercase">Base Edition</p>
-                <span className="text-xs bg-slate-200 text-slate-800 px-2.5 py-0.5 rounded-full font-semibold">
-                  {editionBottleStats.basePercent}%
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs bg-slate-200 text-slate-800 px-2.5 py-0.5 rounded-full font-semibold">
+                    {editionBottleStats.basePercent}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedColorEdition('base');
+                      setColorModalSearch('');
+                      setColorModalOpen(true);
+                    }}
+                    title="View Color Breakdown (Obsidian Black & Graphite Grey)"
+                    className="p-1 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-200/80 transition-colors"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               <p className="text-3xl font-bold text-slate-900 mt-2">
                 {editionBottleStats.totalBase} <span className="text-base font-normal text-slate-500">sold</span>
@@ -1056,12 +1274,26 @@ export const AdminReports = () => {
             </div>
 
             {/* Lifestyle Edition */}
-            <div className="bg-blue-50/60 rounded-xl p-5 border border-blue-200/80 shadow-sm">
+            <div className="bg-blue-50/60 rounded-xl p-5 border border-blue-200/80 shadow-sm flex flex-col justify-between">
               <div className="flex justify-between items-center">
                 <p className="text-sm font-semibold tracking-wide text-blue-900 uppercase">Lifestyle Edition</p>
-                <span className="text-xs bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full font-semibold">
-                  {editionBottleStats.lifestylePercent}%
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full font-semibold">
+                    {editionBottleStats.lifestylePercent}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedColorEdition('lifestyle');
+                      setColorModalSearch('');
+                      setColorModalOpen(true);
+                    }}
+                    title="View Color Breakdown (Obsidian Black & Graphite Grey)"
+                    className="p-1 rounded-md text-blue-500 hover:text-blue-900 hover:bg-blue-100 transition-colors"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               <p className="text-3xl font-bold text-blue-900 mt-2">
                 {editionBottleStats.totalLifestyle} <span className="text-base font-normal text-blue-500">sold</span>
@@ -1241,6 +1473,213 @@ export const AdminReports = () => {
           </div>
         </div>
       )}
+
+      {/* Color Breakdown Modal */}
+      {colorModalOpen && selectedColorEdition && (() => {
+        const stats = editionBottleStats[selectedColorEdition];
+        const title = selectedColorEdition === 'base' ? 'Base Edition' : 'Lifestyle Edition';
+        const items = getColorModalItems(selectedColorEdition);
+        const filteredItems = items.filter(item => {
+          if (!colorModalSearch) return true;
+          const s = colorModalSearch.toLowerCase();
+          return (
+            item.id.toString().toLowerCase().includes(s) ||
+            item.customer_name.toLowerCase().includes(s) ||
+            item.customer_phone.toLowerCase().includes(s) ||
+            item.color.toLowerCase().includes(s) ||
+            item.type.toLowerCase().includes(s) ||
+            item.status.toLowerCase().includes(s)
+          );
+        });
+
+        return (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-gray-100">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-slate-50/60">
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-2 rounded-lg ${selectedColorEdition === 'base' ? 'bg-slate-200 text-slate-800' : 'bg-blue-100 text-blue-800'}`}>
+                    <Package className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                      {title} — Color Breakdown
+                    </h3>
+                    <p className="text-xs text-gray-500">Obsidian Black vs. Graphite Grey units sold</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setColorModalOpen(false);
+                    setColorModalSearch('');
+                  }}
+                  className="h-8 w-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors text-lg"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto flex-1 space-y-6">
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Obsidian Black */}
+                  <div className="bg-gradient-to-br from-zinc-900 to-zinc-800 text-white rounded-xl p-4 shadow-sm border border-zinc-700">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-black ring-2 ring-white/30 inline-block" />
+                        <span className="text-xs font-semibold tracking-wider uppercase text-zinc-300">Obsidian Black</span>
+                      </div>
+                      <span className="text-xs bg-white/15 text-white font-semibold px-2 py-0.5 rounded-full">
+                        {stats.blackPercent}%
+                      </span>
+                    </div>
+                    <p className="text-2xl font-bold mt-2">
+                      {stats.black} <span className="text-xs font-normal text-zinc-400">bottles</span>
+                    </p>
+                    <div className="mt-3 pt-2.5 border-t border-white/10 flex justify-between text-[11px] text-zinc-300">
+                      <span>Website: <strong>{stats.websiteBlack}</strong></span>
+                      <span>Bulk: <strong>{stats.bulkBlack}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Graphite Grey */}
+                  <div className="bg-gradient-to-br from-slate-100 to-slate-200/80 text-slate-900 rounded-xl p-4 shadow-sm border border-slate-300">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-slate-500 ring-2 ring-slate-400/40 inline-block" />
+                        <span className="text-xs font-semibold tracking-wider uppercase text-slate-700">Graphite Grey</span>
+                      </div>
+                      <span className="text-xs bg-slate-300 text-slate-800 font-semibold px-2 py-0.5 rounded-full">
+                        {stats.greyPercent}%
+                      </span>
+                    </div>
+                    <p className="text-2xl font-bold mt-2">
+                      {stats.grey} <span className="text-xs font-normal text-slate-500">bottles</span>
+                    </p>
+                    <div className="mt-3 pt-2.5 border-t border-slate-300/80 flex justify-between text-[11px] text-slate-600">
+                      <span>Website: <strong>{stats.websiteGrey}</strong></span>
+                      <span>Bulk: <strong>{stats.bulkGrey}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Total for this edition */}
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold tracking-wider uppercase text-slate-600">Total {title}</span>
+                        <span className="text-xs bg-slate-200 text-slate-700 font-semibold px-2 py-0.5 rounded-full">
+                          100%
+                        </span>
+                      </div>
+                      <p className="text-2xl font-bold text-slate-900 mt-2">
+                        {stats.total} <span className="text-xs font-normal text-slate-500">bottles</span>
+                      </p>
+                    </div>
+                    <div className="mt-3">
+                      <div className="w-full bg-slate-200 rounded-full h-2 flex overflow-hidden">
+                        <div className="bg-zinc-800 h-full transition-all duration-300" style={{ width: `${stats.blackPercent}%` }} />
+                        <div className="bg-slate-400 h-full transition-all duration-300" style={{ width: `${stats.greyPercent}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Orders search & Table */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="text-sm font-semibold text-gray-800">
+                      Orders Breakdown <span className="text-xs font-normal text-gray-500">({filteredItems.length} orders)</span>
+                    </div>
+                    <Input
+                      type="text"
+                      placeholder="Search by ID, customer, phone, color..."
+                      value={colorModalSearch}
+                      onChange={(e) => setColorModalSearch(e.target.value)}
+                      className="w-72 h-8 text-xs"
+                    />
+                  </div>
+
+                  <div className="border border-gray-200 rounded-xl overflow-hidden max-h-[320px] overflow-y-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-xs">
+                      <thead className="bg-gray-50 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left font-semibold text-gray-600">Order ID</th>
+                          <th className="px-4 py-2.5 text-left font-semibold text-gray-600">Channel</th>
+                          <th className="px-4 py-2.5 text-left font-semibold text-gray-600">Customer</th>
+                          <th className="px-4 py-2.5 text-left font-semibold text-gray-600">Phone</th>
+                          <th className="px-4 py-2.5 text-left font-semibold text-gray-600">Color</th>
+                          <th className="px-4 py-2.5 text-left font-semibold text-gray-600">Qty</th>
+                          <th className="px-4 py-2.5 text-left font-semibold text-gray-600">Status</th>
+                          <th className="px-4 py-2.5 text-left font-semibold text-gray-600">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-100">
+                        {filteredItems.length === 0 ? (
+                          <tr>
+                            <td colSpan={8} className="text-center py-6 text-gray-500">
+                              No orders found matching your search.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredItems.map((item, idx) => (
+                            <tr key={`${item.id}-${idx}`} className="hover:bg-gray-50">
+                              <td className="px-4 py-2.5 font-medium text-gray-900">{item.id}</td>
+                              <td className="px-4 py-2.5">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                  item.type === 'Bulk' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {item.type}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 text-gray-800">{item.customer_name}</td>
+                              <td className="px-4 py-2.5 text-gray-600">{item.customer_phone}</td>
+                              <td className="px-4 py-2.5">
+                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                  item.color === 'Obsidian Black'
+                                    ? 'bg-zinc-900 text-white'
+                                    : 'bg-slate-200 text-slate-800'
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${item.color === 'Obsidian Black' ? 'bg-zinc-400' : 'bg-slate-600'}`} />
+                                  {item.color}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 font-bold text-gray-900">{item.quantity}</td>
+                              <td className="px-4 py-2.5">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                  item.status === 'delivered' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {item.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 text-gray-500">{item.date}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setColorModalOpen(false);
+                    setColorModalSearch('');
+                  }}
+                  className="text-xs"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
